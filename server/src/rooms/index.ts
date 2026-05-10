@@ -1,0 +1,1 @@
+export { RoomManager, roomManager } from './RoomManager.js'

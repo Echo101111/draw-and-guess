@@ -1,0 +1,1 @@
+export { registerRoomHandlers } from './roomHandlers.js'
