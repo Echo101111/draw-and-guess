@@ -1,7 +1,7 @@
 import { SERVER_EVENTS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { getRandomWord } from '../data/words.js'
-import type { Room, Player, Point } from '@draw-and-guess/shared'
+import type { Room, Player, Point, SensitivityLevel } from '@draw-and-guess/shared'
 
 const SCORE_BASE = 100
 const SCORE_DRAWER_BONUS = 50
@@ -28,8 +28,8 @@ export class GameManager {
       return false
     }
 
-    const sensitivity = room.players.length < 4 ? 'safe' : 'moderate'
-    const word = getRandomWord(this.getUsedWords(roomId), undefined, sensitivity)
+    const sensitivityLevel: SensitivityLevel = room.players.length < 4 ? 'safe' : 'moderate'
+    const word = getRandomWord(this.getUsedWords(roomId), undefined, sensitivityLevel)
     if (!word) return false
 
     this.getUsedWords(roomId).add(word)

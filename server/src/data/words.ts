@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto'
+import type { SensitivityLevel } from '@draw-and-guess/shared'
 
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array]
@@ -67,8 +68,6 @@ const WORDS = {
   ],
 }
 
-type SensitivityLevel = 'safe' | 'moderate'
-
 const WORD_SENSITIVITY: Record<keyof typeof WORDS, SensitivityLevel> = {
   animals: 'safe',
   food: 'safe',
@@ -106,10 +105,9 @@ export function getRandomWord(
     return available[Math.floor(randomBytes(4).readUInt32LE(0) / 0xffffffff * available.length)]
   }
 
-  // Fallback: if all words used, allow reuse (reset and pick randomly)
+  // Fallback: if all words used, reset and pick randomly
   // This handles edge case where usedWords size >= pool size
   if (pools.length > 0) {
-    usedWords.clear()
     return pools[Math.floor(randomBytes(4).readUInt32LE(0) / 0xffffffff * pools.length)]
   }
 

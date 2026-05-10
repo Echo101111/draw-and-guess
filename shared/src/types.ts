@@ -82,3 +82,6 @@ export interface RoomErrorPayload {
   code: ErrorCode
   message: string
 }
+
+// === Word Sensitivity ===
+export type SensitivityLevel = 'safe' | 'moderate'
