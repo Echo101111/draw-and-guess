@@ -1,16 +1,16 @@
-import { randomUUID } from 'crypto'
+import { randomUUID, randomFillSync } from 'crypto'
+import bcrypt from 'bcrypt'
 import type { Player, Room, RoomErrorPayload } from '@draw-and-guess/shared'
 import { ErrorCode } from '@draw-and-guess/shared'
 
-const ROOM_CODE_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+const BCRYPT_ROUNDS = 10
 const ROOM_CODE_LENGTH = 6
 
 function generateRoomCode(): string {
-  let code = ''
-  for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
-    code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)]
-  }
-  return code
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  const randomValues = new Uint8Array(ROOM_CODE_LENGTH)
+  randomFillSync(randomValues)
+  return Array.from(randomValues, (v) => chars[v % chars.length]).join('')
 }
 
 function createPlayer(nickname: string, isOwner = false): Player {
@@ -48,14 +48,15 @@ export class RoomManager {
   private codeToRoomId = new Map<string, string>()
   private dismissTimers = new Map<string, NodeJS.Timeout>()
 
-  createRoom(
+  async createRoom(
     nickname: string,
     roomName: string,
     maxPlayers: number,
     password: string
-  ): { room: Room; player: Player } {
+  ): Promise<{ room: Room; player: Player }> {
     const owner = createPlayer(nickname, true)
-    const room = createRoom(roomName, maxPlayers, password, owner)
+    const hashedPassword = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : ''
+    const room = createRoom(roomName, maxPlayers, hashedPassword, owner)
 
     // Generate unique room code
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -75,11 +76,11 @@ export class RoomManager {
     return { room, player: owner }
   }
 
-  joinRoom(
+  async joinRoom(
     code: string,
     password: string,
     nickname: string
-  ): { room: Room; player: Player } | { error: RoomErrorPayload } {
+  ): Promise<{ room: Room; player: Player } | { error: RoomErrorPayload }> {
     const roomId = this.codeToRoomId.get(code.toLowerCase())
     if (!roomId) {
       return { error: { code: ErrorCode.ROOM_NOT_FOUND, message: '房间不存在或已结束' } }
@@ -90,7 +91,7 @@ export class RoomManager {
       return { error: { code: ErrorCode.ROOM_FULL, message: '房间人数已满' } }
     }
 
-    if (room.password && room.password !== password) {
+    if (room.password && !(await bcrypt.compare(password, room.password))) {
       return { error: { code: ErrorCode.ROOM_PASSWORD_WRONG, message: '密码错误' } }
     }
 

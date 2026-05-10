@@ -42,7 +42,7 @@ function getPlayerRoomData(room: Room) {
 }
 
 export function registerRoomHandlers(io: TypedServer, socket: TypedSocket): void {
-  socket.on(CLIENT_EVENTS.CREATE_ROOM, ({ nickname, roomName, maxPlayers, password }) => {
+  socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password }) => {
     const trimmedNickname = nickname.trim()
     if (!trimmedNickname || trimmedNickname.length > 10) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
@@ -53,7 +53,7 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket): void
     }
 
     try {
-      const { room, player } = roomManager.createRoom(
+      const { room, player } = await roomManager.createRoom(
         trimmedNickname,
         roomName?.trim() || '房间',
         maxPlayers ?? 50,
@@ -81,7 +81,7 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket): void
     }
   })
 
-  socket.on(CLIENT_EVENTS.JOIN_ROOM, ({ roomCode, password, nickname }) => {
+  socket.on(CLIENT_EVENTS.JOIN_ROOM, async ({ roomCode, password, nickname }) => {
     const trimmedNickname = nickname.trim()
     if (!trimmedNickname || trimmedNickname.length > 10) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
@@ -91,7 +91,7 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket): void
       return
     }
 
-    const result = roomManager.joinRoom(roomCode, password ?? '', trimmedNickname)
+    const result = await roomManager.joinRoom(roomCode, password ?? '', trimmedNickname)
 
     if ('error' in result) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, result.error)
