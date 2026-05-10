@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getSocket, connectSocket } from '@/composables/useSocket'
+import { getSocket, connectSocket, saveSession, clearSession } from '@/composables/useSocket'
 import { CLIENT_EVENTS, SERVER_EVENTS, type Player } from '@draw-and-guess/shared'
 
 interface RoomPlayer {
@@ -28,6 +28,7 @@ export const useRoomStore = defineStore('room', () => {
   const currentPlayer = ref<Player | null>(null)
   const connectionState = ref<'disconnected' | 'connecting' | 'connected'>('disconnected')
   const error = ref<string | null>(null)
+  const isSpectator = ref(false)
 
   const isOwner = computed(() => {
     const player = room.value?.players.find((p) => p.id === currentPlayerId.value)
@@ -40,9 +41,20 @@ export const useRoomStore = defineStore('room', () => {
     const socket = getSocket()
 
     socket.on(SERVER_EVENTS.ROOM_CREATED, (data) => {
+      room.value = {
+        id: data.roomId,
+        code: data.roomCode,
+        name: '',
+        state: 'lobby',
+        maxPlayers: 50,
+        players: [],
+        currentRound: 0,
+        totalRounds: 10,
+      }
       currentPlayerId.value = data.playerId
       connectionState.value = 'connected'
       error.value = null
+      clearSession()
     })
 
     socket.on(SERVER_EVENTS.ROOM_JOINED, (data) => {
@@ -66,6 +78,23 @@ export const useRoomStore = defineStore('room', () => {
       room.value = null
       currentPlayerId.value = null
       connectionState.value = 'disconnected'
+      clearSession()
+    })
+
+    socket.on(SERVER_EVENTS.SESSION_RESTORED, (data) => {
+      room.value = data.room
+      currentPlayerId.value = data.playerId
+      connectionState.value = 'connected'
+      error.value = null
+      isSpectator.value = false
+    })
+
+    socket.on(SERVER_EVENTS.SPECTATOR_JOINED, (data) => {
+      room.value = data.room
+      currentPlayerId.value = `spectator-${data.room.code}`
+      connectionState.value = 'connected'
+      error.value = null
+      isSpectator.value = true
     })
   }
 
@@ -83,6 +112,10 @@ export const useRoomStore = defineStore('room', () => {
       maxPlayers: options?.maxPlayers,
       password: options?.password,
     })
+
+    socket.once(SERVER_EVENTS.ROOM_CREATED, (data) => {
+      saveSession(data.roomCode, data.playerId, nickname)
+    })
   }
 
   const joinRoom = (roomCode: string, nickname: string, password?: string) => {
@@ -95,6 +128,18 @@ export const useRoomStore = defineStore('room', () => {
       nickname,
       password,
     })
+
+    socket.once(SERVER_EVENTS.ROOM_JOINED, (data) => {
+      saveSession(data.room.code, data.playerId, nickname)
+    })
+  }
+
+  const joinAsSpectator = (roomCode: string, password?: string) => {
+    connectionState.value = 'connecting'
+    error.value = null
+    const socket = connectSocket()
+    setupSocketListeners()
+    socket.emit(CLIENT_EVENTS.JOIN_AS_SPECTATOR, { roomCode, password })
   }
 
   const leaveRoom = () => {
@@ -105,6 +150,8 @@ export const useRoomStore = defineStore('room', () => {
     room.value = null
     currentPlayerId.value = null
     connectionState.value = 'disconnected'
+    isSpectator.value = false
+    clearSession()
   }
 
   const kickPlayer = (playerId: string) => {
@@ -132,10 +179,12 @@ export const useRoomStore = defineStore('room', () => {
     connectionState,
     error,
     isOwner,
+    isSpectator,
     players,
     setupSocketListeners,
     createRoom,
     joinRoom,
+    joinAsSpectator,
     leaveRoom,
     kickPlayer,
     startGame,

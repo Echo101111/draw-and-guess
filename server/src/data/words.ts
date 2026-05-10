@@ -52,10 +52,10 @@ const WORDS = {
     '跑步', '跳远', '跳高', '标枪', '铅球', '铁饼', '体操', '瑜伽', '跳舞', '啦啦队',
   ],
   jobs: [
-    '医生', '护士', '老师', '警察', '消防员', '厨师', '司机', '飞行员', '护士', '律师',
-    '法官', '警察', '军官', '士兵', '记者', '作家', '画家', '音乐家', '演员', '歌手',
-    '舞蹈家', '建筑师', '工程师', '科学家', '医生', '会计', '律师', '设计师', '摄影师', '主持人',
-    '导游', '服务员', '售货员', '快递员', '农民', '渔夫', '矿工', '木匠', '电工', '水管工',
+    '医生', '护士', '老师', '警察', '消防员', '厨师', '司机', '飞行员', '律师', '法官',
+    '记者', '作家', '画家', '音乐家', '演员', '歌手', '舞蹈家', '建筑师', '工程师', '科学家',
+    '会计', '设计师', '摄影师', '主持人', '导游', '服务员', '售货员', '快递员', '农民', '渔夫',
+    '矿工', '木匠', '电工', '水管工', '飞行员', '船长', '空姐', '店长', '经理', '总统',
   ],
   shapes: [
     '圆形', '方形', '三角形', '长方形', '椭圆形', '菱形', '五边形', '六边形', '心形', '星形',
@@ -63,24 +63,54 @@ const WORDS = {
   ],
   colors: [
     '红色', '蓝色', '绿色', '黄色', '紫色', '橙色', '粉色', '黑色', '白色', '灰色',
-    '棕色', '金色', '银色', '青色', '米色', '紫色', '深蓝', '浅绿', '暗红', '天蓝',
+    '棕色', '金色', '银色', '青色', '米色', '深蓝', '浅绿', '暗红', '天蓝', '粉红',
   ],
+}
+
+type SensitivityLevel = 'safe' | 'moderate'
+
+const WORD_SENSITIVITY: Record<keyof typeof WORDS, SensitivityLevel> = {
+  animals: 'safe',
+  food: 'safe',
+  daily: 'safe',
+  vehicles: 'safe',
+  nature: 'safe',
+  sports: 'safe',
+  jobs: 'moderate',
+  shapes: 'safe',
+  colors: 'safe',
 }
 
 export const WORD_CATEGORIES = Object.keys(WORDS) as (keyof typeof WORDS)[]
 
-export function getRandomWord(usedWords: Set<string>, categories?: (keyof typeof WORDS)[]): string | null {
-  const pools = categories ? categories.map((c) => WORDS[c]).flat() : Object.values(WORDS).flat()
+export function getRandomWord(
+  usedWords: Set<string>,
+  categories?: (keyof typeof WORDS)[],
+  sensitivity: SensitivityLevel | 'all' = 'all'
+): string | null {
+  let pools = categories ? categories.map((c) => WORDS[c]).flat() : Object.values(WORDS).flat()
+
+  if (sensitivity !== 'all') {
+    const allowedCategories = (Object.entries(WORD_SENSITIVITY) as [keyof typeof WORDS, SensitivityLevel][])
+      .filter(([, level]) => level === sensitivity || level === 'safe')
+      .map(([category]) => category)
+    pools = pools.filter((word) => {
+      const category = (Object.entries(WORDS) as [keyof typeof WORDS, string[]][]).find(([, words]) => words.includes(word))
+      return category && allowedCategories.includes(category[0])
+    })
+  }
+
   const available = pools.filter((w) => !usedWords.has(w))
 
   if (available.length > 0) {
     return available[Math.floor(randomBytes(4).readUInt32LE(0) / 0xffffffff * available.length)]
   }
 
-  // Fallback: return from all pools excluding usedWords (shouldn't happen normally)
-  const allAvailable = pools.filter((w) => !usedWords.has(w))
-  if (allAvailable.length > 0) {
-    return allAvailable[Math.floor(randomBytes(4).readUInt32LE(0) / 0xffffffff * allAvailable.length)]
+  // Fallback: if all words used, allow reuse (reset and pick randomly)
+  // This handles edge case where usedWords size >= pool size
+  if (pools.length > 0) {
+    usedWords.clear()
+    return pools[Math.floor(randomBytes(4).readUInt32LE(0) / 0xffffffff * pools.length)]
   }
 
   return null

@@ -28,7 +28,8 @@ export class GameManager {
       return false
     }
 
-    const word = getRandomWord(this.getUsedWords(roomId))
+    const sensitivity = room.players.length < 4 ? 'safe' : 'moderate'
+    const word = getRandomWord(this.getUsedWords(roomId), undefined, sensitivity)
     if (!word) return false
 
     this.getUsedWords(roomId).add(word)

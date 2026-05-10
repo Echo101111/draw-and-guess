@@ -47,6 +47,8 @@ export class RoomManager {
   private rooms = new Map<string, Room>()
   private codeToRoomId = new Map<string, string>()
   private dismissTimers = new Map<string, NodeJS.Timeout>()
+  private disconnectTimers = new Map<string, NodeJS.Timeout>()
+  private RECONNECT_TIMEOUT = 60_000
 
   async createRoom(
     nickname: string,
@@ -177,12 +179,43 @@ export class RoomManager {
   }
 
   updatePlayerSession(roomId: string, playerId: string, sessionId: string): void {
+    this.cancelDisconnectTimer(playerId)
+
     const room = this.rooms.get(roomId)
     if (!room) return
 
     const player = room.players.find((p) => p.id === playerId)
     if (player) {
       player.sessionId = sessionId
+    }
+  }
+
+  startDisconnectTimer(playerId: string): void {
+    this.cancelDisconnectTimer(playerId)
+    const timer = setTimeout(() => {
+      this.handleDisconnectTimeout(playerId)
+    }, this.RECONNECT_TIMEOUT)
+    this.disconnectTimers.set(playerId, timer)
+  }
+
+  cancelDisconnectTimer(playerId: string): void {
+    const timer = this.disconnectTimers.get(playerId)
+    if (timer) {
+      clearTimeout(timer)
+      this.disconnectTimers.delete(playerId)
+    }
+  }
+
+  private handleDisconnectTimeout(playerId: string): void {
+    for (const [, room] of this.rooms) {
+      const idx = room.players.findIndex((p) => p.id === playerId)
+      if (idx !== -1) {
+        room.players.splice(idx, 1)
+        if (room.players.length > 0 && !room.players.some((p) => p.isOwner)) {
+          room.players[0].isOwner = true
+        }
+        break
+      }
     }
   }
 

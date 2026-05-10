@@ -1,6 +1,7 @@
 import { CLIENT_EVENTS, SERVER_EVENTS, ErrorCode } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { gameManager } from '../game/index.js'
+import bcrypt from 'bcrypt'
 import type { Room } from '@draw-and-guess/shared'
 
 function getPlayerRoomData(room: Room) {
@@ -135,7 +136,82 @@ export function registerRoomHandlers(io: any, socket: any): void {
   })
 
   socket.on('disconnect', () => {
-    handleLeave(io, socket)
+    const { roomId, playerId, isSpectator } = socket.data
+    if (!roomId || !playerId) return
+
+    if (isSpectator) {
+      handleLeave(io, socket)
+      return
+    }
+
+    roomManager.startDisconnectTimer(playerId)
+  })
+
+  socket.on(CLIENT_EVENTS.RESTORE_SESSION, ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+    const room = roomManager.getRoomByCode(roomCode)
+    if (!room) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: '房间不存在或已结束',
+      })
+      return
+    }
+
+    const player = room.players.find((p) => p.id === playerId)
+    if (!player) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: '无法恢复会话，请重新加入',
+      })
+      return
+    }
+
+    roomManager.cancelDisconnectTimer(playerId)
+    roomManager.updatePlayerSession(room.id, playerId, socket.id)
+
+    socket.data.roomId = room.id
+    socket.data.playerId = playerId
+    socket.data.roomCode = room.code
+
+    socket.join(room.code)
+
+    socket.emit(SERVER_EVENTS.SESSION_RESTORED, {
+      room: getPlayerRoomData(room),
+      playerId: player.id,
+      isOwner: player.isOwner,
+    })
+
+    io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
+  })
+
+  socket.on(CLIENT_EVENTS.JOIN_AS_SPECTATOR, async ({ roomCode, password }: { roomCode: string; password?: string }) => {
+    const room = roomManager.getRoomByCode(roomCode)
+    if (!room) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: '房间不存在',
+      })
+      return
+    }
+
+    if (room.password && !(await bcrypt.compare(password ?? '', room.password))) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_PASSWORD_WRONG,
+        message: '密码错误',
+      })
+      return
+    }
+
+    socket.data.roomId = room.id
+    socket.data.roomCode = room.code
+    socket.data.isSpectator = true
+
+    socket.join(room.code)
+
+    socket.emit(SERVER_EVENTS.SPECTATOR_JOINED, {
+      room: getPlayerRoomData(room),
+      isPlaying: room.state === 'playing',
+    })
   })
 }
 

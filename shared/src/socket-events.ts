@@ -10,6 +10,8 @@ export const CLIENT_EVENTS = {
   CLEAR_CANVAS: 'c_clear_canvas',
   SUBMIT_ANSWER: 'c_submit_answer',
   CHAT_MESSAGE: 'c_chat_message',
+  RESTORE_SESSION: 'c_restore_session',
+  JOIN_AS_SPECTATOR: 'c_join_as_spectator',
 } as const
 
 // Server → Client events
@@ -29,6 +31,8 @@ export const SERVER_EVENTS = {
   ROUND_END: 's_round_end',
   GAME_OVER: 's_game_over',
   CHAT_MESSAGE: 's_chat_message',
+  SESSION_RESTORED: 's_session_restored',
+  SPECTATOR_JOINED: 's_spectator_joined',
 } as const
 
 export type ClientToServerEvents = typeof CLIENT_EVENTS
