@@ -1,26 +1,7 @@
-import type { Server, Socket } from 'socket.io'
 import { CLIENT_EVENTS, SERVER_EVENTS, ErrorCode } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
+import { gameManager } from '../game/index.js'
 import type { Room } from '@draw-and-guess/shared'
-
-interface ServerToClientEvents {
-  [SERVER_EVENTS.ROOM_CREATED]: (data: { roomCode: string; roomId: string; playerId: string; isOwner: boolean }) => void
-  [SERVER_EVENTS.ROOM_JOINED]: (data: { room: ReturnType<typeof getPlayerRoomData>; playerId: string; isOwner: boolean }) => void
-  [SERVER_EVENTS.ROOM_ERROR]: (data: { code: ErrorCode; message: string }) => void
-  [SERVER_EVENTS.ROOM_UPDATED]: (data: { room: ReturnType<typeof getPlayerRoomData> }) => void
-  [SERVER_EVENTS.KICKED]: (data: { reason: string }) => void
-}
-
-interface ClientToServerEvents {
-  [CLIENT_EVENTS.CREATE_ROOM]: (data: { nickname: string; roomName?: string; maxPlayers?: number; password?: string }) => void
-  [CLIENT_EVENTS.JOIN_ROOM]: (data: { roomCode: string; password?: string; nickname: string }) => void
-  [CLIENT_EVENTS.LEAVE_ROOM]: () => void
-  [CLIENT_EVENTS.KICK_PLAYER]: (data: { playerId: string }) => void
-  [CLIENT_EVENTS.START_GAME]: () => void
-}
-
-type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>
-type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>
 
 function getPlayerRoomData(room: Room) {
   return {
@@ -41,8 +22,9 @@ function getPlayerRoomData(room: Room) {
   }
 }
 
-export function registerRoomHandlers(io: TypedServer, socket: TypedSocket): void {
-  socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password }) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function registerRoomHandlers(io: any, socket: any): void {
+  socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password }: { nickname: string; roomName?: string; maxPlayers?: number; password?: string }) => {
     const trimmedNickname = nickname.trim()
     if (!trimmedNickname || trimmedNickname.length > 10) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
@@ -81,7 +63,7 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket): void
     }
   })
 
-  socket.on(CLIENT_EVENTS.JOIN_ROOM, async ({ roomCode, password, nickname }) => {
+  socket.on(CLIENT_EVENTS.JOIN_ROOM, async ({ roomCode, password, nickname }: { roomCode: string; password?: string; nickname: string }) => {
     const trimmedNickname = nickname.trim()
     if (!trimmedNickname || trimmedNickname.length > 10) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
@@ -119,7 +101,7 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket): void
     handleLeave(io, socket)
   })
 
-  socket.on(CLIENT_EVENTS.KICK_PLAYER, ({ playerId }) => {
+  socket.on(CLIENT_EVENTS.KICK_PLAYER, ({ playerId }: { playerId: string }) => {
     const { roomId, playerId: hostId } = socket.data
     if (!roomId) return
 
@@ -148,6 +130,7 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket): void
     const room = roomManager.getRoomById(roomId)
     if (room) {
       io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
+      gameManager.startRound(roomId)
     }
   })
 
@@ -156,7 +139,8 @@ export function registerRoomHandlers(io: TypedServer, socket: TypedSocket): void
   })
 }
 
-function handleLeave(io: TypedServer, socket: TypedSocket): void {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function handleLeave(io: any, socket: any): void {
   const { roomId, playerId } = socket.data
   if (!roomId || !playerId) return
 

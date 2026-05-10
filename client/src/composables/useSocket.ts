@@ -1,10 +1,11 @@
 import { io, type Socket } from 'socket.io-client'
 
 let socket: Socket | null = null
+let serverUrl = 'http://localhost:3000'
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3000', {
+    socket = io(serverUrl, {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 5,
@@ -14,7 +15,10 @@ export function getSocket(): Socket {
   return socket
 }
 
-export function connectSocket(): Socket {
+export function connectSocket(url?: string): Socket {
+  if (url) {
+    serverUrl = url
+  }
   const s = getSocket()
   if (!s.connected) {
     s.connect()

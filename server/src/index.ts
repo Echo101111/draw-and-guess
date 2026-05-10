@@ -1,19 +1,26 @@
 import express from 'express'
 import { createServer } from 'http'
-import { Server } from 'socket.io'
+import { Server as SocketIOServer } from 'socket.io'
 import { config } from './config.js'
 import { healthRouter } from './routes/health.js'
 import { registerRoomHandlers } from './socket/index.js'
+import { registerGameHandlers } from './socket/gameHandlers.js'
 
 const app = express()
 const httpServer = createServer(app)
 
-const io = new Server(httpServer, {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+;(global as any).io = null
+
+const io = new SocketIOServer(httpServer, {
   cors: {
     origin: process.env.CLIENT_URL ?? 'http://localhost:5173',
     methods: ['GET', 'POST'],
   },
 })
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+;(global as any).io = io
 
 app.use(express.json())
 app.use('/health', healthRouter)
@@ -22,6 +29,7 @@ io.on('connection', (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`)
 
   registerRoomHandlers(io, socket)
+  registerGameHandlers(io, socket)
 
   socket.on('disconnect', () => {
     console.log(`[Socket] Client disconnected: ${socket.id}`)
@@ -31,3 +39,5 @@ io.on('connection', (socket) => {
 httpServer.listen(config.port, () => {
   console.log(`[Server] Running on port ${config.port} (${config.nodeEnv})`)
 })
+
+export { io }

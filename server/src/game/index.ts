@@ -1,0 +1,1 @@
+export { GameManager, gameManager } from './GameManager.js'
