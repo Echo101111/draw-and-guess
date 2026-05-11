@@ -153,6 +153,9 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
+    // Reset any lingering game state (e.g. after game_over) before starting fresh
+    gameManager.resetGame(roomId)
+
     const result = roomManager.startGame(roomId, playerId)
     console.log(`[Room] START_GAME result: success=${result.success}, error=${result.error}`)
 
