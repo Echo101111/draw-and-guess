@@ -14,6 +14,7 @@ interface RoundTimer {
 
 export class GameManager {
   private roundTimers = new Map<string, RoundTimer>()
+  private restartTimers = new Map<string, NodeJS.Timeout>()
   private strokes = new Map<string, Point[]>()
   private usedWords = new Map<string, Set<string>>()
   private currentDrawerId = new Map<string, string>()
@@ -259,11 +260,69 @@ export class GameManager {
       })
     }
 
+    // Auto-restart game after 15 seconds
+    this.scheduleAutoRestart(roomId)
+
     return true
+  }
+
+  private scheduleAutoRestart(roomId: string): void {
+    this.clearRestartTimer(roomId)
+    const timer = setTimeout(() => {
+      this.restartTimers.delete(roomId)
+      this.autoRestartGame(roomId)
+    }, 15_000)
+    this.restartTimers.set(roomId, timer)
+  }
+
+  clearRestartTimer(roomId: string): void {
+    const timer = this.restartTimers.get(roomId)
+    if (timer) {
+      clearTimeout(timer)
+      this.restartTimers.delete(roomId)
+    }
+  }
+
+  autoRestartGame(roomId: string): void {
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.state !== 'gameover') return
+
+    roomManager.resetGameState(roomId)
+    room.state = 'playing'
+    room.currentRound = 1
+
+    this.usedWords.delete(roomId)
+    this.strokes.delete(roomId)
+    this.currentDrawerId.delete(roomId)
+
+    const io = this.getIO()
+    if (io) {
+      io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, {
+        room: {
+          id: room.id,
+          code: room.code,
+          name: room.name,
+          state: room.state,
+          maxPlayers: room.maxPlayers,
+          players: room.players.map((p) => ({
+            id: p.id,
+            nickname: p.nickname,
+            isOwner: p.isOwner,
+            score: p.score,
+            hasGuessedCorrectly: p.hasGuessedCorrectly,
+          })),
+          currentRound: room.currentRound,
+          totalRounds: room.totalRounds,
+        },
+      })
+    }
+
+    this.startRound(roomId)
   }
 
   resetGame(roomId: string): void {
     this.clearTimer(roomId)
+    this.clearRestartTimer(roomId)
     this.usedWords.delete(roomId)
     this.strokes.delete(roomId)
     this.currentDrawerId.delete(roomId)
