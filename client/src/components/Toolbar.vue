@@ -1,27 +1,69 @@
 <template>
-  <div class="toolbar">
-    <div class="tool-group">
-      <button
-        :class="['tool-btn', { active: canvasStore.tool === 'brush' }]"
-        @click="canvasStore.setTool('brush')"
-        title="画笔"
-      >
-        <span class="tool-icon">✏️</span>
-        <span class="tool-label">画笔</span>
-      </button>
-      <button
-        :class="['tool-btn', { active: canvasStore.tool === 'eraser' }]"
-        @click="canvasStore.setTool('eraser')"
-        title="橡皮擦"
-      >
-        <span class="tool-icon">🧹</span>
-        <span class="tool-label">橡皮</span>
-      </button>
+  <div class="toolbar-wrap">
+    <div class="toolbar">
+      <div class="tool-group">
+        <button
+          :class="['tool-btn', { active: canvasStore.tool === 'brush' }]"
+          @click="canvasStore.setTool('brush')"
+          title="画笔"
+        >
+          <span class="tool-icon">✏️</span>
+          <span class="tool-label">画笔</span>
+        </button>
+        <button
+          :class="['tool-btn', { active: canvasStore.tool === 'eraser' }]"
+          @click="canvasStore.setTool('eraser')"
+          title="橡皮擦"
+        >
+          <span class="tool-icon">🧹</span>
+          <span class="tool-label">橡皮</span>
+        </button>
+      </div>
+
+      <div class="divider hide-mobile" />
+
+      <div class="tool-group colors hide-mobile">
+        <button
+          v-for="c in canvasStore.PRESET_COLORS"
+          :key="c"
+          :class="['color-btn', { active: canvasStore.color === c && canvasStore.tool === 'brush' }]"
+          :style="{ backgroundColor: c }"
+          :title="c"
+          @click="selectColor(c)"
+        />
+      </div>
+
+      <div class="divider" />
+
+      <div class="tool-group widths">
+        <button
+          v-for="(size, name) in canvasStore.WIDTH_PRESETS"
+          :key="name"
+          :class="['width-btn', { active: canvasStore.width === size }]"
+          @click="selectWidth(size)"
+          :title="name"
+        >
+          <span
+            class="width-dot"
+            :style="{
+              width: size * 2 + 2 + 'px',
+              height: size * 2 + 2 + 'px',
+            }"
+          />
+        </button>
+      </div>
+
+      <div class="divider" />
+
+      <div class="tool-group">
+        <button class="tool-btn btn-clear" @click="handleClear" title="清空画布">
+          <span class="tool-icon">🗑️</span>
+          <span class="tool-label">清空</span>
+        </button>
+      </div>
     </div>
 
-    <div class="divider" />
-
-    <div class="tool-group colors">
+    <div class="mobile-colors-row">
       <button
         v-for="c in canvasStore.PRESET_COLORS"
         :key="c"
@@ -30,35 +72,6 @@
         :title="c"
         @click="selectColor(c)"
       />
-    </div>
-
-    <div class="divider" />
-
-    <div class="tool-group widths">
-      <button
-        v-for="(size, name) in canvasStore.WIDTH_PRESETS"
-        :key="name"
-        :class="['width-btn', { active: canvasStore.width === size }]"
-        @click="selectWidth(size)"
-        :title="name"
-      >
-        <span
-          class="width-dot"
-          :style="{
-            width: size * 2 + 2 + 'px',
-            height: size * 2 + 2 + 'px',
-          }"
-        />
-      </button>
-    </div>
-
-    <div class="divider" />
-
-    <div class="tool-group">
-      <button class="tool-btn btn-clear" @click="handleClear" title="清空画布">
-        <span class="tool-icon">🗑️</span>
-        <span class="tool-label">清空</span>
-      </button>
     </div>
   </div>
 </template>
@@ -87,6 +100,13 @@ function handleClear() {
 </script>
 
 <style scoped>
+.toolbar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
 .toolbar {
   display: flex;
   gap: 0.5rem;
@@ -104,6 +124,7 @@ function handleClear() {
   display: flex;
   gap: 0.3rem;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .divider {
@@ -211,31 +232,42 @@ function handleClear() {
   background: var(--color-danger-light);
 }
 
+.mobile-colors-row {
+  display: none;
+}
+
+.hide-mobile {
+  display: flex;
+}
+
 /* ─── Mobile ─── */
 @media (max-width: 600px) {
-  .toolbar {
-    gap: 0.35rem;
-    padding: 0.4rem 0.5rem;
-    border-radius: var(--radius-md);
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    justify-content: flex-start;
+  .toolbar-wrap {
+    gap: 0.25rem;
   }
 
-  .toolbar::-webkit-scrollbar {
-    display: none;
+  .toolbar {
+    gap: 0.15rem;
+    padding: 0.3rem 0.4rem;
+    border-radius: var(--radius-md);
+    flex-wrap: nowrap;
+    justify-content: center;
+  }
+
+  .tool-group {
+    flex-shrink: 0;
   }
 
   .divider {
-    height: 20px;
+    height: 18px;
+    flex-shrink: 0;
   }
 
   .tool-btn {
-    padding: 0.3rem 0.5rem;
-    font-size: 0.75rem;
+    padding: 0.25rem 0.35rem;
+    font-size: 0.7rem;
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .tool-icon {
@@ -243,17 +275,45 @@ function handleClear() {
   }
 
   .tool-label {
-    font-size: 0.75rem;
-  }
-
-  .color-btn {
-    width: 22px;
-    height: 22px;
+    display: none;
   }
 
   .width-btn {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+
+  .btn-clear {
+    padding: 0.25rem 0.35rem;
+  }
+
+  .hide-mobile {
+    display: none;
+  }
+
+  .mobile-colors-row {
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.2rem 0.4rem;
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border-light);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .mobile-colors-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-colors-row .color-btn {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
   }
 }
 </style>

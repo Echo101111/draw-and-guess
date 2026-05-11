@@ -39,6 +39,16 @@
         </div>
 
         <div v-else-if="gameStore.state === 'playing'" class="playing">
+          <Transition name="pop">
+            <div v-if="showDrawerAlert" class="drawer-alert" @click="closeDrawerAlert">
+              <div class="drawer-alert-box" @click="closeDrawerAlert">
+                <button class="drawer-alert-close" @click="closeDrawerAlert" title="关闭">✕</button>
+                <div class="drawer-alert-icon">🎨</div>
+                <div class="drawer-alert-text">轮到你了！</div>
+                <div class="drawer-alert-sub">你是画师，开始画画吧</div>
+              </div>
+            </div>
+          </Transition>
           <div class="role-info">
             <span v-if="gameStore.myRole === 'drawer'" class="role-badge drawer-badge">
               <span class="role-icon">🖌️</span> <span class="role-text">你在画画</span>
@@ -62,6 +72,10 @@
             </template>
           </div>
 
+          <div class="mobile-scores">
+            <Scoreboard />
+          </div>
+
           <GameCanvas :readonly="gameStore.myRole !== 'drawer'" />
 
           <div v-if="gameStore.myRole === 'drawer'" class="toolbar-container">
@@ -70,6 +84,19 @@
 
           <div v-if="gameStore.myRole === 'guesser'" class="answer-container">
             <AnswerInput :disabled="gameStore.hasGuessedCorrectly" />
+          </div>
+
+          <div class="inline-chat-wrap" :class="{ collapsed: !chatExpanded }">
+            <div class="inline-chat-header" @click="chatExpanded = !chatExpanded">
+              <span class="inline-chat-title">💬 聊天</span>
+              <div class="inline-chat-preview" v-if="!chatExpanded && gameStore.chatMessages.length > 0">
+                <span class="inline-chat-preview-text">{{ gameStore.chatMessages[gameStore.chatMessages.length - 1].text }}</span>
+              </div>
+              <span class="inline-chat-arrow" :class="{ open: chatExpanded }">▲</span>
+            </div>
+            <div class="inline-chat-body" v-show="chatExpanded">
+              <ChatPanel />
+            </div>
           </div>
 
           <Transition name="pop">
@@ -105,20 +132,17 @@
       </div>
 
       <aside class="sidebar sidebar-right" :class="{ open: showSidebar === 'right' }">
-        <div class="sidebar-toggle sidebar-toggle-right" @click="toggleSidebar('right')">
-          <span>💬</span>
-          <span class="toggle-label">聊天</span>
-        </div>
         <ChatPanel />
       </aside>
 
       <div v-if="showSidebar" class="sidebar-overlay" @click="showSidebar = null" />
     </main>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useGameStore } from '@/stores/game'
@@ -137,6 +161,30 @@ const gameStore = useGameStore()
 
 const roomName = computed(() => route.params.roomName as string)
 const showSidebar = ref<'left' | 'right' | null>(null)
+const chatExpanded = ref(true)
+const showDrawerAlert = ref(false)
+
+function closeDrawerAlert() {
+  showDrawerAlert.value = false
+  document.title = 'Draw & Guess'
+}
+
+watch(() => gameStore.myRole, (role) => {
+  if (role === 'drawer') {
+    showDrawerAlert.value = true
+    document.title = '🎨 轮到你了！ - Draw & Guess'
+  } else {
+    closeDrawerAlert()
+  }
+})
+
+// 新轮次开始时重置 alert 状态，同一个人再次当画师也能显示
+watch(() => gameStore.currentRound, () => {
+  if (gameStore.myRole === 'drawer' && gameStore.state === 'playing') {
+    showDrawerAlert.value = true
+    document.title = '🎨 轮到你了！ - Draw & Guess'
+  }
+})
 
 function toggleSidebar(side: 'left' | 'right') {
   showSidebar.value = showSidebar.value === side ? null : side
@@ -302,6 +350,7 @@ function handleStartGame() {
   width: 100%;
   height: 100%;
   min-height: 0;
+  position: relative;
 }
 
 .waiting {
@@ -414,6 +463,10 @@ function handleStartGame() {
   display: flex;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.mobile-scores {
+  display: none;
 }
 
 .guessed-notice {
@@ -558,10 +611,82 @@ function handleStartGame() {
   color: var(--color-text);
 }
 
+/* ─── Drawer Alert ─── */
+.drawer-alert {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(74, 55, 40, 0.25);
+  backdrop-filter: blur(3px);
+}
+
+.drawer-alert-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1.5rem 2.5rem;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  border: 2px solid var(--color-accent);
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+.drawer-alert-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  transition: var(--transition);
+  line-height: 1;
+}
+
+.drawer-alert-close:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+}
+
+.drawer-alert-icon {
+  font-size: 2.5rem;
+  animation: bounce 1s ease-in-out infinite alternate;
+}
+
+.drawer-alert-text {
+  font-family: var(--font-title);
+  font-size: 1.4rem;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.drawer-alert-sub {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
 /* ─── Animations ─── */
 @keyframes bounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: var(--shadow-lg); }
+  50% { box-shadow: 0 0 0 4px rgba(244, 162, 97, 0.15), 0 8px 32px rgba(244, 162, 97, 0.2); }
 }
 
 @keyframes popIn {
@@ -621,6 +746,8 @@ function handleStartGame() {
     box-shadow: var(--shadow-lg);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
   }
 
   .sidebar-left {
@@ -633,8 +760,7 @@ function handleStartGame() {
   }
 
   .sidebar-right {
-    right: 0;
-    transform: translateX(110%);
+    display: none;
   }
 
   .sidebar-right.open {
@@ -645,15 +771,15 @@ function handleStartGame() {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.35rem 0.6rem;
+    padding: 0.5rem 0.75rem;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 500;
+    font-size: 0.8rem;
+    font-weight: 600;
     color: var(--color-text-secondary);
     cursor: pointer;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
     transition: var(--transition);
     z-index: 40;
   }
@@ -664,14 +790,12 @@ function handleStartGame() {
 
   .sidebar-toggle-left {
     position: fixed;
-    left: 0.4rem;
-    bottom: 0.75rem;
+    left: 0.5rem;
+    bottom: 0.9rem;
   }
 
   .sidebar-toggle-right {
-    position: fixed;
-    right: 0.4rem;
-    bottom: 0.75rem;
+    display: none;
   }
 
   .toggle-label {
@@ -679,20 +803,112 @@ function handleStartGame() {
   }
 
   .playing {
-    gap: 0.35rem;
+    gap: 0;
+    min-height: 0;
+    overflow: hidden;
+    justify-content: flex-start;
+    padding-bottom: 0;
+  }
+
+  .mobile-scores {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+
+  .mobile-scores :deep(.scoreboard) {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.5rem;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--color-accent-pale);
+    overflow-x: auto;
+  }
+
+  .mobile-scores :deep(.scoreboard-header) {
+    display: none;
+  }
+
+  .mobile-scores :deep(.score-list) {
+    flex-direction: row;
+    padding: 0;
+    gap: 0.5rem;
+  }
+
+  .mobile-scores :deep(.score-item) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.7rem;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+  }
+
+  .mobile-scores :deep(.score-item.first) {
+    background: rgba(255, 215, 0, 0.12);
+  }
+
+  .mobile-scores :deep(.rank-medal) {
+    width: auto;
+    height: auto;
+    font-size: 0.7rem;
+  }
+
+  .mobile-scores :deep(.nickname) {
+    flex: none;
+    font-size: 0.7rem;
+    max-width: 3.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-scores :deep(.score) {
+    font-size: 0.7rem;
+  }
+
+  .toolbar-container,
+  .answer-container {
+    max-width: 100%;
+    flex-shrink: 0;
   }
 
   .word-card {
-    padding: 0.3rem 1rem;
+    padding: 0.15rem 0.8rem;
+    flex-shrink: 0;
+    flex-direction: row;
+    gap: 0.4rem;
+    border-radius: var(--radius-full);
+  }
+
+  .word-label {
+    font-size: 0.7rem;
   }
 
   .word-value {
-    font-size: 1.1rem;
+    font-size: 1rem;
   }
 
   .word-hint {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
   }
+
+  .role-info {
+    flex-shrink: 0;
+  }
+
+  .role-badge {
+    padding: 0.15rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
+  .role-icon { font-size: 0.85rem; }
+  .role-text { font-size: 0.75rem; }
 
   .game-over {
     padding: 1rem;
@@ -708,5 +924,91 @@ function handleStartGame() {
   }
 
   .role-text { font-size: 0.75rem; }
+
+  .inline-chat-wrap {
+    width: 100%;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--color-border-light);
+    background: var(--color-surface);
+    max-height: 35vh;
+  }
+
+  .inline-chat-wrap.collapsed {
+    max-height: none;
+  }
+
+  .inline-chat-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    min-height: 2rem;
+  }
+
+  .inline-chat-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text);
+    white-space: nowrap;
+  }
+
+  .inline-chat-preview {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .inline-chat-preview-text {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+
+  .inline-chat-preview-text::before {
+    content: '· ';
+    color: var(--color-text-muted);
+  }
+
+  .inline-chat-arrow {
+    font-size: 0.6rem;
+    color: var(--color-text-muted);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+
+  .inline-chat-arrow.open {
+    transform: rotate(180deg);
+  }
+
+  .inline-chat-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .inline-chat-body :deep(.chat-panel) {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    height: 100%;
+  }
+
+  .inline-chat-body :deep(.chat-header) {
+    display: none;
+  }
+
+  .inline-chat-body :deep(.messages) {
+    max-height: calc(35vh - 3rem);
+    padding: 0.25rem 0.5rem;
+  }
+
+  .inline-chat-body :deep(.input-row) {
+    padding: 0.35rem 0.5rem;
+    border-top: 1px solid var(--color-border-light);
+  }
 }
 </style>

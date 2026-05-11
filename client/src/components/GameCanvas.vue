@@ -214,9 +214,11 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
   .game-canvas {
-    border-radius: var(--radius-sm);
-    border-width: 1px;
+    border-radius: 0;
+    border-width: 1px 0;
     max-width: 100%;
+    min-height: 0;
+    flex-shrink: 0;
   }
 }
 </style>
