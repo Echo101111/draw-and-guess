@@ -81,10 +81,8 @@ function selectWidth(width: number) {
 }
 
 function handleClear() {
-  if (confirm('确定要清空画布吗？')) {
-    canvasStore.clearCanvas()
-    gameStore.clearCanvas()
-  }
+  canvasStore.clearCanvas()
+  gameStore.clearCanvas()
 }
 </script>
 
