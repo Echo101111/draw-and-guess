@@ -89,6 +89,7 @@
             <Scoreboard />
           </div>
           <div class="game-over-actions">
+            <button v-if="roomStore.isOwner" class="btn-restart" @click="handleRestartGame">重新开始</button>
             <button class="btn-back-lobby" @click="handleBackToLobby">返回房间</button>
             <button class="btn-leave-game" @click="handleLeave">离开游戏</button>
           </div>
@@ -153,6 +154,11 @@ function handleLeave() {
 function handleBackToLobby() {
   gameStore.resetGame()
   router.push(`/lobby/${roomName.value}`)
+}
+
+function handleRestartGame() {
+  gameStore.resetGame()
+  roomStore.startGame()
 }
 </script>
 
@@ -480,6 +486,24 @@ function handleBackToLobby() {
 .btn-back-lobby:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 16px rgba(232, 133, 108, 0.3);
+}
+
+.btn-restart {
+  flex: 1;
+  padding: 0.6rem;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-gold));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-restart:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(244, 162, 97, 0.3);
 }
 
 .btn-leave-game {
