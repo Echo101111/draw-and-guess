@@ -35,20 +35,33 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
+    const trimmedName = roomName?.trim() || '房间'
+    if (trimmedName.length > 20) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.NICKNAME_TAKEN,
+        message: '房间名称不能超过20个字符',
+      })
+      return
+    }
+
     try {
       const { room, player } = await roomManager.createRoom(
         trimmedNickname,
-        roomName?.trim() || '房间',
+        trimmedName,
         maxPlayers ?? 50,
         password ?? ''
       )
 
+      console.log(`[Room] Created: "${room.name}" (${room.id}) by ${trimmedNickname}`)
+      console.log(`[Room] Total rooms: ${roomManager.getAllRooms().length}`)
+
       socket.data.roomId = room.id
       socket.data.playerId = player.id
-      socket.data.roomCode = room.code
+      socket.data.roomName = room.name
       roomManager.updatePlayerSession(room.id, player.id, socket.id)
 
       socket.join(room.code)
+      socket.join(player.id)
 
       socket.emit(SERVER_EVENTS.ROOM_CREATED, {
         roomCode: room.code,
@@ -56,15 +69,20 @@ export function registerRoomHandlers(io: any, socket: any): void {
         playerId: player.id,
         isOwner: true,
       })
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '创建房间失败，请重试'
+      console.error('[Room] Create failed:', message)
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
         code: ErrorCode.ROOM_NOT_FOUND,
-        message: '创建房间失败，请重试',
+        message,
       })
     }
   })
 
-  socket.on(CLIENT_EVENTS.JOIN_ROOM, async ({ roomCode, password, nickname }: { roomCode: string; password?: string; nickname: string }) => {
+  socket.on(CLIENT_EVENTS.JOIN_ROOM, async ({ roomName, password, nickname }: { roomName: string; password?: string; nickname: string }) => {
+    console.log(`[Room] Join attempt: "${roomName}" by ${nickname}`)
+    console.log(`[Room] Total rooms: ${roomManager.getAllRooms().length}`)
+
     const trimmedNickname = nickname.trim()
     if (!trimmedNickname || trimmedNickname.length > 10) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
@@ -74,9 +92,18 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
-    const result = await roomManager.joinRoom(roomCode, password ?? '', trimmedNickname)
+    if (!roomName.trim()) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: '请输入房间名称',
+      })
+      return
+    }
+
+    const result = await roomManager.joinRoom(roomName, password ?? '', trimmedNickname)
 
     if ('error' in result) {
+      console.log(`[Room] Join failed: "${roomName}" - ${result.error.message}`)
       socket.emit(SERVER_EVENTS.ROOM_ERROR, result.error)
       return
     }
@@ -84,10 +111,11 @@ export function registerRoomHandlers(io: any, socket: any): void {
     const { room, player } = result
     socket.data.roomId = room.id
     socket.data.playerId = player.id
-    socket.data.roomCode = room.code
+    socket.data.roomName = room.name
     roomManager.updatePlayerSession(room.id, player.id, socket.id)
 
     socket.join(room.code)
+    socket.join(player.id)
 
     socket.emit(SERVER_EVENTS.ROOM_JOINED, {
       room: getPlayerRoomData(room),
@@ -118,10 +146,15 @@ export function registerRoomHandlers(io: any, socket: any): void {
   })
 
   socket.on(CLIENT_EVENTS.START_GAME, () => {
+    console.log(`[Room] START_GAME received from socket ${socket.id}`)
     const { roomId, playerId } = socket.data
-    if (!roomId || !playerId) return
+    if (!roomId || !playerId) {
+      console.log(`[Room] START_GAME rejected: missing roomId or playerId`)
+      return
+    }
 
     const result = roomManager.startGame(roomId, playerId)
+    console.log(`[Room] START_GAME result: success=${result.success}, error=${result.error}`)
 
     if (!result.success) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, result.error!)
@@ -137,6 +170,8 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
   socket.on('disconnect', () => {
     const { roomId, playerId, isSpectator } = socket.data
+    console.log(`[Socket] Disconnect: ${socket.id}, roomId=${roomId}, playerId=${playerId}, isSpectator=${isSpectator}`)
+
     if (!roomId || !playerId) return
 
     if (isSpectator) {
@@ -144,11 +179,12 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
+    console.log(`[Room] Starting disconnect timer for player ${playerId}`)
     roomManager.startDisconnectTimer(playerId)
   })
 
-  socket.on(CLIENT_EVENTS.RESTORE_SESSION, ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
-    const room = roomManager.getRoomByCode(roomCode)
+  socket.on(CLIENT_EVENTS.RESTORE_SESSION, ({ roomName, playerId }: { roomName: string; playerId: string }) => {
+    const room = roomManager.getRoomByName(roomName)
     if (!room) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
         code: ErrorCode.ROOM_NOT_FOUND,
@@ -171,9 +207,10 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
     socket.data.roomId = room.id
     socket.data.playerId = playerId
-    socket.data.roomCode = room.code
+    socket.data.roomName = room.name
 
     socket.join(room.code)
+    socket.join(playerId)
 
     socket.emit(SERVER_EVENTS.SESSION_RESTORED, {
       room: getPlayerRoomData(room),
@@ -184,8 +221,8 @@ export function registerRoomHandlers(io: any, socket: any): void {
     io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
   })
 
-  socket.on(CLIENT_EVENTS.JOIN_AS_SPECTATOR, async ({ roomCode, password }: { roomCode: string; password?: string }) => {
-    const room = roomManager.getRoomByCode(roomCode)
+  socket.on(CLIENT_EVENTS.JOIN_AS_SPECTATOR, async ({ roomName, password }: { roomName: string; password?: string }) => {
+    const room = roomManager.getRoomByName(roomName)
     if (!room) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
         code: ErrorCode.ROOM_NOT_FOUND,
@@ -203,7 +240,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
 
     socket.data.roomId = room.id
-    socket.data.roomCode = room.code
+    socket.data.roomName = room.name
     socket.data.isSpectator = true
 
     socket.join(room.code)
@@ -217,13 +254,15 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function handleLeave(io: any, socket: any): void {
-  const { roomId, playerId } = socket.data
+  const { roomId, playerId, roomName } = socket.data
   if (!roomId || !playerId) return
 
   const result = roomManager.leaveRoom(roomId, playerId)
   if (!result.kicked) return
 
-  socket.leave(socket.data.roomCode)
+  if (roomName) {
+    socket.leave(roomName)
+  }
 
   const room = roomManager.getRoomById(roomId)
   if (room) {

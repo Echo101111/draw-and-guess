@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - CLIENT_URL=http://localhost
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - draw-and-guess
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        - VITE_SERVER_URL=http://localhost:3000
+    ports:
+      - "80:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - draw-and-guess
+
+networks:
+  draw-and-guess:
+    driver: bridge

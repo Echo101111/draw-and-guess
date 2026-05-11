@@ -37,9 +37,12 @@ export const useRoomStore = defineStore('room', () => {
 
   const players = computed(() => room.value?.players ?? [])
 
+  const roomName = computed(() => room.value?.code ?? '')
+
   const setupSocketListeners = () => {
     const socket = getSocket()
 
+    socket.off(SERVER_EVENTS.ROOM_CREATED)
     socket.on(SERVER_EVENTS.ROOM_CREATED, (data) => {
       room.value = {
         id: data.roomId,
@@ -57,6 +60,7 @@ export const useRoomStore = defineStore('room', () => {
       clearSession()
     })
 
+    socket.off(SERVER_EVENTS.ROOM_JOINED)
     socket.on(SERVER_EVENTS.ROOM_JOINED, (data) => {
       room.value = data.room
       currentPlayerId.value = data.playerId
@@ -64,15 +68,18 @@ export const useRoomStore = defineStore('room', () => {
       error.value = null
     })
 
+    socket.off(SERVER_EVENTS.ROOM_ERROR)
     socket.on(SERVER_EVENTS.ROOM_ERROR, (data) => {
       error.value = data.message
       connectionState.value = 'disconnected'
     })
 
+    socket.off(SERVER_EVENTS.ROOM_UPDATED)
     socket.on(SERVER_EVENTS.ROOM_UPDATED, (data) => {
       room.value = data.room
     })
 
+    socket.off(SERVER_EVENTS.KICKED)
     socket.on(SERVER_EVENTS.KICKED, (data) => {
       error.value = data.reason
       room.value = null
@@ -81,6 +88,7 @@ export const useRoomStore = defineStore('room', () => {
       clearSession()
     })
 
+    socket.off(SERVER_EVENTS.SESSION_RESTORED)
     socket.on(SERVER_EVENTS.SESSION_RESTORED, (data) => {
       room.value = data.room
       currentPlayerId.value = data.playerId
@@ -89,6 +97,7 @@ export const useRoomStore = defineStore('room', () => {
       isSpectator.value = false
     })
 
+    socket.off(SERVER_EVENTS.SPECTATOR_JOINED)
     socket.on(SERVER_EVENTS.SPECTATOR_JOINED, (data) => {
       room.value = data.room
       currentPlayerId.value = `spectator-${data.room.code}`
@@ -118,13 +127,13 @@ export const useRoomStore = defineStore('room', () => {
     })
   }
 
-  const joinRoom = (roomCode: string, nickname: string, password?: string) => {
+  const joinRoom = (roomName: string, nickname: string, password?: string) => {
     connectionState.value = 'connecting'
     error.value = null
     const socket = connectSocket()
     setupSocketListeners()
     socket.emit(CLIENT_EVENTS.JOIN_ROOM, {
-      roomCode,
+      roomName,
       nickname,
       password,
     })
@@ -134,12 +143,12 @@ export const useRoomStore = defineStore('room', () => {
     })
   }
 
-  const joinAsSpectator = (roomCode: string, password?: string) => {
+  const joinAsSpectator = (roomName: string, password?: string) => {
     connectionState.value = 'connecting'
     error.value = null
     const socket = connectSocket()
     setupSocketListeners()
-    socket.emit(CLIENT_EVENTS.JOIN_AS_SPECTATOR, { roomCode, password })
+    socket.emit(CLIENT_EVENTS.JOIN_AS_SPECTATOR, { roomName, password })
   }
 
   const leaveRoom = () => {
@@ -181,6 +190,7 @@ export const useRoomStore = defineStore('room', () => {
     isOwner,
     isSpectator,
     players,
+    roomName,
     setupSocketListeners,
     createRoom,
     joinRoom,

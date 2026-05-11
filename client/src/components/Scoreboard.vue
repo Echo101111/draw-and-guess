@@ -1,17 +1,28 @@
 <template>
   <div class="scoreboard">
-    <h3>积分榜</h3>
+    <div class="scoreboard-header">
+      <span class="trophy-icon">🏆</span>
+      <span>积分榜</span>
+    </div>
     <ul class="score-list">
       <li
         v-for="entry in sortedScores"
         :key="entry.playerId"
-        :class="{ highlight: entry.rank === 1 }"
+        :class="['score-item', { first: entry.rank === 1, second: entry.rank === 2, third: entry.rank === 3 }]"
       >
-        <span class="rank">{{ entry.rank }}</span>
+        <span class="rank-medal">
+          <template v-if="entry.rank === 1">🥇</template>
+          <template v-else-if="entry.rank === 2">🥈</template>
+          <template v-else-if="entry.rank === 3">🥉</template>
+          <template v-else>{{ entry.rank }}</template>
+        </span>
         <span class="nickname">{{ entry.nickname }}</span>
-        <span class="score">{{ entry.score }} 分</span>
+        <span class="score">{{ entry.score }}</span>
       </li>
     </ul>
+    <div v-if="sortedScores.length === 0" class="empty">
+      暂无积分
+    </div>
   </div>
 </template>
 
@@ -28,65 +39,122 @@ const sortedScores = computed(() => {
 
 <style scoped>
 .scoreboard {
-  background: #fff;
-  border-radius: 8px;
-  padding: 1rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  max-height: 300px;
-  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border-light);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.scoreboard h3 {
-  margin-bottom: 0.75rem;
-  color: #333;
+.scoreboard-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.trophy-icon {
+  font-size: 1rem;
 }
 
 .score-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  padding: 0.5rem;
+  gap: 0.3rem;
 }
 
-.score-list li {
+.score-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem;
-  background: #f5f5f5;
-  border-radius: 6px;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
 }
 
-.score-list li.highlight {
-  background: #fff3cd;
-  border: 2px solid #ffd700;
+.score-item.first {
+  background: var(--color-gold-bg);
 }
 
-.rank {
+.score-item.second {
+  background: rgba(192, 192, 192, 0.15);
+}
+
+.score-item.third {
+  background: rgba(205, 127, 50, 0.1);
+}
+
+.rank-medal {
   width: 24px;
   height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #666;
-  color: #fff;
-  border-radius: 50%;
   font-size: 0.8rem;
-  font-weight: bold;
-}
-
-.score-list li.highlight .rank {
-  background: #ffd700;
-  color: #333;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .nickname {
   flex: 1;
   font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .score {
-  color: #4a90d9;
-  font-weight: bold;
+  font-family: var(--font-number);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-primary);
+}
+
+.empty {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: 2rem 1rem;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 767px) {
+  .scoreboard {
+    border-radius: var(--radius-md);
+    height: 100%;
+  }
+
+  .scoreboard-header {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .score-list {
+    padding: 0.35rem;
+    gap: 0.2rem;
+  }
+
+  .score-item {
+    padding: 0.35rem 0.5rem;
+  }
+
+  .nickname {
+    font-size: 0.8rem;
+  }
+
+  .score {
+    font-size: 0.85rem;
+  }
 }
 </style>

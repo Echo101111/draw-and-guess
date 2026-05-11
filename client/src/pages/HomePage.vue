@@ -1,105 +1,144 @@
 <template>
   <div class="home-page">
-    <h1>你画我猜</h1>
-
-    <div class="tabs">
-      <button :class="{ active: activeTab === 'create' }" @click="activeTab = 'create'">
-        创建房间
-      </button>
-      <button :class="{ active: activeTab === 'join' }" @click="activeTab = 'join'">
-        加入房间
-      </button>
+    <div class="hero">
+      <div class="hero-icon">🎨</div>
+      <h1 class="hero-title">你画我猜</h1>
+      <p class="hero-subtitle">和朋友一起，画出快乐时光</p>
     </div>
 
-    <form v-if="activeTab === 'create'" class="form" @submit.prevent="handleCreate">
-      <div class="field">
-        <label for="nickname-create">你的昵称</label>
-        <input
-          id="nickname-create"
-          v-model="nickname"
-          type="text"
-          placeholder="1-10个字符"
-          maxlength="10"
-          required
-        />
+    <div class="card-container">
+      <div class="tab-bar">
+        <button
+          :class="['tab-btn', { active: activeTab === 'create' }]"
+          @click="activeTab = 'create'"
+        >
+          <span class="tab-icon">🏠</span>
+          创建房间
+        </button>
+        <button
+          :class="['tab-btn', { active: activeTab === 'join' }]"
+          @click="activeTab = 'join'"
+        >
+          <span class="tab-icon">🚪</span>
+          加入房间
+        </button>
       </div>
 
-      <div class="field">
-        <label for="room-name">房间名称（可选）</label>
-        <input
-          id="room-name"
-          v-model="roomName"
-          type="text"
-          placeholder="默认：房间"
-          maxlength="20"
-        />
-      </div>
+      <form v-if="activeTab === 'create'" class="form-card" @submit.prevent="handleCreate">
+        <div class="field">
+          <label for="nickname-create">你的昵称</label>
+          <div class="input-wrap">
+            <span class="input-icon">✏️</span>
+            <input
+              id="nickname-create"
+              v-model="nickname"
+              type="text"
+              placeholder="1-10个字符"
+              maxlength="10"
+              required
+            />
+          </div>
+        </div>
 
-      <div class="field">
-        <label for="max-players">最大人数</label>
-        <select id="max-players" v-model="maxPlayers">
-          <option v-for="n in 10" :key="n" :value="n * 5">{{ n * 5 }} 人</option>
-        </select>
-      </div>
+        <div class="field">
+          <label for="room-name">房间名称</label>
+          <div class="input-wrap">
+            <span class="input-icon">📋</span>
+            <input
+              id="room-name"
+              v-model="createRoomName"
+              type="text"
+              placeholder="默认：房间"
+              maxlength="20"
+            />
+          </div>
+        </div>
 
-      <div class="field">
-        <label for="password-create">房间密码（可选）</label>
-        <input
-          id="password-create"
-          v-model="password"
-          type="password"
-          placeholder="无密码"
-          maxlength="20"
-        />
-      </div>
+        <div class="field">
+          <label for="max-players">最大人数</label>
+          <div class="input-wrap">
+            <span class="input-icon">👥</span>
+            <select id="max-players" v-model="maxPlayers">
+              <option v-for="n in 10" :key="n" :value="n * 5">{{ n * 5 }} 人</option>
+            </select>
+          </div>
+        </div>
 
-      <button type="submit" class="btn-primary" :disabled="isLoading">
-        {{ isLoading ? '创建中...' : '创建房间' }}
-      </button>
-    </form>
+        <div class="field">
+          <label for="password-create">房间密码</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input
+              id="password-create"
+              v-model="password"
+              type="password"
+              placeholder="无密码"
+              maxlength="20"
+            />
+          </div>
+        </div>
 
-    <form v-else class="form" @submit.prevent="handleJoin">
-      <div class="field">
-        <label for="nickname-join">你的昵称</label>
-        <input
-          id="nickname-join"
-          v-model="nickname"
-          type="text"
-          placeholder="1-10个字符"
-          maxlength="10"
-          required
-        />
-      </div>
+        <button type="submit" class="btn-primary" :disabled="isLoading">
+          <span v-if="isLoading" class="btn-loading" />
+          <span v-else>🏠 创建房间</span>
+        </button>
+      </form>
 
-      <div class="field">
-        <label for="room-code">房间码</label>
-        <input
-          id="room-code"
-          v-model="roomCode"
-          type="text"
-          placeholder="6位房间码"
-          maxlength="6"
-          required
-        />
-      </div>
+      <form v-else class="form-card" @submit.prevent="handleJoin">
+        <div class="field">
+          <label for="nickname-join">你的昵称</label>
+          <div class="input-wrap">
+            <span class="input-icon">✏️</span>
+            <input
+              id="nickname-join"
+              v-model="nickname"
+              type="text"
+              placeholder="1-10个字符"
+              maxlength="10"
+              required
+            />
+          </div>
+        </div>
 
-      <div class="field">
-        <label for="password-join">房间密码（如有）</label>
-        <input
-          id="password-join"
-          v-model="password"
-          type="password"
-          placeholder="无密码"
-          maxlength="20"
-        />
-      </div>
+        <div class="field">
+          <label for="room-name-join">房间名称</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔑</span>
+            <input
+              id="room-name-join"
+              v-model="joinRoomName"
+              type="text"
+              placeholder="输入房间名称"
+              maxlength="20"
+              required
+            />
+          </div>
+        </div>
 
-      <button type="submit" class="btn-primary" :disabled="isLoading">
-        {{ isLoading ? '加入中...' : '加入房间' }}
-      </button>
-    </form>
+        <div class="field">
+          <label for="password-join">房间密码</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input
+              id="password-join"
+              v-model="password"
+              type="password"
+              placeholder="无密码"
+              maxlength="20"
+            />
+          </div>
+        </div>
 
-    <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+        <button type="submit" class="btn-primary" :disabled="isLoading">
+          <span v-if="isLoading" class="btn-loading" />
+          <span v-else>🚪 加入房间</span>
+        </button>
+      </form>
+    </div>
+
+    <Transition name="fade">
+      <p v-if="errorMessage" class="error-toast">{{ errorMessage }}</p>
+    </Transition>
   </div>
 </template>
 
@@ -113,8 +152,8 @@ const roomStore = useRoomStore()
 
 const activeTab = ref<'create' | 'join'>('create')
 const nickname = ref('')
-const roomName = ref('')
-const roomCode = ref('')
+const createRoomName = ref('')
+const joinRoomName = ref('')
 const maxPlayers = ref(50)
 const password = ref('')
 const isLoading = ref(false)
@@ -123,6 +162,10 @@ const errorMessage = ref<string | null>(null)
 
 watch(() => roomStore.error, (newError) => {
   errorMessage.value = newError
+  if (newError) {
+    isLoading.value = false
+    setTimeout(() => { errorMessage.value = null }, 4000)
+  }
 })
 
 watch(() => roomStore.room, (newRoom) => {
@@ -133,137 +176,380 @@ watch(() => roomStore.room, (newRoom) => {
 
 function handleCreate() {
   if (!nickname.value.trim()) return
-
   isLoading.value = true
   errorMessage.value = null
-
   roomStore.createRoom(nickname.value.trim(), {
-    roomName: roomName.value.trim() || undefined,
+    roomName: createRoomName.value.trim() || undefined,
     maxPlayers: maxPlayers.value,
     password: password.value || undefined,
   })
-
   setTimeout(() => {
-    if (!roomStore.room) {
-      isLoading.value = false
-    }
-  }, 3000)
+    if (!roomStore.room) isLoading.value = false
+  }, 5000)
 }
 
 function handleJoin() {
-  if (!nickname.value.trim() || !roomCode.value.trim()) return
-
+  if (!nickname.value.trim() || !joinRoomName.value.trim()) return
   isLoading.value = true
   errorMessage.value = null
-
-  roomStore.joinRoom(roomCode.value.trim(), nickname.value.trim(), password.value || undefined)
-
+  roomStore.joinRoom(joinRoomName.value.trim(), nickname.value.trim(), password.value || undefined)
   setTimeout(() => {
-    if (!roomStore.room) {
-      isLoading.value = false
-    }
-  }, 3000)
+    if (!roomStore.room) isLoading.value = false
+  }, 5000)
 }
 </script>
 
 <style scoped>
 .home-page {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: 2rem;
-  gap: 1.5rem;
+  height: 100dvh;
+  padding: 1.5rem 1rem;
+  overflow: hidden;
 }
 
-h1 {
+.hero {
+  text-align: center;
+  animation: heroFadeIn 0.8s ease-out;
+  flex-shrink: 0;
+}
+
+.hero-icon {
+  font-size: 2.8rem;
+  line-height: 1;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+.hero-title {
+  font-family: var(--font-title);
   font-size: 2.5rem;
-  color: #333;
+  color: var(--color-text);
+  letter-spacing: 0.05em;
+  text-shadow: 0 2px 4px rgba(180, 140, 110, 0.2);
+  line-height: 1.2;
+  margin-top: 0.4rem;
 }
 
-.tabs {
+.hero-subtitle {
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  margin-top: 0.3rem;
+}
+
+.card-container {
+  width: 100%;
+  max-width: 360px;
+  animation: slideUp 0.6s ease-out 0.2s both;
+  flex-shrink: 0;
+  margin-top: 1.25rem;
+}
+
+.tab-bar {
   display: flex;
-  gap: 0.5rem;
-  background: #e0e0e0;
-  border-radius: 8px;
-  padding: 4px;
+  background: var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 0.75rem;
 }
 
-.tabs button {
-  padding: 0.5rem 1.5rem;
+.tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.55rem 1rem;
   border: none;
   background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
   cursor: pointer;
-  border-radius: 6px;
+  transition: var(--transition);
+}
+
+.tab-btn.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--color-text);
+}
+
+.tab-icon {
   font-size: 1rem;
-  transition: all 0.2s;
 }
 
-.tabs button.active {
-  background: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.form {
+.form-card {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  width: 100%;
-  max-width: 320px;
-  background: #fff;
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  gap: 0.65rem;
+  background: var(--color-surface);
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border-light);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.2rem;
 }
 
 .field label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  padding-left: 0.2rem;
+}
+
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 0.7rem;
   font-size: 0.9rem;
-  color: #666;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .field input,
 .field select {
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 1rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem 0.55rem 2.2rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  transition: var(--transition);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238B7A6A' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 2.2rem;
 }
 
 .field input:focus,
 .field select:focus {
   outline: none;
-  border-color: #4a90d9;
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-glow);
+}
+
+.field input::placeholder {
+  color: var(--color-text-muted);
 }
 
 .btn-primary {
-  padding: 0.75rem;
-  background: #4a90d9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.65rem;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   color: #fff;
   border: none;
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: var(--transition);
+  margin-top: 0.15rem;
+  letter-spacing: 0.03em;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #3a7fc9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(232, 133, 108, 0.35);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-primary:disabled {
-  background: #ccc;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.error {
-  color: #e53935;
-  font-size: 0.9rem;
+.btn-loading {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.error-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  border: 1px solid rgba(217, 117, 107, 0.2);
+  z-index: 100;
+}
+
+@keyframes heroFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px);
+}
+
+/* ─── Mobile ─── */
+@media (max-width: 480px) {
+  .home-page {
+    padding: 1rem 0.75rem;
+  }
+
+  .hero-icon {
+    font-size: 2.2rem;
+  }
+
+  .hero-title {
+    font-size: 2rem;
+    margin-top: 0.3rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.85rem;
+  }
+
+  .card-container {
+    max-width: 100%;
+    margin-top: 1rem;
+  }
+
+  .form-card {
+    padding: 0.9rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .tab-bar {
+    margin-bottom: 0.6rem;
+  }
+
+  .tab-btn {
+    font-size: 0.82rem;
+    padding: 0.45rem 0.65rem;
+  }
+
+  .field input,
+  .field select {
+    padding: 0.5rem 0.6rem 0.5rem 2rem;
+    font-size: 0.84rem;
+  }
+
+  .btn-primary {
+    padding: 0.55rem;
+    font-size: 0.85rem;
+  }
+
+  .hero-subtitle {
+    display: none;
+  }
+}
+
+@media (max-height: 640px) {
+  .home-page {
+    padding: 0.75rem 0.75rem;
+  }
+
+  .hero-icon {
+    font-size: 2rem;
+  }
+
+  .hero-title {
+    font-size: 1.8rem;
+    margin-top: 0.2rem;
+  }
+
+  .hero-subtitle {
+    display: none;
+  }
+
+  .card-container {
+    margin-top: 0.75rem;
+  }
+
+  .form-card {
+    padding: 0.75rem 1rem;
+    gap: 0.4rem;
+  }
+
+  .field input,
+  .field select {
+    padding: 0.4rem 0.6rem 0.4rem 1.8rem;
+    font-size: 0.8rem;
+  }
+
+  .field label {
+    font-size: 0.72rem;
+  }
+
+  .btn-primary {
+    padding: 0.5rem;
+    font-size: 0.82rem;
+  }
+
+  .tab-bar {
+    margin-bottom: 0.5rem;
+    padding: 2px;
+  }
+
+  .tab-btn {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.78rem;
+  }
 }
 </style>

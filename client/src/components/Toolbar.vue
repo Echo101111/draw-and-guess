@@ -2,43 +2,62 @@
   <div class="toolbar">
     <div class="tool-group">
       <button
-        :class="{ active: canvasStore.tool === 'brush' }"
+        :class="['tool-btn', { active: canvasStore.tool === 'brush' }]"
         @click="canvasStore.setTool('brush')"
+        title="画笔"
       >
-        画笔
+        <span class="tool-icon">✏️</span>
+        <span class="tool-label">画笔</span>
       </button>
       <button
-        :class="{ active: canvasStore.tool === 'eraser' }"
+        :class="['tool-btn', { active: canvasStore.tool === 'eraser' }]"
         @click="canvasStore.setTool('eraser')"
+        title="橡皮擦"
       >
-        橡皮擦
+        <span class="tool-icon">🧹</span>
+        <span class="tool-label">橡皮</span>
       </button>
     </div>
 
+    <div class="divider" />
+
     <div class="tool-group colors">
       <button
-        v-for="color in canvasStore.PRESET_COLORS"
-        :key="color"
-        :class="['color-btn', { active: canvasStore.color === color && canvasStore.tool === 'brush' }]"
-        :style="{ backgroundColor: color }"
-        @click="selectColor(color)"
+        v-for="c in canvasStore.PRESET_COLORS"
+        :key="c"
+        :class="['color-btn', { active: canvasStore.color === c && canvasStore.tool === 'brush' }]"
+        :style="{ backgroundColor: c }"
+        :title="c"
+        @click="selectColor(c)"
       />
     </div>
+
+    <div class="divider" />
 
     <div class="tool-group widths">
       <button
         v-for="(size, name) in canvasStore.WIDTH_PRESETS"
         :key="name"
-        :class="{ active: canvasStore.width === size && canvasStore.tool === 'brush' }"
+        :class="['width-btn', { active: canvasStore.width === size }]"
         @click="selectWidth(size)"
+        :title="name"
       >
-        <span class="width-dot" :style="{ width: size * 2 + 'px', height: size * 2 + 'px' }" />
+        <span
+          class="width-dot"
+          :style="{
+            width: size * 2 + 2 + 'px',
+            height: size * 2 + 2 + 'px',
+          }"
+        />
       </button>
     </div>
 
+    <div class="divider" />
+
     <div class="tool-group">
-      <button class="btn-clear" @click="handleClear">
-        清空画布
+      <button class="tool-btn btn-clear" @click="handleClear" title="清空画布">
+        <span class="tool-icon">🗑️</span>
+        <span class="tool-label">清空</span>
       </button>
     </div>
   </div>
@@ -72,82 +91,171 @@ function handleClear() {
 <style scoped>
 .toolbar {
   display: flex;
-  gap: 1.5rem;
-  padding: 1rem;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border-light);
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .tool-group {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.3rem;
   align-items: center;
 }
 
-.tool-group button {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: #fff;
+.divider {
+  width: 1px;
+  height: 28px;
+  background: var(--color-border-light);
+  flex-shrink: 0;
+}
+
+.tool-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.65rem;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition);
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
 }
 
-.tool-group button.active {
-  background: #4a90d9;
-  color: #fff;
-  border-color: #4a90d9;
+.tool-btn:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
-.tool-group button:hover:not(.active) {
-  background: #f5f5f5;
+.tool-btn.active {
+  background: var(--color-accent-pale);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.tool-icon {
+  font-size: 1rem;
+}
+
+.tool-label {
+  font-weight: 500;
 }
 
 .colors {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.35rem;
   flex-wrap: wrap;
 }
 
 .color-btn {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  border: 2px solid #ddd;
+  border: 2px solid var(--color-border);
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: var(--transition);
+  padding: 0;
 }
 
 .color-btn.active {
-  border-color: #4a90d9;
-  transform: scale(1.1);
+  border-color: var(--color-primary);
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-primary);
 }
 
 .color-btn:hover:not(.active) {
-  transform: scale(1.05);
+  transform: scale(1.1);
 }
 
 .widths {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.35rem;
+}
+
+.width-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.width-btn:hover {
+  background: var(--color-bg);
+}
+
+.width-btn.active {
+  background: var(--color-accent-pale);
+  border-color: var(--color-accent);
 }
 
 .width-dot {
   display: block;
-  background: #333;
+  background: var(--color-text);
   border-radius: 50%;
 }
 
-.btn-clear {
-  background: #ff4444 !important;
-  color: #fff !important;
-  border-color: #ff4444 !important;
+.btn-clear:hover {
+  color: var(--color-danger);
+  background: var(--color-danger-light);
 }
 
-.btn-clear:hover {
-  background: #cc0000 !important;
+/* ─── Mobile ─── */
+@media (max-width: 600px) {
+  .toolbar {
+    gap: 0.35rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: var(--radius-md);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    justify-content: flex-start;
+  }
+
+  .toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .divider {
+    height: 20px;
+  }
+
+  .tool-btn {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .tool-icon {
+    font-size: 0.85rem;
+  }
+
+  .tool-label {
+    font-size: 0.75rem;
+  }
+
+  .color-btn {
+    width: 22px;
+    height: 22px;
+  }
+
+  .width-btn {
+    width: 28px;
+    height: 28px;
+  }
 }
 </style>

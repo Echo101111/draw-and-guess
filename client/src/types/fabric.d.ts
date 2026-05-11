@@ -28,4 +28,9 @@ declare module 'fabric' {
     on(eventName: string, handler: (e: { e: MouseEvent }) => void): void
     off(eventName: string): void
   }
+
+  export const fabric: {
+    Canvas: typeof Canvas
+    Path: typeof Path
+  }
 }

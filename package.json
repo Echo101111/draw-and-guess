@@ -11,7 +11,9 @@
     "dev:server": "pnpm --filter server dev",
     "dev:client": "pnpm --filter client dev",
     "build:server": "pnpm --filter server build",
-    "build:client": "pnpm --filter client build"
+    "build:client": "pnpm --filter client build",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm --filter server test:coverage && pnpm --filter client test:coverage"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

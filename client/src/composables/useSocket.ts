@@ -7,7 +7,7 @@ let serverUrl = 'http://localhost:3000'
 const SESSION_KEY = 'dag-session'
 
 export interface StoredSession {
-  roomCode: string
+  roomName: string
   playerId: string
   nickname: string
 }
@@ -41,8 +41,8 @@ export function disconnectSocket(): void {
   }
 }
 
-export function saveSession(roomCode: string, playerId: string, nickname: string): void {
-  const session: StoredSession = { roomCode, playerId, nickname }
+export function saveSession(roomName: string, playerId: string, nickname: string): void {
+  const session: StoredSession = { roomName, playerId, nickname }
   localStorage.setItem(SESSION_KEY, JSON.stringify(session))
 }
 
@@ -63,7 +63,7 @@ export function restoreSession(): void {
   const session = getStoredSession()
   if (session && socket) {
     socket.emit(CLIENT_EVENTS.RESTORE_SESSION, {
-      roomCode: session.roomCode,
+      roomName: session.roomName,
       playerId: session.playerId,
     })
   }

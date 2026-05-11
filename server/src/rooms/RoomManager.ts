@@ -1,17 +1,9 @@
-import { randomUUID, randomFillSync } from 'crypto'
+import { randomUUID } from 'crypto'
 import bcrypt from 'bcrypt'
 import type { Player, Room, RoomErrorPayload } from '@draw-and-guess/shared'
-import { ErrorCode } from '@draw-and-guess/shared'
+import { ErrorCode, SERVER_EVENTS } from '@draw-and-guess/shared'
 
 const BCRYPT_ROUNDS = 10
-const ROOM_CODE_LENGTH = 6
-
-function generateRoomCode(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  const randomValues = new Uint8Array(ROOM_CODE_LENGTH)
-  randomFillSync(randomValues)
-  return Array.from(randomValues, (v) => chars[v % chars.length]).join('')
-}
 
 function createPlayer(nickname: string, isOwner = false): Player {
   return {
@@ -29,7 +21,7 @@ function createPlayer(nickname: string, isOwner = false): Player {
 function createRoom(name: string, maxPlayers: number, password: string, owner: Player): Room {
   return {
     id: randomUUID(),
-    code: '',
+    code: name,
     name,
     password,
     state: 'lobby',
@@ -45,7 +37,7 @@ function createRoom(name: string, maxPlayers: number, password: string, owner: P
 
 export class RoomManager {
   private rooms = new Map<string, Room>()
-  private codeToRoomId = new Map<string, string>()
+  private nameToRoomId = new Map<string, string>()
   private dismissTimers = new Map<string, NodeJS.Timeout>()
   private disconnectTimers = new Map<string, NodeJS.Timeout>()
   private RECONNECT_TIMEOUT = 60_000
@@ -56,34 +48,36 @@ export class RoomManager {
     maxPlayers: number,
     password: string
   ): Promise<{ room: Room; player: Player }> {
+    const trimmedName = roomName.trim()
+    if (!trimmedName) {
+      throw new Error('Room name is required')
+    }
+
+    if (trimmedName.length > 20) {
+      throw new Error('房间名称不能超过20个字符')
+    }
+
+    // Check name uniqueness (case-insensitive)
+    const normalizedName = trimmedName.toLowerCase()
+    if (this.nameToRoomId.has(normalizedName)) {
+      throw new Error('该房间名称已被使用，请换一个名字')
+    }
+
     const owner = createPlayer(nickname, true)
     const hashedPassword = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : ''
-    const room = createRoom(roomName, maxPlayers, hashedPassword, owner)
-
-    // Generate unique room code
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const code = generateRoomCode()
-      if (!this.codeToRoomId.has(code)) {
-        room.code = code
-        break
-      }
-    }
-
-    if (!room.code) {
-      throw new Error('Failed to generate unique room code')
-    }
+    const room = createRoom(trimmedName, maxPlayers, hashedPassword, owner)
 
     this.rooms.set(room.id, room)
-    this.codeToRoomId.set(room.code, room.id)
+    this.nameToRoomId.set(normalizedName, room.id)
     return { room, player: owner }
   }
 
   async joinRoom(
-    code: string,
+    roomName: string,
     password: string,
     nickname: string
   ): Promise<{ room: Room; player: Player } | { error: RoomErrorPayload }> {
-    const roomId = this.codeToRoomId.get(code.toLowerCase())
+    const roomId = this.nameToRoomId.get(roomName.trim().toLowerCase())
     if (!roomId) {
       return { error: { code: ErrorCode.ROOM_NOT_FOUND, message: '房间不存在或已结束' } }
     }
@@ -214,6 +208,15 @@ export class RoomManager {
         if (room.players.length > 0 && !room.players.some((p) => p.isOwner)) {
           room.players[0].isOwner = true
         }
+
+        const io = this.getIO()
+        if (io && room.players.length > 0) {
+          io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: this.sanitizeRoom(room) })
+        }
+
+        if (room.players.length === 0) {
+          this.startDismissTimer(room.id)
+        }
         break
       }
     }
@@ -229,13 +232,21 @@ export class RoomManager {
     return null
   }
 
-  getRoomByCode(code: string): Room | null {
-    const roomId = this.codeToRoomId.get(code.toLowerCase())
+  getRoomByName(name: string): Room | null {
+    const roomId = this.nameToRoomId.get(name.trim().toLowerCase())
     return roomId ? this.rooms.get(roomId) ?? null : null
+  }
+
+  getRoomByCode(code: string): Room | null {
+    return this.getRoomByName(code)
   }
 
   getRoomById(id: string): Room | null {
     return this.rooms.get(id) ?? null
+  }
+
+  getAllRooms(): Room[] {
+    return Array.from(this.rooms.values())
   }
 
   updatePlayerState(roomId: string, playerId: string, updates: Partial<Pick<Player, 'score' | 'hasGuessedCorrectly'>>): void {
@@ -269,7 +280,7 @@ export class RoomManager {
     if (!room) return
 
     this.cancelDismissTimer(roomId)
-    this.codeToRoomId.delete(room.code)
+    this.nameToRoomId.delete(room.code.toLowerCase())
     this.rooms.delete(roomId)
   }
 
@@ -285,6 +296,30 @@ export class RoomManager {
       p.score = 0
       p.hasGuessedCorrectly = false
     })
+  }
+
+  private sanitizeRoom(room: Room) {
+    return {
+      id: room.id,
+      code: room.code,
+      name: room.name,
+      state: room.state,
+      maxPlayers: room.maxPlayers,
+      players: room.players.map((p) => ({
+        id: p.id,
+        nickname: p.nickname,
+        isOwner: p.isOwner,
+        score: p.score,
+        hasGuessedCorrectly: p.hasGuessedCorrectly,
+      })),
+      currentRound: room.currentRound,
+      totalRounds: room.totalRounds,
+    }
+  }
+
+  private getIO() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (global as any).io
   }
 }
 
