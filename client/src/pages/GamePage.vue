@@ -28,6 +28,14 @@
         <div v-if="gameStore.state === 'idle'" class="waiting">
           <div class="waiting-icon">🎨</div>
           <p>等待游戏开始...</p>
+          <button
+            v-if="roomStore.isOwner"
+            class="btn-start-game"
+            :disabled="roomStore.players.length < 2"
+            @click="handleStartGame"
+          >
+            <span>{{ roomStore.players.length < 2 ? '等待更多玩家...' : '开始游戏' }}</span>
+          </button>
         </div>
 
         <div v-else-if="gameStore.state === 'playing'" class="playing">
@@ -158,6 +166,10 @@ function handleBackToLobby() {
 
 function handleRestartGame() {
   gameStore.resetGame()
+  roomStore.startGame()
+}
+
+function handleStartGame() {
   roomStore.startGame()
 }
 </script>
@@ -303,6 +315,29 @@ function handleRestartGame() {
 .waiting-icon {
   font-size: 2.5rem;
   animation: bounce 2s ease-in-out infinite;
+}
+
+.btn-start-game {
+  margin-top: 0.5rem;
+  padding: 0.7rem 2rem;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-start-game:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(232, 133, 108, 0.3);
+}
+
+.btn-start-game:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .role-info {
