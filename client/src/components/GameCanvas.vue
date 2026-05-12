@@ -80,7 +80,7 @@ function renderStroke() {
 
   for (const stroke of canvasStore.strokes) {
     if (stroke.points.length < 2) continue
-    const pathData = stroke.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+    const pathData = stroke.points.map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
     const path = new fabric.Path(pathData, {
       stroke: stroke.color,
       strokeWidth: stroke.width,
@@ -93,7 +93,7 @@ function renderStroke() {
 
   if (canvasStore.currentStroke.length >= 2) {
     const currentPathData = canvasStore.currentStroke
-      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
+      .map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
       .join(' ')
     const currentColor = canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color
     const currentWidth = canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width
