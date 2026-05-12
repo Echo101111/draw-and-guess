@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 
+// Trigger rebuild: nginx config fix
 export default defineConfig({
   plugins: [vue()],
   test: {
