@@ -3,12 +3,10 @@ WORKDIR /app
 RUN npm install -g pnpm@9
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
-COPY shared/package.json shared/
-COPY shared/tsconfig.json shared/tsconfig.build.json shared/
+COPY shared/ shared/
 COPY client/package.json client/
 RUN pnpm install --frozen-lockfile
 
-COPY shared/src shared/src
 COPY client/ client/
 ARG VITE_SERVER_URL
 ENV VITE_SERVER_URL=$VITE_SERVER_URL
