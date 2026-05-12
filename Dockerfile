@@ -46,6 +46,7 @@ COPY --from=builder /app/server/dist ./server/dist
 COPY --from=builder /app/shared/dist ./shared/dist
 COPY --from=builder /app/client/dist ./client/dist
 
+COPY nginx.conf /etc/nginx/http.d/default.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Start nginx in background, then run Node.js
