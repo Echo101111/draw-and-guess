@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 
+// build trigger
 export default defineConfig({
   plugins: [vue()],
   test: {
