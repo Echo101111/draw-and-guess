@@ -33,6 +33,7 @@ RUN pnpm --filter @draw-and-guess/client build
 # ========================
 FROM node:18-alpine AS runtime
 WORKDIR /app
+EXPOSE 80
 
 RUN npm install -g pnpm@9 && \
     apk add --no-cache nginx
@@ -81,7 +82,4 @@ server {
 EOF
 
 # Start nginx in background, then run node
-CMD \
-  nginx & \
-  sleep 1 && \
-  node server/dist/server/src/index.js
+CMD nginx -g 'daemon off;' & sleep 2 && exec node server/dist/server/src/index.js
