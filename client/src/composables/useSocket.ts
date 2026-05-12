@@ -2,7 +2,7 @@ import { io, type Socket } from 'socket.io-client'
 import { CLIENT_EVENTS } from '@draw-and-guess/shared'
 
 let socket: Socket | null = null
-let serverUrl = 'http://localhost:3000'
+let serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
 
 const SESSION_KEY = 'dag-session'
 
