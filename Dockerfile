@@ -47,7 +47,7 @@ COPY --from=builder /app/shared/dist ./shared/dist
 COPY --from=builder /app/client/dist ./client/dist
 
 COPY nginx.conf /etc/nginx/http.d/default.conf
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 # Start nginx in background, then run Node.js
 CMD nginx -g 'daemon off;' & sleep 2 && exec node server/dist/server/src/index.js
