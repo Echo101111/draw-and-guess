@@ -191,7 +191,7 @@ function toggleSidebar(side: 'left' | 'right') {
 }
 
 onMounted(() => {
-  const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
+  const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
   connectSocket(serverUrl)
   gameStore.setupSocketListeners()
 })
