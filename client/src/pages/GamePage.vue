@@ -1108,6 +1108,11 @@ function handleStartGame() {
 
 /* ─── Mobile (< 768px) ─── */
 @media (max-width: 767px) {
+  .game-page {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
   .game-header {
     padding: 0.4rem 0.6rem;
   }
@@ -1130,6 +1135,7 @@ function handleStartGame() {
     flex-direction: column;
     padding: 0.4rem;
     gap: 0.4rem;
+    overflow: hidden;
   }
 
   .sidebar {
@@ -1142,7 +1148,7 @@ function handleStartGame() {
     background: var(--color-surface);
     box-shadow: var(--shadow-lg);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 0.5rem;
+    padding: env(safe-area-inset-top) 0.5rem env(safe-area-inset-bottom);
     display: flex;
     flex-direction: column;
   }
