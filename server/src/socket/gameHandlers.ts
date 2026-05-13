@@ -26,8 +26,12 @@ export function registerGameHandlers(io: any, socket: any): void {
 
   socket.on(CLIENT_EVENTS.DRAW_STROKE, ({ points, color, width, tool }: { points: { x: number; y: number }[]; color: string; width: number; tool: string }) => {
     const { roomId, playerId } = socket.data
-    if (!roomId || !playerId) return
+    if (!roomId || !playerId) {
+      console.log(`[DrawHandler] missing data: roomId=${roomId} playerId=${playerId}`)
+      return
+    }
 
+    console.log(`[DrawHandler] received from playerId=${playerId.slice(0,8)} points=${points.length} roomId=${roomId.slice(0,8)}`)
     gameManager.handleDrawStroke(roomId, playerId, points, color, width, tool)
   })
 

@@ -62,6 +62,8 @@ export class GameManager {
     this.strokes.set(roomId, [])
     this.currentDrawerId.set(roomId, drawer.id)
 
+    console.log(`[Round] startRound room=${roomId} drawer=${drawer.nickname}(${drawer.id.slice(0,8)}) currentDrawerId=${drawer.id.slice(0,8)} round=${room.currentRound}`)
+
     const io = this.getIO()
     if (!io) return false
 
@@ -147,10 +149,18 @@ export class GameManager {
 
   handleDrawStroke(roomId: string, playerId: string, points: Point[], color: string, width: number, tool: string): void {
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.state !== 'playing') return
+    if (!room || room.state !== 'playing') {
+      console.log(`[Draw] REJECT: room=${roomId} state=${room?.state} noplayer=${!room}`)
+      return
+    }
 
     const drawerId = this.currentDrawerId.get(roomId)
-    if (!drawerId || drawerId !== playerId) return
+    if (!drawerId || drawerId !== playerId) {
+      console.log(`[Draw] REJECT: playerId=${playerId} drawerId=${drawerId} players=[${room.players.map(p => `${p.nickname}(${p.id.slice(0,6)})`).join(',')}]`)
+      return
+    }
+
+    console.log(`[Draw] ACCEPT: playerId=${playerId.slice(0,8)} points=${points.length}`)
 
     const strokePoints = this.strokes.get(roomId) ?? []
     strokePoints.push(...points)
