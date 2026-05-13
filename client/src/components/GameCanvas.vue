@@ -57,15 +57,17 @@ function handleMouseMove(e: { e: MouseEvent }) {
 function handleMouseUp() {
   if (props.readonly || !gameStore.isMyTurn) return
   if (canvasStore.currentStroke.length > 0) emitStroke()
-  canvasStore.endStroke()
+  canvasStore.endStroke(fabricCanvas?.width, fabricCanvas?.height)
   renderStroke()
 }
 
 function emitStroke() {
   const points = canvasStore.currentStroke
-  if (points.length === 0) return
+  if (points.length === 0 || !fabricCanvas) return
+  const cw = fabricCanvas.width ?? 1
+  const ch = fabricCanvas.height ?? 1
   gameStore.drawStroke(
-    points,
+    points.map((p) => ({ x: p.x / cw, y: p.y / ch })),
     canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
     canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
     canvasStore.tool
@@ -74,12 +76,17 @@ function emitStroke() {
 
 function renderStroke() {
   if (!fabricCanvas) return
+  const cw = fabricCanvas.width ?? 1
+  const ch = fabricCanvas.height ?? 1
+
   fabricCanvas.clear()
   fabricCanvas.backgroundColor = '#ffffff'
 
   for (const stroke of canvasStore.strokes) {
     if (stroke.points.length < 2) continue
-    const pathData = stroke.points.map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+    const pathData = stroke.points
+      .map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x * cw} ${p.y * ch}`)
+      .join(' ')
     const path = new fabric.Path(pathData, {
       stroke: stroke.color,
       strokeWidth: stroke.width,
@@ -133,7 +140,7 @@ function resizeCanvas() {
 
   fabricCanvas.setWidth(width)
   fabricCanvas.setHeight(height)
-  fabricCanvas.renderAll()
+  renderStroke()
 }
 
 watch(() => gameStore.strokes, () => {

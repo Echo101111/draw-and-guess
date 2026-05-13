@@ -44,11 +44,17 @@ export const useCanvasStore = defineStore('canvas', () => {
     currentStroke.value.push(point)
   }
 
-  function endStroke() {
+  function endStroke(canvasWidth?: number, canvasHeight?: number) {
     if (!isDrawing.value || currentStroke.value.length === 0) return
 
+    const cw = canvasWidth ?? 1
+    const ch = canvasHeight ?? 1
+
     strokes.value.push({
-      points: [...currentStroke.value],
+      points: currentStroke.value.map((p) => ({
+        x: p.x / cw,
+        y: p.y / ch,
+      })),
       color: tool.value === 'eraser' ? '#ffffff' : color.value,
       width: tool.value === 'eraser' ? width.value * 3 : width.value,
       tool: tool.value,
