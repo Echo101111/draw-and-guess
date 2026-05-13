@@ -44,15 +44,19 @@ export const useRoomStore = defineStore('room', () => {
 
     socket.off(SERVER_EVENTS.ROOM_CREATED)
     socket.on(SERVER_EVENTS.ROOM_CREATED, (data) => {
-      room.value = {
-        id: data.roomId,
-        code: data.roomCode,
-        name: '',
-        state: 'lobby',
-        maxPlayers: 50,
-        players: [],
-        currentRound: 0,
-        totalRounds: 10,
+      if (data.room) {
+        room.value = data.room
+      } else {
+        room.value = {
+          id: data.roomId,
+          code: data.roomCode,
+          name: '',
+          state: 'lobby',
+          maxPlayers: 50,
+          players: [],
+          currentRound: 0,
+          totalRounds: 10,
+        }
       }
       currentPlayerId.value = data.playerId
       connectionState.value = 'connected'

@@ -106,10 +106,30 @@
           </Transition>
         </div>
 
-        <div v-else-if="gameStore.state === 'round_end'" class="round-end">
-          <div class="round-end-icon">⏰</div>
-          <h2>本轮结束</h2>
-          <p>等待下一轮开始...</p>
+        <div v-else-if="gameStore.state === 'round_end'" class="round-transition">
+          <div class="rt-content">
+            <div class="rt-piece" :style="{ animationDelay: '0s' }">
+              <div class="rt-round-label">第 {{ transitionRound }} / {{ transitionTotalRounds }} 轮</div>
+            </div>
+            <div class="rt-piece" :style="{ animationDelay: '0.25s' }">
+              <div class="rt-answer-label">答案是</div>
+              <div class="rt-word">{{ transitionWord }}</div>
+            </div>
+            <div class="rt-piece" :style="{ animationDelay: '0.6s' }">
+              <div class="rt-reason-tag">{{ reasonText }}</div>
+            </div>
+            <div class="rt-piece rt-next-row" :style="{ animationDelay: '1.1s' }">
+              <div class="rt-next-label">下一位画师</div>
+              <div class="rt-next-name">{{ transitionNextDrawer }}</div>
+            </div>
+            <div class="rt-piece" :style="{ animationDelay: '1.8s' }">
+              <div class="rt-countdown">
+                <span class="rt-dot"></span>
+                <span>准备中</span>
+                <span class="rt-dot"></span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="gameStore.state === 'game_over'" class="game-over">
@@ -163,6 +183,18 @@ const roomName = computed(() => route.params.roomName as string)
 const showSidebar = ref<'left' | 'right' | null>(null)
 const chatExpanded = ref(true)
 const showDrawerAlert = ref(false)
+
+const transitionWord = computed(() => gameStore.transitionData?.word ?? '')
+const transitionRound = computed(() => gameStore.transitionData?.round ?? gameStore.currentRound)
+const transitionTotalRounds = computed(() => gameStore.transitionData?.totalRounds ?? gameStore.totalRounds)
+const transitionNextDrawer = computed(() => gameStore.transitionData?.nextDrawer?.nickname ?? '')
+
+const reasonText = computed(() => {
+  const reason = gameStore.transitionData?.reason
+  if (reason === 'timeout') return '时间到'
+  if (reason === 'all_guessed') return '全部猜对'
+  return '本轮结束'
+})
 
 function closeDrawerAlert() {
   showDrawerAlert.value = false
@@ -480,23 +512,113 @@ function handleStartGame() {
   flex-shrink: 0;
 }
 
-.round-end {
+/* ─── Round Transition ─── */
+.round-transition {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.rt-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
-.round-end-icon { font-size: 2.5rem; }
+.rt-piece {
+  opacity: 0;
+  transform: translateY(16px);
+  animation: rtFadeIn 0.35s ease-out forwards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
 
-.round-end h2 {
-  font-family: var(--font-heading);
+@keyframes rtFadeIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rt-round-label {
+  font-family: var(--font-number);
   font-size: 1.5rem;
-  color: var(--color-text);
+  font-weight: 700;
+  color: var(--color-primary);
 }
 
-.round-end p { color: var(--color-text-secondary); }
+.rt-answer-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.rt-word {
+  font-family: var(--font-title);
+  font-size: 2.2rem;
+  color: var(--color-text);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  padding: 0.3rem 1.5rem;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border: 2px solid var(--color-accent);
+  animation: rtWordPulse 2s ease-in-out infinite;
+}
+
+@keyframes rtWordPulse {
+  0%, 100% { box-shadow: var(--shadow-md); }
+  50% { box-shadow: 0 0 0 4px rgba(244, 162, 97, 0.15), 0 4px 20px rgba(244, 162, 97, 0.2); }
+}
+
+.rt-reason-tag {
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  padding: 0.2rem 1rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-light);
+}
+
+.rt-next-row {
+  gap: 0.15rem;
+}
+
+.rt-next-label {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.rt-next-name {
+  font-family: var(--font-title);
+  font-size: 1.4rem;
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.rt-countdown {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  animation: rtPulse 1.2s ease-in-out infinite;
+}
+
+.rt-dot {
+  display: inline-block;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+@keyframes rtPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
 
 .game-over {
   display: flex;
@@ -924,6 +1046,13 @@ function handleStartGame() {
   }
 
   .role-text { font-size: 0.75rem; }
+
+  /* ─── Round transition mobile ─── */
+  .rt-round-label { font-size: 1.1rem; }
+  .rt-word { font-size: 1.4rem; padding: 0.2rem 1rem; }
+  .rt-next-name { font-size: 1.1rem; }
+  .rt-reason-tag { font-size: 0.75rem; }
+  .rt-countdown { font-size: 0.78rem; }
 
   .inline-chat-wrap {
     width: 100%;

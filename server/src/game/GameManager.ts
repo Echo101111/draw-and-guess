@@ -197,11 +197,19 @@ export class GameManager {
     const room = roomManager.getRoomById(roomId)
     if (!room) return
 
+    // 预选下一位画师，用于切换动画展示
+    const nextDrawer = this.selectNextDrawer(room)
+
     const io = this.getIO()
     if (io) {
       io.to(room.code).emit(SERVER_EVENTS.ROUND_END, {
         word: room.currentWord ?? '',
         reason,
+        round: room.currentRound,
+        totalRounds: room.totalRounds,
+        nextDrawer: nextDrawer
+          ? { id: nextDrawer.id, nickname: nextDrawer.nickname }
+          : null,
       })
     }
 
@@ -345,25 +353,16 @@ export class GameManager {
   }
 
   private selectNextDrawer(room: Room): Player | null {
-    const eligiblePlayers = room.players.filter((p) => {
-      const isEligible = !p.hasGuessedCorrectly || p.score === 0
-      return isEligible
-    })
+    if (room.players.length === 0) return null
 
-    if (eligiblePlayers.length === 0) return null
+    const players = room.players
+    const prevDrawerId = this.currentDrawerId.get(room.id)
 
-    const currentDrawer = this.currentDrawerId.get(room.id)
-    const currentDrawerIndex = eligiblePlayers.findIndex(
-      (p) => p.id === currentDrawer
-    )
+    // 按顺序轮转：上一轮画师的下一个玩家成为本轮画师
+    const prevIndex = players.findIndex((p) => p.id === prevDrawerId)
+    const nextIndex = prevIndex === -1 ? 0 : (prevIndex + 1) % players.length
 
-    let nextIndex = (currentDrawerIndex + 1) % eligiblePlayers.length
-
-    if (currentDrawerIndex === -1) {
-      nextIndex = 0
-    }
-
-    return eligiblePlayers[nextIndex] ?? null
+    return players[nextIndex] ?? null
   }
 
   private startTimer(roomId: string, duration: number): void {

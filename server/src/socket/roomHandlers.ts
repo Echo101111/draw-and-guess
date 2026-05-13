@@ -64,6 +64,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
       socket.join(player.id)
 
       socket.emit(SERVER_EVENTS.ROOM_CREATED, {
+        room: getPlayerRoomData(room),
         roomCode: room.code,
         roomId: room.id,
         playerId: player.id,

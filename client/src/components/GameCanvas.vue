@@ -56,9 +56,8 @@ function handleMouseMove(e: { e: MouseEvent }) {
 
 function handleMouseUp() {
   if (props.readonly || !gameStore.isMyTurn) return
-  const stroke = canvasStore.currentStroke
+  if (canvasStore.currentStroke.length > 0) emitStroke()
   canvasStore.endStroke()
-  if (stroke.length > 0) emitStroke()
   renderStroke()
 }
 

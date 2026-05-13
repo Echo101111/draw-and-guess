@@ -30,6 +30,14 @@ export const useGameStore = defineStore('game', () => {
   const currentDrawer = ref<DrawerInfo | null>(null)
   const strokes = ref<Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string }>>([])
 
+  const transitionData = ref<{
+    word: string
+    reason: string
+    round: number
+    totalRounds: number
+    nextDrawer: DrawerInfo | null
+  } | null>(null)
+
   const isMyTurn = computed(() => myRole.value === 'drawer')
   const canSubmitAnswer = computed(() => myRole.value === 'guesser' && !hasGuessedCorrectly.value && state.value === 'playing')
   const drawerNickname = computed(() => currentDrawer.value?.nickname ?? '')
@@ -60,6 +68,7 @@ export const useGameStore = defineStore('game', () => {
     socket.off(SERVER_EVENTS.ROUND_START)
     socket.on(SERVER_EVENTS.ROUND_START, (data: { round: number; totalRounds: number; timeLeft: number; drawer: { id: string; nickname: string } }) => {
       state.value = 'playing'
+      transitionData.value = null
       currentRound.value = data.round
       totalRounds.value = data.totalRounds
       timeLeft.value = data.timeLeft
@@ -78,6 +87,7 @@ export const useGameStore = defineStore('game', () => {
     socket.off(SERVER_EVENTS.ROUND_START_TO_DRAWER)
     socket.on(SERVER_EVENTS.ROUND_START_TO_DRAWER, (data: { round: number; totalRounds: number; timeLeft: number; word: string }) => {
       state.value = 'playing'
+      transitionData.value = null
       currentRound.value = data.round
       totalRounds.value = data.totalRounds
       timeLeft.value = data.timeLeft
@@ -119,10 +129,17 @@ export const useGameStore = defineStore('game', () => {
     })
 
     socket.off(SERVER_EVENTS.ROUND_END)
-    socket.on(SERVER_EVENTS.ROUND_END, (data: { word: string; reason: string }) => {
+    socket.on(SERVER_EVENTS.ROUND_END, (data: { word: string; reason: string; round?: number; totalRounds?: number; nextDrawer?: DrawerInfo | null }) => {
       state.value = 'round_end'
       stopLocalTimer()
       strokes.value = []
+      transitionData.value = {
+        word: data.word,
+        reason: data.reason,
+        round: data.round ?? currentRound.value,
+        totalRounds: data.totalRounds ?? totalRounds.value,
+        nextDrawer: data.nextDrawer ?? null,
+      }
       useCanvasStore().clearCanvas()
       addSystemMessage(`本轮结束，答案是：${data.word}`)
       if (data.reason === 'timeout') {
@@ -209,6 +226,7 @@ export const useGameStore = defineStore('game', () => {
     currentDrawer.value = null
     strokes.value = []
     chatMessages.value = []
+    transitionData.value = null
   }
 
   return {
@@ -223,6 +241,7 @@ export const useGameStore = defineStore('game', () => {
     currentWord,
     currentDrawer,
     strokes,
+    transitionData,
     isMyTurn,
     canSubmitAnswer,
     drawerNickname,
