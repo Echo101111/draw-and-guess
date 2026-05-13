@@ -60,6 +60,63 @@ const WORDS = {
   ],
 }
 
+export type WordDifficulty = 'easy' | 'medium' | 'hard'
+
+const WORD_DIFFICULTY: Record<string, WordDifficulty> = {
+  // Medium — less common but recognizable
+  '考拉': 'medium', '火烈鸟': 'medium', '鸵鸟': 'medium', '孔雀': 'medium',
+  '犀牛': 'medium', '河马': 'medium', '斑马': 'medium', '袋鼠': 'medium',
+  '鹦鹉': 'medium', '天鹅': 'medium', '猫头鹰': 'medium', '企鹅': 'medium',
+  '糖葫芦': 'medium', '月饼': 'medium', '汤圆': 'medium', '粽子': 'medium',
+  '年糕': 'medium', '沙拉': 'medium',
+  '砧板': 'medium', '沐浴露': 'medium', '洗发水': 'medium',
+  '扫帚': 'medium', '拖把': 'medium', '抹布': 'medium',
+  '救护车': 'medium', '消防车': 'medium', '挖掘机': 'medium',
+  '收割机': 'medium', '压路机': 'medium', '搅拌车': 'medium',
+  '推土机': 'medium', '皮划艇': 'medium', '滑翔机': 'medium',
+  '飞艇': 'medium', '三轮车': 'medium', '独轮车': 'medium',
+  '卡丁车': 'medium', '赛车': 'medium', '沙滩车': 'medium', '热气球': 'medium',
+  '峡谷': 'medium', '瀑布': 'medium', '悬崖': 'medium', '洞穴': 'medium',
+  '冰川': 'medium', '湿地': 'medium', '火山': 'medium',
+  '保龄球': 'medium', '跆拳道': 'medium', '啦啦队': 'medium',
+  '标枪': 'medium', '铁饼': 'medium', '蹦极': 'medium',
+  '建筑师': 'medium', '摄影师': 'medium', '科学家': 'medium',
+  '售货员': 'medium', '快递员': 'medium', '舞蹈家': 'medium',
+  '音乐家': 'medium', '水管工': 'medium', '主持人': 'medium',
+}
+
+export function getWordDifficulty(word: string): WordDifficulty {
+  return WORD_DIFFICULTY[word] ?? 'easy'
+}
+
+export function getDifficultyForRound(round: number, totalRounds: number): WordDifficulty[] {
+  if (round <= Math.ceil(totalRounds * 0.3)) return ['easy']
+  if (round <= Math.ceil(totalRounds * 0.6)) return ['easy', 'medium']
+  if (round <= Math.ceil(totalRounds * 0.8)) return ['easy', 'medium']
+  return ['easy', 'medium', 'hard']
+}
+
+const wordToCategory: Record<string, keyof typeof WORDS> = {}
+for (const [category, words] of Object.entries(WORDS)) {
+  for (const word of words) {
+    wordToCategory[word] = category as keyof typeof WORDS
+  }
+}
+
+export function getWordCategory(word: string): string | null {
+  return wordToCategory[word] ?? null
+}
+
+export const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
+  animals: '动物',
+  food: '食物',
+  daily: '日常',
+  vehicles: '交通工具',
+  nature: '自然',
+  sports: '体育',
+  jobs: '职业',
+}
+
 const WORD_SENSITIVITY: Record<keyof typeof WORDS, SensitivityLevel> = {
   animals: 'safe',
   food: 'safe',
@@ -75,7 +132,8 @@ export const WORD_CATEGORIES = Object.keys(WORDS) as (keyof typeof WORDS)[]
 export function getRandomWord(
   usedWords: Set<string>,
   categories?: (keyof typeof WORDS)[],
-  sensitivity: SensitivityLevel | 'all' = 'all'
+  sensitivity: SensitivityLevel | 'all' = 'all',
+  difficulties?: WordDifficulty[]
 ): string | null {
   let pools = categories ? categories.map((c) => WORDS[c]).flat() : Object.values(WORDS).flat()
 
@@ -87,6 +145,10 @@ export function getRandomWord(
       const category = (Object.entries(WORDS) as [keyof typeof WORDS, string[]][]).find(([, words]) => words.includes(word))
       return category && allowedCategories.includes(category[0])
     })
+  }
+
+  if (difficulties && difficulties.length > 0) {
+    pools = pools.filter((word) => difficulties.includes(getWordDifficulty(word)))
   }
 
   const available = pools.filter((w) => !usedWords.has(w))

@@ -17,11 +17,30 @@ interface ScoreEntry {
   rank: number
 }
 
+interface RoundStartPayload {
+  round: number
+  totalRounds: number
+  timeLeft: number
+  drawer: DrawerInfo
+  wordLength?: number
+  wordCategory?: string
+}
+
+interface RoundStartToDrawerPayload {
+  round: number
+  totalRounds: number
+  timeLeft: number
+  word: string
+  wordLength?: number
+  wordCategory?: string
+}
+
 export const useGameStore = defineStore('game', () => {
   const state = ref<'idle' | 'playing' | 'round_end' | 'game_over'>('idle')
   const currentRound = ref(0)
   const totalRounds = ref(10)
   const timeLeft = ref(0)
+  const totalTime = ref(90)
   const myRole = ref<'drawer' | 'guesser' | 'spectator'>('spectator')
   const scores = ref<ScoreEntry[]>([])
   const chatMessages = ref<ChatMessage[]>([])
@@ -29,6 +48,10 @@ export const useGameStore = defineStore('game', () => {
   const currentWord = ref<string | null>(null)
   const currentDrawer = ref<DrawerInfo | null>(null)
   const strokes = ref<Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string }>>([])
+  const wordLength = ref(0)
+  const wordCategory = ref<string | undefined>(undefined)
+  const recentGuessers = ref<Array<{ playerId: string; nickname: string }>>([])
+  const categoryHintShown = ref(false)
 
   const transitionData = ref<{
     word: string
@@ -41,6 +64,22 @@ export const useGameStore = defineStore('game', () => {
   const isMyTurn = computed(() => myRole.value === 'drawer')
   const canSubmitAnswer = computed(() => myRole.value === 'guesser' && !hasGuessedCorrectly.value && state.value === 'playing')
   const drawerNickname = computed(() => currentDrawer.value?.nickname ?? '')
+  const wordPlaceholders = computed(() => {
+    const len = wordLength.value
+    if (len <= 0) return ''
+    return Array.from({ length: len }, () => '_').join(' ')
+  })
+  const showCategoryHint = computed(() => {
+    if (!wordCategory.value) return false
+    if (state.value !== 'playing') return false
+    if (categoryHintShown.value) return true
+    const elapsed = totalTime.value - timeLeft.value
+    if (elapsed >= totalTime.value / 2) {
+      categoryHintShown.value = true
+      return true
+    }
+    return false
+  })
 
   let timerInterval: ReturnType<typeof setInterval> | null = null
 
@@ -66,15 +105,20 @@ export const useGameStore = defineStore('game', () => {
     if (!socket) return
 
     socket.off(SERVER_EVENTS.ROUND_START)
-    socket.on(SERVER_EVENTS.ROUND_START, (data: { round: number; totalRounds: number; timeLeft: number; drawer: { id: string; nickname: string } }) => {
+    socket.on(SERVER_EVENTS.ROUND_START, (data: RoundStartPayload) => {
       state.value = 'playing'
       transitionData.value = null
       currentRound.value = data.round
       totalRounds.value = data.totalRounds
       timeLeft.value = data.timeLeft
+      totalTime.value = data.timeLeft
       currentDrawer.value = data.drawer
       strokes.value = []
       hasGuessedCorrectly.value = false
+      wordLength.value = data.wordLength ?? 0
+      wordCategory.value = data.wordCategory ?? undefined
+      recentGuessers.value = []
+      categoryHintShown.value = false
       startLocalTimer()
 
       if (data.drawer.id === roomStore.currentPlayerId) {
@@ -85,15 +129,20 @@ export const useGameStore = defineStore('game', () => {
     })
 
     socket.off(SERVER_EVENTS.ROUND_START_TO_DRAWER)
-    socket.on(SERVER_EVENTS.ROUND_START_TO_DRAWER, (data: { round: number; totalRounds: number; timeLeft: number; word: string }) => {
+    socket.on(SERVER_EVENTS.ROUND_START_TO_DRAWER, (data: RoundStartToDrawerPayload) => {
       state.value = 'playing'
       transitionData.value = null
       currentRound.value = data.round
       totalRounds.value = data.totalRounds
       timeLeft.value = data.timeLeft
+      totalTime.value = data.timeLeft
       currentWord.value = data.word
+      wordLength.value = data.wordLength ?? data.word.length
+      wordCategory.value = data.wordCategory ?? undefined
       strokes.value = []
       hasGuessedCorrectly.value = false
+      recentGuessers.value = []
+      categoryHintShown.value = false
       myRole.value = 'drawer'
       startLocalTimer()
     })
@@ -113,6 +162,9 @@ export const useGameStore = defineStore('game', () => {
       if (data.correct) {
         if (data.playerId === roomStore.currentPlayerId) {
           hasGuessedCorrectly.value = true
+        }
+        if (!recentGuessers.value.some((g) => g.playerId === data.playerId)) {
+          recentGuessers.value.push({ playerId: data.playerId, nickname: data.nickname })
         }
         addSystemMessage(`${data.nickname} 猜对了！`)
       }
@@ -219,6 +271,7 @@ export const useGameStore = defineStore('game', () => {
     state.value = 'idle'
     currentRound.value = 0
     timeLeft.value = 0
+    totalTime.value = 90
     myRole.value = 'spectator'
     scores.value = []
     hasGuessedCorrectly.value = false
@@ -227,6 +280,10 @@ export const useGameStore = defineStore('game', () => {
     strokes.value = []
     chatMessages.value = []
     transitionData.value = null
+    wordLength.value = 0
+    wordCategory.value = undefined
+    recentGuessers.value = []
+    categoryHintShown.value = false
   }
 
   return {
@@ -234,6 +291,7 @@ export const useGameStore = defineStore('game', () => {
     currentRound,
     totalRounds,
     timeLeft,
+    totalTime,
     myRole,
     scores,
     chatMessages,
@@ -245,6 +303,12 @@ export const useGameStore = defineStore('game', () => {
     isMyTurn,
     canSubmitAnswer,
     drawerNickname,
+    wordLength,
+    wordCategory,
+    wordPlaceholders,
+    showCategoryHint,
+    categoryHintShown,
+    recentGuessers,
     setupSocketListeners,
     submitAnswer,
     sendChat,

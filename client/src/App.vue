@@ -53,6 +53,10 @@
   box-sizing: border-box;
 }
 
+html {
+  touch-action: manipulation;
+}
+
 body {
   font-family: var(--font-body);
   background: var(--color-bg);

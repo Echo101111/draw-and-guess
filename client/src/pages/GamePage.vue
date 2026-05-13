@@ -67,10 +67,17 @@
               <span class="word-value">{{ gameStore.currentWord }}</span>
             </template>
             <template v-else>
-              <span class="word-label">正在画的是</span>
-              <span class="word-hint">{{ gameStore.drawerNickname }}</span>
+              <span class="word-label">猜词提示</span>
+              <span class="word-hint">{{ gameStore.wordPlaceholders || '??' }}</span>
+              <span class="drawer-name">画师：{{ gameStore.drawerNickname }}</span>
             </template>
           </div>
+
+          <Transition name="fade">
+            <div v-if="gameStore.showCategoryHint" class="category-hint">
+              💡 分类提示：{{ gameStore.wordCategory }}
+            </div>
+          </Transition>
 
           <div class="mobile-scores">
             <Scoreboard />
@@ -104,6 +111,17 @@
               <span>🎉 猜对了！</span>
             </div>
           </Transition>
+
+          <div v-if="gameStore.recentGuessers.length > 0 && !gameStore.hasGuessedCorrectly" class="guesser-list">
+            <div
+              v-for="(g, i) in gameStore.recentGuessers"
+              :key="g.playerId"
+              class="guesser-bubble"
+              :style="{ animationDelay: `${i * 0.15}s` }"
+            >
+              ✅ {{ g.nickname }}
+            </div>
+          </div>
         </div>
 
         <div v-else-if="gameStore.state === 'round_end'" class="round-transition">
@@ -824,6 +842,53 @@ function handleStartGame() {
 .pop-enter-active { animation: popIn 0.3s ease-out; }
 .pop-leave-active { animation: popIn 0.3s ease-in reverse; }
 
+.category-hint {
+  padding: 0.3rem 1rem;
+  background: var(--color-gold-bg);
+  border: 1px solid rgba(244, 162, 97, 0.25);
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  flex-shrink: 0;
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+.drawer-name {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.4s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.guesser-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.guesser-bubble {
+  padding: 0.15rem 0.7rem;
+  background: var(--color-success-bg);
+  border: 1px solid rgba(126, 184, 122, 0.3);
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-success);
+  animation: popIn 0.35s ease-out both;
+  white-space: nowrap;
+}
+
 /* ─── Tablet (768px–1024px) ─── */
 @media (max-width: 1024px) {
   .game-content {
@@ -1023,6 +1088,20 @@ function handleStartGame() {
 
   .word-hint {
     font-size: 0.8rem;
+  }
+
+  .drawer-name {
+    font-size: 0.7rem;
+  }
+
+  .category-hint {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.8rem;
+  }
+
+  .guesser-bubble {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.5rem;
   }
 
   .role-info {

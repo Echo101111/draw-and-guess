@@ -1,6 +1,6 @@
 import { SERVER_EVENTS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
-import { getRandomWord } from '../data/words.js'
+import { getRandomWord, getDifficultyForRound, getWordCategory, CATEGORY_DISPLAY_NAMES } from '../data/words.js'
 import type { Room, Player, Point, SensitivityLevel } from '@draw-and-guess/shared'
 
 const SCORE_BASE = 100
@@ -30,12 +30,16 @@ export class GameManager {
     }
 
     const sensitivityLevel: SensitivityLevel = room.players.length < 4 ? 'safe' : 'moderate'
-    const word = getRandomWord(this.getUsedWords(roomId), undefined, sensitivityLevel)
+    const difficulties = getDifficultyForRound(room.currentRound, room.totalRounds)
+    const word = getRandomWord(this.getUsedWords(roomId), undefined, sensitivityLevel, difficulties)
     if (!word) return false
 
     this.getUsedWords(roomId).add(word)
     room.currentWord = word
     room.roundStartTime = Date.now()
+
+    const wordCategory = getWordCategory(word)
+    const wordCategoryName = wordCategory ? CATEGORY_DISPLAY_NAMES[wordCategory] : undefined
 
     const drawerData = {
       id: drawer.id,
@@ -72,6 +76,7 @@ export class GameManager {
       totalRounds: room.totalRounds,
       word,
       timeLeft: room.roundDuration,
+      wordCategory: wordCategoryName,
     })
 
     io.to(room.code).emit(SERVER_EVENTS.ROUND_START, {
@@ -80,6 +85,8 @@ export class GameManager {
       drawer: drawerData,
       guessers: guesserData,
       timeLeft: room.roundDuration,
+      wordLength: word.length,
+      wordCategory: wordCategoryName,
     })
 
     this.startTimer(roomId, room.roundDuration)
