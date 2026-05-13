@@ -5,12 +5,15 @@
       <span class="changelog-label">更新日志</span>
     </button>
 
-    <Transition name="fade">
+    <Transition name="changelog">
       <div v-if="showChangelog" class="changelog-overlay" @click.self="showChangelog = false">
         <div class="changelog-modal">
           <div class="changelog-header">
-            <span>📋 更新日志</span>
-            <button class="changelog-close" @click="showChangelog = false">✕</button>
+            <div class="changelog-header-left">
+              <span class="changelog-header-icon">📋</span>
+              <span>更新日志</span>
+            </div>
+            <button class="changelog-close" @click="showChangelog = false" title="关闭">✕</button>
           </div>
           <div class="changelog-body" v-html="renderedChangelog" />
         </div>
@@ -181,7 +184,24 @@ function renderMarkdown(md: string): string {
         return `<h2>${line.slice(3)}</h2>`
       }
       if (line.startsWith('- ')) {
-        return `<li>${line.slice(2)}</li>`
+        const content = line.slice(2).trim()
+        const featMatch = content.match(/^Feat[：:]\s*/)
+        if (featMatch) {
+          return `<li><span class="tag tag-feat">🆕 新增功能</span> ${content.slice(featMatch[0].length)}</li>`
+        }
+        const fixMatch = content.match(/^Fix[：:]\s*/)
+        if (fixMatch) {
+          return `<li><span class="tag tag-fix">🔧 修复bug</span> ${content.slice(fixMatch[0].length)}</li>`
+        }
+        const perfMatch = content.match(/^Perf[：:]\s*/)
+        if (perfMatch) {
+          return `<li><span class="tag tag-perf">⚡ 性能优化</span> ${content.slice(perfMatch[0].length)}</li>`
+        }
+        const otherMatch = content.match(/^(Style|Docs|Chore|Refactor)[：:]\s*/)
+        if (otherMatch) {
+          return `<li><span class="tag tag-style">🎨 样式优化</span> ${content.slice(otherMatch[0].length)}</li>`
+        }
+        return `<li>${content}</li>`
       }
       if (line.trim() === '') {
         return '</ul><ul>'
@@ -481,17 +501,6 @@ function handleJoin() {
   to { transform: rotate(360deg); }
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s, transform 0.3s;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(10px);
-}
-
 /* ─── Changelog ─── */
 .btn-changelog {
   position: fixed;
@@ -501,24 +510,31 @@ function handleJoin() {
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.4rem 0.75rem;
+  padding: 0.4rem 0.85rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   font-size: 0.8rem;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: var(--transition);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--shadow-sm);
+  font-weight: 500;
 }
 
 .btn-changelog:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  box-shadow: var(--shadow-glow);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  box-shadow: 0 4px 16px rgba(244, 162, 97, 0.2);
+  transform: translateY(-1px);
 }
 
-.changelog-icon { font-size: 0.9rem; }
+.btn-changelog:active {
+  transform: translateY(0);
+}
+
+.changelog-icon { font-size: 0.85rem; }
+.changelog-label { font-size: 0.78rem; }
 
 .changelog-overlay {
   position: fixed;
@@ -527,8 +543,8 @@ function handleJoin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(3px);
+  background: rgba(74, 55, 40, 0.4);
+  backdrop-filter: blur(5px);
 }
 
 .changelog-modal {
@@ -537,47 +553,88 @@ function handleJoin() {
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface);
+  background: linear-gradient(180deg, #FFFDF8 0%, #FFF8F0 100%);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  animation: popIn 0.3s ease-out;
+  box-shadow: 0 12px 48px rgba(74, 55, 40, 0.2);
+  border: 1px solid rgba(244, 162, 97, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Decorative top gradient bar */
+.changelog-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent), var(--color-primary-light));
+  z-index: 1;
 }
 
 .changelog-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--color-border-light);
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--color-text);
+  padding: 1rem 1.25rem 0.7rem;
   flex-shrink: 0;
 }
 
+.changelog-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  letter-spacing: 0.03em;
+}
+
+.changelog-header-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .changelog-close {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
-  font-size: 1rem;
   cursor: pointer;
   color: var(--color-text-muted);
-  padding: 0.2rem 0.4rem;
-  border-radius: var(--radius-sm);
-  transition: var(--transition);
+  border-radius: 50%;
+  transition: all 0.25s;
+  font-size: 0.85rem;
   line-height: 1;
 }
 
 .changelog-close:hover {
   background: var(--color-border-light);
   color: var(--color-text);
+  transform: rotate(90deg);
 }
 
 .changelog-body {
-  padding: 1rem 1.25rem;
+  padding: 0.25rem 1.25rem 1.25rem;
   overflow-y: auto;
   font-size: 0.85rem;
   line-height: 1.6;
   color: var(--color-text);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.changelog-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.changelog-body::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
 
 .changelog-body h1 {
@@ -586,45 +643,122 @@ function handleJoin() {
 
 .changelog-body h2 {
   font-family: var(--font-title);
-  font-size: 1rem;
-  color: var(--color-primary);
-  margin: 1rem 0 0.5rem;
-  padding-bottom: 0.3rem;
-  border-bottom: 1px solid var(--color-border-light);
+  font-size: 1.05rem;
+  color: var(--color-primary-dark);
+  margin: 1.25rem 0 0.5rem;
+  padding: 0 0 0.3rem 0;
+  border-bottom: 2px solid var(--color-accent-pale);
+  letter-spacing: 0.04em;
 }
 
 .changelog-body h2:first-of-type {
-  margin-top: 0;
+  margin-top: 0.2rem;
 }
 
 .changelog-body ul {
   list-style: none;
   padding: 0;
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.5rem;
 }
 
 .changelog-body li {
   position: relative;
-  padding: 0.2rem 0 0.2rem 1rem;
+  padding: 0.45rem 0 0.45rem 1rem;
   font-size: 0.82rem;
   color: var(--color-text-secondary);
+  line-height: 1.5;
+  border-left: 2px solid transparent;
+  padding-left: 0.85rem;
+  margin-left: 0.25rem;
+  transition: border-color 0.2s;
 }
 
-.changelog-body li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.6rem;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  opacity: 0.6;
+.changelog-body li:hover {
+  border-left-color: var(--color-accent);
 }
 
-@keyframes popIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
+/* Tags for Feat / Fix / Perf / Style */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+  margin-right: 0.3rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.tag-feat {
+  background: var(--color-accent-pale);
+  color: #D68A4A;
+  border: 1px solid rgba(244, 162, 97, 0.25);
+}
+
+.tag-fix {
+  background: rgba(217, 117, 107, 0.07);
+  color: #C96A5E;
+  border: 1px solid rgba(217, 117, 107, 0.18);
+}
+
+.tag-perf {
+  background: rgba(126, 184, 122, 0.08);
+  color: #6AA866;
+  border: 1px solid rgba(126, 184, 122, 0.2);
+}
+
+.tag-style {
+  background: var(--color-border-light);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+/* Changelog overlay animation */
+.changelog-enter-active {
+  transition: opacity 0.3s ease;
+}
+
+.changelog-enter-active .changelog-modal {
+  animation: modalEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.changelog-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.changelog-leave-active .changelog-modal {
+  animation: modalExit 0.2s ease-in;
+}
+
+.changelog-enter-from,
+.changelog-leave-to {
+  opacity: 0;
+}
+
+@keyframes modalEnter {
+  from { opacity: 0; transform: scale(0.85) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes modalExit {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.9) translateY(10px); }
+}
+
+/* ─── Error toast (keep original transition) ─── */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px);
 }
 
 /* ─── Mobile ─── */
