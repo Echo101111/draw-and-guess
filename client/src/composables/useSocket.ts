@@ -20,6 +20,11 @@ export function getSocket(): Socket {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
     })
+    // socket 重连后自动恢复会话（重新加入房间）
+    // 仅当 localStorage 存在有效 session 时才会发送 RESTORE_SESSION
+    socket.on('connect', () => {
+      restoreSession()
+    })
   }
   return socket
 }
@@ -61,7 +66,7 @@ export function clearSession(): void {
 
 export function restoreSession(): void {
   const session = getStoredSession()
-  if (session && socket) {
+  if (session && socket?.connected) {
     socket.emit(CLIENT_EVENTS.RESTORE_SESSION, {
       roomName: session.roomName,
       playerId: session.playerId,

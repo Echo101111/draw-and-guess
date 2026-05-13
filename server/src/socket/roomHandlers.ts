@@ -125,6 +125,11 @@ export function registerRoomHandlers(io: any, socket: any): void {
     })
 
     socket.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
+
+    // 游戏进行中：新玩家以观战者加入，可看画板和聊天，下一轮自动参与
+    if (room.state === 'playing') {
+      gameManager.sendSpectatorSnapshot(room.id, player.id)
+    }
   })
 
   socket.on(CLIENT_EVENTS.LEAVE_ROOM, () => {
@@ -222,6 +227,9 @@ export function registerRoomHandlers(io: any, socket: any): void {
       playerId: player.id,
       isOwner: player.isOwner,
     })
+
+    // 恢复会话后如果游戏进行中，重新发送游戏状态（词语、笔画、计时器等）
+    gameManager.restorePlayerState(room.id, player.id)
 
     io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
   })

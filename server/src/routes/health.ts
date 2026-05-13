@@ -1,8 +1,10 @@
 import { Router, type Router as ExpressRouter } from 'express'
 import { roomManager } from '../rooms/index.js'
+import { APP_VERSION } from '../config.js'
 
 interface HealthStatus {
   status: 'ok' | 'degraded'
+  version: string
   timestamp: number
   uptime: number
   rooms: number
@@ -18,6 +20,7 @@ healthRouter.get('/', (_req, res) => {
 
   const status: HealthStatus = {
     status: 'ok',
+    version: APP_VERSION,
     timestamp: Date.now(),
     uptime: Date.now() - startTime,
     rooms: rooms.length,

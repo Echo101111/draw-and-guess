@@ -1,7 +1,7 @@
 import express from 'express'
 import { createServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
-import { config } from './config.js'
+import { config, APP_VERSION } from './config.js'
 import { healthRouter } from './routes/health.js'
 import { registerRoomHandlers } from './socket/index.js'
 import { registerGameHandlers } from './socket/gameHandlers.js'
@@ -44,7 +44,7 @@ io.on('connection', (socket) => {
 })
 
 httpServer.listen(config.port, () => {
-  console.log(`[Server] v2.0.0 Running on port ${config.port} (${config.nodeEnv})`)
+  console.log(`[Server] v${APP_VERSION} Running on port ${config.port} (${config.nodeEnv})`)
 })
 
 export { io }

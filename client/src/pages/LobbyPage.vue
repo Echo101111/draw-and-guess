@@ -74,12 +74,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
-import { useGameStore } from '@/stores/game'
-
 const route = useRoute()
 const router = useRouter()
 const roomStore = useRoomStore()
-const gameStore = useGameStore()
 
 const roomName = computed(() => route.params.roomName as string)
 
@@ -113,7 +110,8 @@ watch(room, (newRoom) => {
 
 onMounted(() => {
   roomStore.setupSocketListeners()
-  gameStore.setupSocketListeners()
+  // 不注册 gameStore 监听器 — 游戏事件在 GamePage 渲染后才绑定
+  // 这样避免路由跳转（Lobby → Game）时 socket.off/on 重注册导致事件丢失
 })
 
 function copyRoomName() {

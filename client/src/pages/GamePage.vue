@@ -36,6 +36,9 @@
         </div>
 
         <div v-else-if="gameStore.state === 'playing'" class="playing">
+          <Transition name="fade">
+            <div v-if="showSpectatorNotice" class="spectator-notice">👀 你已加入观战，下一题开始自动参与</div>
+          </Transition>
           <Transition name="pop">
             <div v-if="showDrawerAlert" class="drawer-alert" @click="closeDrawerAlert">
               <div class="drawer-alert-box" @click="closeDrawerAlert">
@@ -222,6 +225,9 @@ const showScoreboard = ref(false)
 const showLeaveConfirm = ref(false)
 const showDrawerAlert = ref(false)
 
+// 中途加入提示（房间已开始游戏，当前轮仅观战）
+const showSpectatorNotice = ref(false)
+
 const transitionWord = computed(() => gameStore.transitionData?.word ?? '')
 const transitionRound = computed(() => gameStore.transitionData?.round ?? gameStore.currentRound)
 const transitionTotalRounds = computed(() => gameStore.transitionData?.totalRounds ?? gameStore.totalRounds)
@@ -262,6 +268,12 @@ onMounted(() => {
   const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
   connectSocket(serverUrl)
   gameStore.setupSocketListeners()
+
+  // 中途加入提示：房间已开始游戏，当前轮仅观战
+  if (roomStore.room?.state === 'playing') {
+    showSpectatorNotice.value = true
+    setTimeout(() => { showSpectatorNotice.value = false }, 4000)
+  }
 })
 
 onUnmounted(() => {
@@ -1038,6 +1050,19 @@ function handleStartGame() {
   font-size: 0.75rem;
   color: var(--color-text-secondary);
   font-weight: 400;
+}
+
+/* ─── Spectator Notice ─── */
+.spectator-notice {
+  padding: 0.35rem 1.25rem;
+  background: var(--color-accent-pale);
+  color: var(--color-accent);
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid rgba(244, 162, 97, 0.2);
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .fade-enter-active,

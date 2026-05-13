@@ -61,7 +61,6 @@ export const useRoomStore = defineStore('room', () => {
       currentPlayerId.value = data.playerId
       connectionState.value = 'connected'
       error.value = null
-      clearSession()
     })
 
     socket.off(SERVER_EVENTS.ROOM_JOINED)
@@ -119,6 +118,8 @@ export const useRoomStore = defineStore('room', () => {
     error.value = null
     const socket = connectSocket()
     setupSocketListeners()
+    // 先清理上次残留的 session，避免 socket 重连时自动触发 RESTORE_SESSION 干扰
+    clearSession()
     socket.emit(CLIENT_EVENTS.CREATE_ROOM, {
       nickname,
       roomName: options?.roomName,
@@ -136,6 +137,8 @@ export const useRoomStore = defineStore('room', () => {
     error.value = null
     const socket = connectSocket()
     setupSocketListeners()
+    // 先清理上次残留的 session，避免 socket 重连时自动触发 RESTORE_SESSION 干扰
+    clearSession()
     socket.emit(CLIENT_EVENTS.JOIN_ROOM, {
       roomName,
       nickname,

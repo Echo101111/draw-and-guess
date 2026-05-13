@@ -1,5 +1,22 @@
 <template>
   <div class="home-page">
+    <button class="btn-changelog" @click="showChangelog = true" title="更新日志">
+      <span class="changelog-icon">📋</span>
+      <span class="changelog-label">更新日志</span>
+    </button>
+
+    <Transition name="fade">
+      <div v-if="showChangelog" class="changelog-overlay" @click.self="showChangelog = false">
+        <div class="changelog-modal">
+          <div class="changelog-header">
+            <span>📋 更新日志</span>
+            <button class="changelog-close" @click="showChangelog = false">✕</button>
+          </div>
+          <div class="changelog-body" v-html="renderedChangelog" />
+        </div>
+      </div>
+    </Transition>
+
     <div class="hero">
       <div class="hero-icon">🎨</div>
       <h1 class="hero-title">你画我猜</h1>
@@ -143,12 +160,41 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
+import changelogMd from '../../../CHANGELOG.md?raw'
 
 const router = useRouter()
 const roomStore = useRoomStore()
+
+const showChangelog = ref(false)
+
+function renderMarkdown(md: string): string {
+  return md
+    .split('\n')
+    .map((line) => {
+      if (line.startsWith('# ')) {
+        return `<h1>${line.slice(2)}</h1>`
+      }
+      if (line.startsWith('## ')) {
+        return `<h2>${line.slice(3)}</h2>`
+      }
+      if (line.startsWith('- ')) {
+        return `<li>${line.slice(2)}</li>`
+      }
+      if (line.trim() === '') {
+        return '</ul><ul>'
+      }
+      return line
+    })
+    .join('')
+    .replace(/<\/ul><ul><\/ul><ul>/g, '</ul><ul>')
+    .replace(/^<ul>/, '<ul>')
+    .replace(/<\/ul>$/, '</ul>')
+}
+
+const renderedChangelog = computed(() => renderMarkdown(changelogMd))
 
 const activeTab = ref<'create' | 'join'>('create')
 const nickname = ref('')
@@ -444,6 +490,141 @@ function handleJoin() {
 .fade-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(10px);
+}
+
+/* ─── Changelog ─── */
+.btn-changelog {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-changelog:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-glow);
+}
+
+.changelog-icon { font-size: 0.9rem; }
+
+.changelog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px);
+}
+
+.changelog-modal {
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  animation: popIn 0.3s ease-out;
+}
+
+.changelog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.changelog-close {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  line-height: 1;
+}
+
+.changelog-close:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+}
+
+.changelog-body {
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.changelog-body h1 {
+  display: none;
+}
+
+.changelog-body h2 {
+  font-family: var(--font-title);
+  font-size: 1rem;
+  color: var(--color-primary);
+  margin: 1rem 0 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.changelog-body h2:first-of-type {
+  margin-top: 0;
+}
+
+.changelog-body ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+}
+
+.changelog-body li {
+  position: relative;
+  padding: 0.2rem 0 0.2rem 1rem;
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+}
+
+.changelog-body li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6rem;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  opacity: 0.6;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* ─── Mobile ─── */

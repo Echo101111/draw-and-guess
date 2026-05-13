@@ -1,7 +1,7 @@
 import { SERVER_EVENTS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { getRandomWord, getDifficultyForRound, getWordCategory, CATEGORY_DISPLAY_NAMES } from '../data/words.js'
-import type { Room, Player, Point, SensitivityLevel } from '@draw-and-guess/shared'
+import type { Room, Player, Point, SensitivityLevel, Stroke } from '@draw-and-guess/shared'
 
 const SCORE_BASE = 100
 const SCORE_DRAWER_BONUS = 50
@@ -15,7 +15,7 @@ interface RoundTimer {
 export class GameManager {
   private roundTimers = new Map<string, RoundTimer>()
   private restartTimers = new Map<string, NodeJS.Timeout>()
-  private strokes = new Map<string, Point[]>()
+  private strokeHistory = new Map<string, Stroke[]>()
   private usedWords = new Map<string, Set<string>>()
   private currentDrawerId = new Map<string, string>()
 
@@ -63,7 +63,7 @@ export class GameManager {
       p.hasGuessedCorrectly = false
     })
 
-    this.strokes.set(roomId, [])
+    this.strokeHistory.set(roomId, [])
     this.currentDrawerId.set(roomId, drawer.id)
 
     console.log(`[Round] startRound room=${roomId} drawer=${drawer.nickname}(${drawer.id.slice(0,8)}) currentDrawerId=${drawer.id.slice(0,8)} round=${room.currentRound}`)
@@ -169,9 +169,10 @@ export class GameManager {
 
     console.log(`[Draw] ACCEPT: playerId=${playerId.slice(0,8)} points=${points.length}`)
 
-    const strokePoints = this.strokes.get(roomId) ?? []
-    strokePoints.push(...points)
-    this.strokes.set(roomId, strokePoints)
+    const strokeEvent: Stroke = { playerId, points, color, width, tool: tool as 'brush' | 'eraser' }
+    const roomStrokes = this.strokeHistory.get(roomId) ?? []
+    roomStrokes.push(strokeEvent)
+    this.strokeHistory.set(roomId, roomStrokes)
 
     const io = this.getIO()
     if (io) {
@@ -193,7 +194,7 @@ export class GameManager {
     const drawerId = this.currentDrawerId.get(roomId)
     if (!drawerId || drawerId !== playerId) return false
 
-    this.strokes.set(roomId, [])
+    this.strokeHistory.set(roomId, [])
 
     const io = this.getIO()
     if (io) {
@@ -274,7 +275,7 @@ export class GameManager {
 
     room.state = 'gameover'
     this.usedWords.delete(roomId)
-    this.strokes.delete(roomId)
+    this.strokeHistory.delete(roomId)
 
     const scores = this.getScoreboard(room)
     const winner = scores.length > 0 ? scores[0].nickname : null
@@ -320,7 +321,7 @@ export class GameManager {
     room.currentRound = 1
 
     this.usedWords.delete(roomId)
-    this.strokes.delete(roomId)
+    this.strokeHistory.delete(roomId)
     this.currentDrawerId.delete(roomId)
 
     const io = this.getIO()
@@ -352,7 +353,7 @@ export class GameManager {
     this.clearTimer(roomId)
     this.clearRestartTimer(roomId)
     this.usedWords.delete(roomId)
-    this.strokes.delete(roomId)
+    this.strokeHistory.delete(roomId)
     this.currentDrawerId.delete(roomId)
     roomManager.resetGameState(roomId)
   }
@@ -422,6 +423,105 @@ export class GameManager {
       this.usedWords.set(roomId, new Set())
     }
     return this.usedWords.get(roomId)!
+  }
+
+  getStrokes(roomId: string): Stroke[] {
+    return this.strokeHistory.get(roomId) ?? []
+  }
+
+  getCurrentDrawerId(roomId: string): string | undefined {
+    return this.currentDrawerId.get(roomId)
+  }
+
+  /**
+   * 为中途加入的玩家发送游戏快照（笔画、积分、计时器），
+   * 不发送 ROUND_START，客户端 myRole 保持 'spectator'，
+   * 下一轮 ROUND_START 广播时自动转为正式参与者。
+   */
+  sendSpectatorSnapshot(roomId: string, playerId: string): void {
+    this.emitGameSnapshot(roomId, playerId)
+  }
+
+  restorePlayerState(roomId: string, playerId: string): void {
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.state !== 'playing') return
+
+    const drawerId = this.currentDrawerId.get(roomId)
+    if (!drawerId) return
+
+    const drawer = room.players.find((p) => p.id === drawerId)
+    if (!drawer) return
+
+    const isDrawer = playerId === drawerId
+    const timeLeft = this.emitGameSnapshot(roomId, playerId)
+    if (timeLeft === null) return
+
+    // 词语分类
+    const wordCategory = room.currentWord ? getWordCategory(room.currentWord) : undefined
+    const wordCategoryName = wordCategory && CATEGORY_DISPLAY_NAMES[wordCategory]
+      ? CATEGORY_DISPLAY_NAMES[wordCategory]
+      : undefined
+
+    if (isDrawer) {
+      const io = this.getIO()
+      if (io) {
+        io.to(playerId).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
+          round: room.currentRound,
+          totalRounds: room.totalRounds,
+          word: room.currentWord ?? '',
+          timeLeft,
+          wordLength: room.currentWord?.length ?? 0,
+          wordCategory: wordCategoryName,
+        })
+      }
+    }
+
+    const io = this.getIO()
+    if (io) {
+      io.to(playerId).emit(SERVER_EVENTS.ROUND_START, {
+        round: room.currentRound,
+        totalRounds: room.totalRounds,
+        drawer: {
+          id: drawer.id,
+          nickname: drawer.nickname,
+          isOwner: drawer.isOwner,
+          score: drawer.score,
+          hasGuessedCorrectly: drawer.hasGuessedCorrectly,
+        },
+        timeLeft,
+        wordLength: room.currentWord?.length ?? 0,
+        wordCategory: wordCategoryName,
+      })
+    }
+  }
+
+  /**
+   * 发送通用游戏快照（积分榜、已有笔画、计时器），
+   * 供 sendSpectatorSnapshot 和 restorePlayerState 复用。
+   * 返回剩余秒数，失败返回 null。
+   */
+  private emitGameSnapshot(roomId: string, playerId: string): number | null {
+    const room = roomManager.getRoomById(roomId)
+    if (!room) return null
+    const io = this.getIO()
+    if (!io) return null
+
+    const elapsed = room.roundStartTime
+      ? Math.floor((Date.now() - room.roundStartTime) / 1000)
+      : 0
+    const timeLeft = Math.max(0, room.roundDuration - elapsed)
+
+    io.to(playerId).emit(SERVER_EVENTS.SCOREBOARD_UPDATE, {
+      scores: this.getScoreboard(room),
+    })
+
+    for (const stroke of this.getStrokes(roomId)) {
+      io.to(playerId).emit(SERVER_EVENTS.DRAW_STROKE, stroke)
+    }
+
+    io.to(playerId).emit(SERVER_EVENTS.TIMER_SYNC, { timeLeft })
+
+    return timeLeft
   }
 
   private getIO() {

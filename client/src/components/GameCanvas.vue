@@ -204,6 +204,15 @@ watch(() => gameStore.currentWord, () => {
   }
 })
 
+// 在 canvas 初始化前可能已有笔画到达 gameStore.strokes（路由跳转窗口期），
+// 初始化后同步一次确保不丢失
+function syncExistingStrokes() {
+  if (gameStore.strokes.length > 0) {
+    canvasStore.syncStrokes(gameStore.strokes)
+    renderStroke()
+  }
+}
+
 onMounted(() => {
   if (!canvasRef.value || !containerRef.value) return
 
@@ -232,6 +241,7 @@ onMounted(() => {
   resizeObserver.observe(containerRef.value)
 
   renderStroke()
+  syncExistingStrokes()
 })
 
 onUnmounted(() => {

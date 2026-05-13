@@ -12,6 +12,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    fs: {
+      allow: ['..'],
+    },
     proxy: {
       '/health': {
         target: 'http://localhost:3000',
