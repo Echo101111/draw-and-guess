@@ -16,11 +16,11 @@
     </header>
 
     <main class="game-content">
+      <div class="sidebar-toggle sidebar-toggle-left" @click="toggleSidebar('left')">
+        <span>🏆</span>
+        <span class="toggle-label">积分</span>
+      </div>
       <aside class="sidebar sidebar-left" :class="{ open: showSidebar === 'left' }">
-        <div class="sidebar-toggle sidebar-toggle-left" @click="toggleSidebar('left')">
-          <span>🏆</span>
-          <span class="toggle-label">积分</span>
-        </div>
         <Scoreboard />
       </aside>
 
@@ -377,17 +377,6 @@ function handleStartGame() {
   display: none;
 }
 
-@media (max-width: 767px) {
-  .sidebar-overlay {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 45;
-    background: rgba(74, 55, 40, 0.3);
-    backdrop-filter: blur(2px);
-  }
-}
-
 .game-area {
   flex: 1;
   min-width: 0;
@@ -395,6 +384,7 @@ function handleStartGame() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-height: 0;
 }
 
 .playing {
@@ -996,6 +986,7 @@ function handleStartGame() {
 
   .playing {
     gap: 0;
+    flex: 1;
     min-height: 0;
     overflow: hidden;
     justify-content: flex-start;
@@ -1104,6 +1095,15 @@ function handleStartGame() {
     padding: 0.1rem 0.5rem;
   }
 
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(74, 55, 40, 0.3);
+    backdrop-filter: blur(2px);
+  }
+
   .role-info {
     flex-shrink: 0;
   }
@@ -1125,12 +1125,6 @@ function handleStartGame() {
     font-size: 1.3rem;
   }
 
-  .role-badge {
-    padding: 0.25rem 0.75rem;
-  }
-
-  .role-text { font-size: 0.75rem; }
-
   /* ─── Round transition mobile ─── */
   .rt-round-label { font-size: 1.1rem; }
   .rt-word { font-size: 1.4rem; padding: 0.2rem 1rem; }
@@ -1145,7 +1139,7 @@ function handleStartGame() {
     flex-direction: column;
     border-top: 1px solid var(--color-border-light);
     background: var(--color-surface);
-    max-height: 35vh;
+    max-height: 28vh;
   }
 
   .inline-chat-wrap.collapsed {
@@ -1215,7 +1209,7 @@ function handleStartGame() {
   }
 
   .inline-chat-body :deep(.messages) {
-    max-height: calc(35vh - 3rem);
+    max-height: calc(28vh - 3rem);
     padding: 0.25rem 0.5rem;
   }
 
