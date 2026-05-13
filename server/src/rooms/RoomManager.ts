@@ -40,7 +40,12 @@ export class RoomManager {
   private nameToRoomId = new Map<string, string>()
   private dismissTimers = new Map<string, NodeJS.Timeout>()
   private disconnectTimers = new Map<string, NodeJS.Timeout>()
+  private onDismissCallbacks: Array<(roomId: string) => void> = []
   private RECONNECT_TIMEOUT = 60_000
+
+  onDismissed(callback: (roomId: string) => void): void {
+    this.onDismissCallbacks.push(callback)
+  }
 
   async createRoom(
     nickname: string,
@@ -282,6 +287,7 @@ export class RoomManager {
     this.cancelDismissTimer(roomId)
     this.nameToRoomId.delete(room.code.toLowerCase())
     this.rooms.delete(roomId)
+    this.onDismissCallbacks.forEach((cb) => cb(roomId))
   }
 
   resetGameState(roomId: string): void {

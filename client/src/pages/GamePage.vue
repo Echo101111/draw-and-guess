@@ -182,6 +182,19 @@
       </aside>
     </main>
 
+    <Transition name="fade">
+      <div v-if="showLeaveConfirm" class="leave-confirm-overlay" @click.self="showLeaveConfirm = false">
+        <div class="leave-confirm-box">
+          <div class="leave-confirm-icon">🛑</div>
+          <div class="leave-confirm-text">确认离开游戏？</div>
+          <div class="leave-confirm-desc">离开后需要重新加入房间</div>
+          <div class="leave-confirm-actions">
+            <button class="btn-confirm-cancel" @click="showLeaveConfirm = false">取消</button>
+            <button class="btn-confirm-leave" @click="doLeave">确认离开</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -206,6 +219,7 @@ const gameStore = useGameStore()
 const roomName = computed(() => route.params.roomName as string)
 const chatExpanded = ref(true)
 const showScoreboard = ref(false)
+const showLeaveConfirm = ref(false)
 const showDrawerAlert = ref(false)
 
 const transitionWord = computed(() => gameStore.transitionData?.word ?? '')
@@ -254,6 +268,11 @@ onUnmounted(() => {
 })
 
 function handleLeave() {
+  showLeaveConfirm.value = true
+}
+
+function doLeave() {
+  showLeaveConfirm.value = false
   disconnectSocket()
   gameStore.resetGame()
   roomStore.leaveRoom()
@@ -897,6 +916,89 @@ function handleStartGame() {
 
 .btn-trophy:active {
   transform: scale(0.9);
+}
+
+/* ─── Leave Confirm ─── */
+.leave-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px);
+}
+
+.leave-confirm-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 2rem;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border-light);
+  animation: popIn 0.3s ease-out;
+  max-width: 320px;
+  width: 85%;
+}
+
+.leave-confirm-icon {
+  font-size: 2rem;
+}
+
+.leave-confirm-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.leave-confirm-desc {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.leave-confirm-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.3rem;
+  width: 100%;
+}
+
+.btn-confirm-cancel,
+.btn-confirm-leave {
+  flex: 1;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  border: none;
+}
+
+.btn-confirm-cancel {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border: 2px solid var(--color-border);
+}
+
+.btn-confirm-cancel:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+.btn-confirm-leave {
+  background: #e74c3c;
+  color: #fff;
+}
+
+.btn-confirm-leave:hover {
+  background: #c0392b;
+  box-shadow: 0 2px 12px rgba(231, 76, 60, 0.3);
 }
 
 /* ─── Animations ─── */

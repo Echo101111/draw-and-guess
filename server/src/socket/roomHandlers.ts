@@ -270,7 +270,13 @@ function handleLeave(io: any, socket: any): void {
   }
 
   const room = roomManager.getRoomById(roomId)
-  if (room) {
+  if (!room) return
+
+  if (room.players.length === 0) {
+    // 所有人退出 → 立即清理房间和游戏数据
+    gameManager.resetGame(roomId)
+    roomManager.dismissRoom(roomId)
+  } else {
     io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
   }
 }
