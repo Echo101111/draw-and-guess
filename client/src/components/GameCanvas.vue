@@ -164,13 +164,22 @@ function resizeCanvas() {
 
   if (containerWidth <= 0 || containerHeight <= 0) return
 
-  // Fit canvas within container while maintaining 4:3 aspect ratio
-  let width = containerWidth
-  let height = width / CANVAS_RATIO
+  let width: number
+  let height: number
 
-  if (height > containerHeight) {
+  // Narrow screens (mobile): fill container without aspect ratio constraint
+  // Avoids dead zones where touch events don't reach the canvas
+  if (containerWidth < 768) {
+    width = containerWidth
     height = containerHeight
-    width = height * CANVAS_RATIO
+  } else {
+    // Desktop/tablet: maintain 4:3 aspect ratio
+    width = containerWidth
+    height = width / CANVAS_RATIO
+    if (height > containerHeight) {
+      height = containerHeight
+      width = height * CANVAS_RATIO
+    }
   }
 
   width = Math.floor(width)
@@ -276,7 +285,6 @@ onUnmounted(() => {
     border-width: 1px 0;
     max-width: 100%;
     min-height: 0;
-    flex-shrink: 0;
   }
 }
 </style>

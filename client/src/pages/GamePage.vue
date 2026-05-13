@@ -465,6 +465,14 @@ function handleStartGame() {
   flex-shrink: 0;
 }
 
+.role-word-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
 .word-label {
   font-size: 0.75rem;
   color: var(--color-text-muted);
@@ -934,9 +942,17 @@ function handleStartGame() {
   }
 
   .role-word-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    flex-direction: row;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .role-word-row .word-card {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .role-word-row .role-info {
     flex-shrink: 0;
   }
 
