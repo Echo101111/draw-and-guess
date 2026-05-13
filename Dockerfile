@@ -21,6 +21,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY server/ server/
 COPY client/ client/
+COPY CHANGELOG.md ./
 
 # Build shared first, then server, then client
 RUN pnpm --filter @draw-and-guess/shared build
