@@ -11,6 +11,7 @@
         <Timer v-if="gameStore.state === 'playing'" />
       </div>
       <div class="header-right">
+        <button class="btn-trophy" @click.stop="showScoreboard = !showScoreboard">🏆</button>
         <button class="btn-leave" @click="handleLeave">离开</button>
       </div>
     </header>
@@ -77,9 +78,6 @@
             </div>
           </Transition>
 
-          <div class="mobile-scores">
-            <Scoreboard />
-          </div>
 
           <GameCanvas :readonly="gameStore.myRole !== 'drawer'" />
 
@@ -120,6 +118,18 @@
               ✅ {{ g.nickname }}
             </div>
           </div>
+
+          <Transition name="fade">
+            <div v-if="showScoreboard" class="scoreboard-overlay" @click.self="showScoreboard = false">
+              <div class="scoreboard-modal">
+                <div class="scoreboard-modal-header">
+                  <span>🏆 积分榜</span>
+                  <button class="scoreboard-modal-close" @click.stop="showScoreboard = false">✕</button>
+                </div>
+                <Scoreboard />
+              </div>
+            </div>
+          </Transition>
         </div>
 
         <div v-else-if="gameStore.state === 'round_end'" class="round-transition">
@@ -195,6 +205,7 @@ const gameStore = useGameStore()
 
 const roomName = computed(() => route.params.roomName as string)
 const chatExpanded = ref(true)
+const showScoreboard = ref(false)
 const showDrawerAlert = ref(false)
 
 const transitionWord = computed(() => gameStore.transitionData?.word ?? '')
@@ -805,6 +816,89 @@ function handleStartGame() {
   color: var(--color-text-secondary);
 }
 
+/* ─── Scoreboard Overlay ─── */
+.scoreboard-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+}
+
+.scoreboard-modal {
+  width: 85%;
+  max-width: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  animation: popIn 0.3s ease-out;
+  position: relative;
+}
+
+.scoreboard-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.scoreboard-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  line-height: 1;
+}
+
+.scoreboard-modal-close:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+}
+
+.scoreboard-modal :deep(.scoreboard-header) {
+  display: none;
+}
+
+.scoreboard-modal :deep(.scoreboard) {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.btn-trophy {
+  display: none;
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  line-height: 1;
+}
+
+.btn-trophy:hover {
+  background: var(--color-border-light);
+}
+
+.btn-trophy:active {
+  transform: scale(0.9);
+}
+
 /* ─── Animations ─── */
 @keyframes bounce {
   0%, 100% { transform: translateY(0); }
@@ -963,6 +1057,15 @@ function handleStartGame() {
     overflow: hidden;
     justify-content: flex-start;
     padding-bottom: 0;
+  }
+
+  .game-area {
+    justify-content: flex-start;
+    align-items: stretch;
+  }
+
+  .btn-trophy {
+    display: block;
   }
 
   .mobile-scores {
