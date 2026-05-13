@@ -58,14 +58,6 @@ const WORDS = {
     '会计', '设计师', '摄影师', '主持人', '导游', '服务员', '售货员', '快递员', '农民', '渔夫',
     '矿工', '木匠', '电工', '水管工', '飞行员', '船长', '空姐', '店长', '经理', '总统',
   ],
-  shapes: [
-    '圆形', '方形', '三角形', '长方形', '椭圆形', '菱形', '五边形', '六边形', '心形', '星形',
-    '波浪形', '螺旋形', '月牙形', '十字形', '箭头', '柱形', '锥形', '球形', '立方体', '圆柱',
-  ],
-  colors: [
-    '红色', '蓝色', '绿色', '黄色', '紫色', '橙色', '粉色', '黑色', '白色', '灰色',
-    '棕色', '金色', '银色', '青色', '米色', '深蓝', '浅绿', '暗红', '天蓝', '粉红',
-  ],
 }
 
 const WORD_SENSITIVITY: Record<keyof typeof WORDS, SensitivityLevel> = {
@@ -76,8 +68,6 @@ const WORD_SENSITIVITY: Record<keyof typeof WORDS, SensitivityLevel> = {
   nature: 'safe',
   sports: 'safe',
   jobs: 'moderate',
-  shapes: 'safe',
-  colors: 'safe',
 }
 
 export const WORD_CATEGORIES = Object.keys(WORDS) as (keyof typeof WORDS)[]

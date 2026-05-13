@@ -67,14 +67,14 @@ describe('words', () => {
 
   describe('WORD_CATEGORIES', () => {
     it('should have all expected categories', () => {
-      const expected = ['animals', 'food', 'daily', 'vehicles', 'nature', 'sports', 'jobs', 'shapes', 'colors']
+      const expected = ['animals', 'food', 'daily', 'vehicles', 'nature', 'sports', 'jobs']
       expected.forEach(cat => {
         expect(WORD_CATEGORIES).toContain(cat)
       })
     })
 
-    it('should have at least 8 categories', () => {
-      expect(WORD_CATEGORIES.length).toBeGreaterThanOrEqual(8)
+    it('should have at least 6 categories', () => {
+      expect(WORD_CATEGORIES.length).toBeGreaterThanOrEqual(6)
     })
   })
 
