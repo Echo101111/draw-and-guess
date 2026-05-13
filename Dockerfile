@@ -4,9 +4,14 @@
 # ========================
 # Stage 1: Build
 # ========================
+# Build timestamp for cache bust
+ARG CACHEBUST=1
+
 FROM node:18-alpine AS builder
 WORKDIR /app
 RUN npm install -g pnpm@9
+# Build timestamp for cache bust
+ARG CACHEBUST=1
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY shared/ shared/
