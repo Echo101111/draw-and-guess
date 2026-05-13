@@ -114,7 +114,8 @@ export class GameManager {
 
     player.score += totalScore
 
-    const drawer = this.getDrawer(room)
+    const drawerId = this.currentDrawerId.get(roomId)
+    const drawer = drawerId ? room.players.find((p) => p.id === drawerId) : undefined
     if (drawer) {
       drawer.score += SCORE_DRAWER_BONUS
     }
@@ -148,8 +149,8 @@ export class GameManager {
     const room = roomManager.getRoomById(roomId)
     if (!room || room.state !== 'playing') return
 
-    const drawer = this.getDrawer(room)
-    if (!drawer || drawer.id !== playerId) return
+    const drawerId = this.currentDrawerId.get(roomId)
+    if (!drawerId || drawerId !== playerId) return
 
     const strokePoints = this.strokes.get(roomId) ?? []
     strokePoints.push(...points)
@@ -171,8 +172,8 @@ export class GameManager {
     const room = roomManager.getRoomById(roomId)
     if (!room) return false
 
-    const drawer = this.getDrawer(room)
-    if (!drawer || drawer.id !== playerId) return false
+    const drawerId = this.currentDrawerId.get(roomId)
+    if (!drawerId || drawerId !== playerId) return false
 
     this.strokes.set(roomId, [])
 
@@ -346,10 +347,6 @@ export class GameManager {
       }))
       .sort((a, b) => b.score - a.score)
       .map((s, i) => ({ ...s, rank: i + 1 }))
-  }
-
-  private getDrawer(room: Room): Player | undefined {
-    return room.players.find((p) => !p.hasGuessedCorrectly) ?? room.players[0]
   }
 
   private selectNextDrawer(room: Room): Player | null {
