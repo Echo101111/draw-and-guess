@@ -34,6 +34,46 @@ function getCanvasPoint(e: { e: MouseEvent | Touch }): Point {
   return { x: pointer.x, y: pointer.y }
 }
 
+// 原生触摸处理（绕过 Fabric.js 触摸→鼠标转换，确保移动端可靠）
+function touchEventPoint(touch: Touch): Point {
+  if (!canvasRef.value) return { x: 0, y: 0 }
+  const rect = canvasRef.value.getBoundingClientRect()
+  return { x: touch.clientX - rect.left, y: touch.clientY - rect.top }
+}
+
+function handleTouchStart(e: TouchEvent) {
+  e.preventDefault()
+  if (props.readonly || !gameStore.isMyTurn) return
+  if (!canvasRef.value) return
+  const point = touchEventPoint(e.touches[0])
+  canvasStore.startStroke(point)
+  lastEmitTime = Date.now()
+  renderStroke()
+}
+
+function handleTouchMove(e: TouchEvent) {
+  e.preventDefault()
+  if (props.readonly || !gameStore.isMyTurn) return
+  if (!canvasStore.isDrawing) return
+  if (!canvasRef.value) return
+  const point = touchEventPoint(e.touches[0])
+  canvasStore.continueStroke(point)
+  renderStroke()
+  const now = Date.now()
+  if (now - lastEmitTime >= EMIT_INTERVAL && canvasStore.currentStroke.length > 0) {
+    emitStroke()
+    lastEmitTime = now
+  }
+}
+
+function handleTouchEnd(e: TouchEvent) {
+  e.preventDefault()
+  if (props.readonly || !gameStore.isMyTurn) return
+  if (canvasStore.currentStroke.length > 0) emitStroke()
+  canvasStore.endStroke(fabricCanvas?.width, fabricCanvas?.height)
+  renderStroke()
+}
+
 function handleMouseDown(e: { e: MouseEvent }) {
   if (props.readonly || !gameStore.isMyTurn) return
   const point = getCanvasPoint(e)
@@ -172,6 +212,11 @@ onMounted(() => {
   fabricCanvas.on('mouse:move', handleMouseMove)
   fabricCanvas.on('mouse:up', handleMouseUp)
 
+  // 原生触摸事件绕过 Fabric.js 的 touch→mouse 转换
+  canvasRef.value.addEventListener('touchstart', handleTouchStart, { passive: false })
+  canvasRef.value.addEventListener('touchmove', handleTouchMove, { passive: false })
+  canvasRef.value.addEventListener('touchend', handleTouchEnd, { passive: false })
+
   resizeObserver = new ResizeObserver(() => {
     resizeCanvas()
   })
@@ -191,6 +236,12 @@ onUnmounted(() => {
     fabricCanvas.off('mouse:up')
     fabricCanvas.dispose()
     fabricCanvas = null
+  }
+
+  if (canvasRef.value) {
+    canvasRef.value.removeEventListener('touchstart', handleTouchStart)
+    canvasRef.value.removeEventListener('touchmove', handleTouchMove)
+    canvasRef.value.removeEventListener('touchend', handleTouchEnd)
   }
 })
 </script>
