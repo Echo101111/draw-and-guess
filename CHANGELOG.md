@@ -1,15 +1,16 @@
 # Changelog
 
+## 2.0.2 — 2026-05-13
+
+- Fix: 修复更新日志按钮在部分环境下无法显示的问题
+
 ## 2.0.1 — 2026-05-13
 
-- Feat: 游戏进行中玩家可加入房间，当前轮观战（可看画板和聊天），下一轮自动参与
-- Feat: 中途加入玩家收到 👀 观战提示，4 秒自动消失
-- Feat: 登录页右上角新增更新日志按钮，点击弹窗展示版本历史（`?raw` import 从源文件读取）
-- Fix: 画师断线重连机制 — 激活 `restoreSession()` 自动调用、服务端恢复游戏状态（词语/笔画/计时器/积分榜）
-- Fix: 路由跳转（Lobby → Game）时监听器重注册导致笔画丢失 — 移除 LobbyPage 的 game 监听，Canvas 初始化后同步缓冲笔画
-- Feat: nginx 生产缓存策略 — index.html `no-cache`，hashed assets `immutable` 永久缓存
-- Feat: 服务端 `/health` 返回 `version` 字段，支持客户端版本检测
-- Refactor: 提取 `emitGameSnapshot()` 消除 `sendSpectatorSnapshot`/`restorePlayerState` 重复代码
+- Feat: 游戏进行中玩家可加入房间，当前轮观战，下一轮自动参与
+- Feat: 登录页右上角新增更新日志按钮，点击弹窗展示版本历史
+- Fix: 画师断线重连后自动恢复游戏状态，不再丢失词语和笔画
+- Fix: 从大厅进入游戏时笔画不再丢失
+- Fix: 快速画图时最后一段笔画不再丢失
 
 ## 1.2.0 — 2026-05-13
 
