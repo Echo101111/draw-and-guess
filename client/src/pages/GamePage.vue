@@ -354,6 +354,11 @@ function handleStartGame() {
   display: none;
 }
 
+/* 桌面端隐藏内嵌聊天（右侧栏已包含聊天） */
+.inline-chat-wrap {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .sidebar-overlay {
     display: block;
