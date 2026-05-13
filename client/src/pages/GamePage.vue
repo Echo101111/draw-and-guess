@@ -16,11 +16,7 @@
     </header>
 
     <main class="game-content">
-      <div class="sidebar-toggle sidebar-toggle-left" @click="toggleSidebar('left')">
-        <span>🏆</span>
-        <span class="toggle-label">积分</span>
-      </div>
-      <aside class="sidebar sidebar-left" :class="{ open: showSidebar === 'left' }">
+      <aside class="sidebar sidebar-left">
         <Scoreboard />
       </aside>
 
@@ -49,28 +45,30 @@
               </div>
             </div>
           </Transition>
-          <div class="role-info">
-            <span v-if="gameStore.myRole === 'drawer'" class="role-badge drawer-badge">
-              <span class="role-icon">🖌️</span> <span class="role-text">你在画画</span>
-            </span>
-            <span v-else-if="gameStore.myRole === 'guesser'" class="role-badge guesser-badge">
-              <span class="role-icon">💡</span> <span class="role-text">你在猜题</span>
-            </span>
-            <span v-else class="role-badge spectator-badge">
-              <span class="role-icon">👀</span> <span class="role-text">观战中</span>
-            </span>
-          </div>
+          <div class="role-word-row">
+            <div class="role-info">
+              <span v-if="gameStore.myRole === 'drawer'" class="role-badge drawer-badge">
+                <span class="role-icon">🖌️</span> <span class="role-text">你在画画</span>
+              </span>
+              <span v-else-if="gameStore.myRole === 'guesser'" class="role-badge guesser-badge">
+                <span class="role-icon">💡</span> <span class="role-text">你在猜题</span>
+              </span>
+              <span v-else class="role-badge spectator-badge">
+                <span class="role-icon">👀</span> <span class="role-text">观战中</span>
+              </span>
+            </div>
 
-          <div class="word-card">
-            <template v-if="gameStore.myRole === 'drawer'">
-              <span class="word-label">你要画的词</span>
-              <span class="word-value">{{ gameStore.currentWord }}</span>
-            </template>
-            <template v-else>
-              <span class="word-label">猜词提示</span>
-              <span class="word-hint">{{ gameStore.wordPlaceholders || '??' }}</span>
-              <span class="drawer-name">画师：{{ gameStore.drawerNickname }}</span>
-            </template>
+            <div class="word-card">
+              <template v-if="gameStore.myRole === 'drawer'">
+                <span class="word-label">你要画的词</span>
+                <span class="word-value">{{ gameStore.currentWord }}</span>
+              </template>
+              <template v-else>
+                <span class="word-label">猜词提示</span>
+                <span class="word-hint">{{ gameStore.wordPlaceholders || '??' }}</span>
+                <span class="drawer-name">画师：{{ gameStore.drawerNickname }}</span>
+              </template>
+            </div>
           </div>
 
           <Transition name="fade">
@@ -169,11 +167,9 @@
         </div>
       </div>
 
-      <aside class="sidebar sidebar-right" :class="{ open: showSidebar === 'right' }">
+      <aside class="sidebar sidebar-right">
         <ChatPanel />
       </aside>
-
-      <div v-if="showSidebar" class="sidebar-overlay" @click="showSidebar = null" />
     </main>
 
   </div>
@@ -198,7 +194,6 @@ const roomStore = useRoomStore()
 const gameStore = useGameStore()
 
 const roomName = computed(() => route.params.roomName as string)
-const showSidebar = ref<'left' | 'right' | null>(null)
 const chatExpanded = ref(true)
 const showDrawerAlert = ref(false)
 
@@ -236,9 +231,6 @@ watch(() => gameStore.currentRound, () => {
   }
 })
 
-function toggleSidebar(side: 'left' | 'right') {
-  showSidebar.value = showSidebar.value === side ? null : side
-}
 
 onMounted(() => {
   const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
@@ -362,14 +354,6 @@ function handleStartGame() {
 
 .sidebar :deep(*) {
   min-height: 0;
-}
-
-.sidebar-toggle {
-  display: none;
-}
-
-.sidebar-overlay {
-  display: none;
 }
 
 /* 桌面端隐藏内嵌聊天（右侧栏已包含聊天） */
@@ -949,39 +933,11 @@ function handleStartGame() {
     transform: translateX(0);
   }
 
-  .sidebar-toggle {
+  .role-word-row {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.5rem 0.75rem;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-full);
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    box-shadow: var(--shadow-md);
-    transition: var(--transition);
-    z-index: 40;
-  }
-
-  .sidebar-toggle:active {
-    transform: scale(0.95);
-  }
-
-  .sidebar-toggle-left {
-    position: fixed;
-    left: 0.5rem;
-    bottom: 0.9rem;
-  }
-
-  .sidebar-toggle-right {
-    display: none;
-  }
-
-  .toggle-label {
-    display: none;
+    gap: 0.5rem;
+    flex-shrink: 0;
   }
 
   .playing {
@@ -1095,15 +1051,6 @@ function handleStartGame() {
     padding: 0.1rem 0.5rem;
   }
 
-  .sidebar-overlay {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 45;
-    background: rgba(74, 55, 40, 0.3);
-    backdrop-filter: blur(2px);
-  }
-
   .role-info {
     flex-shrink: 0;
   }
@@ -1139,7 +1086,7 @@ function handleStartGame() {
     flex-direction: column;
     border-top: 1px solid var(--color-border-light);
     background: var(--color-surface);
-    max-height: 28vh;
+    max-height: 35vh;
   }
 
   .inline-chat-wrap.collapsed {

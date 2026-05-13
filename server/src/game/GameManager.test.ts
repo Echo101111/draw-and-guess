@@ -19,7 +19,7 @@ describe('GameManager', () => {
 
   describe('clearCanvas', () => {
     it('should return false for non-existent room', () => {
-      const result = gameManager.clearCanvas('non-existent', 'player', 'socket1')
+      const result = gameManager.clearCanvas('non-existent', 'player')
       expect(result).toBe(false)
     })
   })

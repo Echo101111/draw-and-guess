@@ -39,7 +39,7 @@ export function registerGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
 
-    gameManager.clearCanvas(roomId, playerId, socket.id)
+    gameManager.clearCanvas(roomId, playerId)
   })
 
   socket.on(CLIENT_EVENTS.CHAT_MESSAGE, ({ text }: { text: string }) => {

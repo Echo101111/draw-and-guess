@@ -186,7 +186,7 @@ export class GameManager {
     }
   }
 
-  clearCanvas(roomId: string, playerId: string, socketId: string): boolean {
+  clearCanvas(roomId: string, playerId: string): boolean {
     const room = roomManager.getRoomById(roomId)
     if (!room) return false
 
@@ -197,8 +197,8 @@ export class GameManager {
 
     const io = this.getIO()
     if (io) {
-      // 排除画师自己，画师本地 canvas 已清空
-      io.except(socketId).to(room.code).emit(SERVER_EVENTS.CANVAS_CLEARED, {
+      // 需要通知所有玩家（包括画师）以触发 gameStore.strokes 清空和画布重新渲染
+      io.to(room.code).emit(SERVER_EVENTS.CANVAS_CLEARED, {
         by: playerId,
       })
     }
