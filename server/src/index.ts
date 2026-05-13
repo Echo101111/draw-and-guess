@@ -37,7 +37,7 @@ io.on('connection', (socket) => {
 })
 
 httpServer.listen(config.port, () => {
-  console.log(`[Server] Running on port ${config.port} (${config.nodeEnv})`)
+  console.log(`[Server] v2.0.0 Running on port ${config.port} (${config.nodeEnv})`)
 })
 
 export { io }
