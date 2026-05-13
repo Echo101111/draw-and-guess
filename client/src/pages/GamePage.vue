@@ -258,12 +258,14 @@ watch(() => gameStore.currentRound, () => {
 
 
 onMounted(() => {
+  document.body.style.overflow = 'hidden'
   const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
   connectSocket(serverUrl)
   gameStore.setupSocketListeners()
 })
 
 onUnmounted(() => {
+  document.body.style.overflow = ''
   gameStore.resetGame()
 })
 
