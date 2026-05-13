@@ -69,7 +69,7 @@
               </template>
               <template v-else>
                 <span class="word-label">猜词提示</span>
-                <span class="word-hint">{{ gameStore.wordPlaceholders || '??' }}</span>
+                <span class="word-hint">{{ gameStore.wordPlaceholders || '未知' }}</span>
                 <span class="drawer-name">画师：{{ gameStore.drawerNickname }}</span>
               </template>
             </div>

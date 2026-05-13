@@ -67,7 +67,7 @@ export const useGameStore = defineStore('game', () => {
   const wordPlaceholders = computed(() => {
     const len = wordLength.value
     if (len <= 0) return ''
-    return Array.from({ length: len }, () => '_').join(' ')
+    return `${len}个字`
   })
   const showCategoryHint = computed(() => {
     if (!wordCategory.value) return false
