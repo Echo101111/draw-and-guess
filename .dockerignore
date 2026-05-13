@@ -8,6 +8,7 @@ dist
 .gitignore
 README.md
 *.md
+!CHANGELOG.md
 .claude
 .DS_Store
 *.test.ts
