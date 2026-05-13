@@ -19,7 +19,7 @@ describe('GameManager', () => {
 
   describe('clearCanvas', () => {
     it('should return false for non-existent room', () => {
-      const result = gameManager.clearCanvas('non-existent', 'player')
+      const result = gameManager.clearCanvas('non-existent', 'player', 'socket1')
       expect(result).toBe(false)
     })
   })
@@ -28,7 +28,7 @@ describe('GameManager', () => {
     it('should return without io for non-existent room', () => {
       // Should not throw
       expect(() => {
-        gameManager.handleDrawStroke('non-existent', 'player', [], '#000', 4, 'brush')
+        gameManager.handleDrawStroke('non-existent', 'player', 'socket1', [], '#000', 4, 'brush')
       }).not.toThrow()
     })
   })

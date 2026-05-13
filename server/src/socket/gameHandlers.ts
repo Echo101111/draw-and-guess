@@ -32,14 +32,14 @@ export function registerGameHandlers(io: any, socket: any): void {
     }
 
     console.log(`[DrawHandler] received from playerId=${playerId.slice(0,8)} points=${points.length} roomId=${roomId.slice(0,8)}`)
-    gameManager.handleDrawStroke(roomId, playerId, points, color, width, tool)
+    gameManager.handleDrawStroke(roomId, playerId, socket.id, points, color, width, tool)
   })
 
   socket.on(CLIENT_EVENTS.CLEAR_CANVAS, () => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
 
-    gameManager.clearCanvas(roomId, playerId)
+    gameManager.clearCanvas(roomId, playerId, socket.id)
   })
 
   socket.on(CLIENT_EVENTS.CHAT_MESSAGE, ({ text }: { text: string }) => {

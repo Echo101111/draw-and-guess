@@ -147,7 +147,7 @@ export class GameManager {
     return { correct: true, score: totalScore }
   }
 
-  handleDrawStroke(roomId: string, playerId: string, points: Point[], color: string, width: number, tool: string): void {
+  handleDrawStroke(roomId: string, playerId: string, socketId: string, points: Point[], color: string, width: number, tool: string): void {
     const room = roomManager.getRoomById(roomId)
     if (!room || room.state !== 'playing') {
       console.log(`[Draw] REJECT: room=${roomId} state=${room?.state} noplayer=${!room}`)
@@ -168,7 +168,8 @@ export class GameManager {
 
     const io = this.getIO()
     if (io) {
-      io.to(room.code).emit(SERVER_EVENTS.DRAW_STROKE, {
+      // 排除画师自己，避免同一笔画被重复添加到 gameStore.strokes
+      io.except(socketId).to(room.code).emit(SERVER_EVENTS.DRAW_STROKE, {
         playerId,
         points,
         color,
@@ -178,7 +179,7 @@ export class GameManager {
     }
   }
 
-  clearCanvas(roomId: string, playerId: string): boolean {
+  clearCanvas(roomId: string, playerId: string, socketId: string): boolean {
     const room = roomManager.getRoomById(roomId)
     if (!room) return false
 
@@ -189,7 +190,8 @@ export class GameManager {
 
     const io = this.getIO()
     if (io) {
-      io.to(room.code).emit(SERVER_EVENTS.CANVAS_CLEARED, {
+      // 排除画师自己，画师本地 canvas 已清空
+      io.except(socketId).to(room.code).emit(SERVER_EVENTS.CANVAS_CLEARED, {
         by: playerId,
       })
     }
