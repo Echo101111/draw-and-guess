@@ -151,6 +151,7 @@ export const useGameStore = defineStore('game', () => {
 
     socket.off(SERVER_EVENTS.DRAW_STROKE)
     socket.on(SERVER_EVENTS.DRAW_STROKE, (data: { playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }) => {
+      if (data.playerId === roomStore.currentPlayerId && !(data as { full?: boolean }).full) return
       const existing = data.strokeSeq !== undefined ? strokes.value.find(s => s.strokeSeq === data.strokeSeq) : undefined
       if (existing) {
         existing.points.push(...data.points)
@@ -270,10 +271,23 @@ export const useGameStore = defineStore('game', () => {
 
   function clearCanvas() {
     if (!isMyTurn.value) return
+    strokes.value = []
     const socket = getSocket()
     if (socket?.connected) {
       socket.emit(CLIENT_EVENTS.CLEAR_CANVAS)
     }
+  }
+
+  function addCompletedStroke(points: Point[], color: string, width: number, tool: string) {
+    const roomStore = useRoomStore()
+    if (!roomStore.currentPlayerId) return
+    strokes.value.push({
+      playerId: roomStore.currentPlayerId,
+      points,
+      color,
+      width,
+      tool,
+    })
   }
 
   function resetGame() {
@@ -324,6 +338,7 @@ export const useGameStore = defineStore('game', () => {
     sendChat,
     drawStroke,
     clearCanvas,
+    addCompletedStroke,
     resetGame,
   }
 })

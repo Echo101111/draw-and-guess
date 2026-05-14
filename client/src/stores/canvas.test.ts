@@ -53,82 +53,39 @@ describe('canvas store', () => {
     })
   })
 
-  describe('strokes', () => {
+  describe('currentStroke', () => {
     it('should start empty', () => {
       const store = useCanvasStore()
-      expect(store.strokes).toHaveLength(0)
+      expect(store.isDrawing).toBe(false)
+      expect(store.currentStroke).toHaveLength(0)
     })
 
-    it('should add stroke when ending', () => {
+    it('should record points on start and continue', () => {
       const store = useCanvasStore()
       store.startStroke({ x: 0, y: 0 })
+      expect(store.isDrawing).toBe(true)
+      expect(store.currentStroke).toHaveLength(1)
+
       store.continueStroke({ x: 10, y: 10 })
-      store.endStroke()
-
-      expect(store.strokes).toHaveLength(1)
-      expect(store.strokes[0].points).toHaveLength(2)
+      expect(store.currentStroke).toHaveLength(2)
     })
 
-    it('should not add empty stroke', () => {
+    it('should not continue if not drawing', () => {
       const store = useCanvasStore()
-      store.endStroke()
-      expect(store.strokes).toHaveLength(0)
-    })
-
-    it('should use eraser color when tool is eraser', () => {
-      const store = useCanvasStore()
-      store.setTool('eraser')
-      store.startStroke({ x: 0, y: 0 })
       store.continueStroke({ x: 10, y: 10 })
-      store.endStroke()
-
-      expect(store.strokes[0].tool).toBe('eraser')
-    })
-
-    it('should use current color for brush', () => {
-      const store = useCanvasStore()
-      store.setColor('#ff0000')
-      store.startStroke({ x: 0, y: 0 })
-      store.endStroke()
-
-      expect(store.strokes[0].color).toBe('#ff0000')
+      expect(store.currentStroke).toHaveLength(0)
     })
   })
 
   describe('clearCanvas', () => {
-    it('should clear all strokes', () => {
-      const store = useCanvasStore()
-      store.startStroke({ x: 0, y: 0 })
-      store.endStroke()
-      store.startStroke({ x: 10, y: 10 })
-      store.endStroke()
-
-      store.clearCanvas()
-      expect(store.strokes).toHaveLength(0)
-    })
-
-    it('should reset current stroke', () => {
+    it('should reset current stroke and drawing state', () => {
       const store = useCanvasStore()
       store.startStroke({ x: 0, y: 0 })
       store.continueStroke({ x: 10, y: 10 })
 
       store.clearCanvas()
       expect(store.currentStroke).toHaveLength(0)
-    })
-  })
-
-  describe('syncStrokes', () => {
-    it('should replace strokes', () => {
-      const store = useCanvasStore()
-      store.startStroke({ x: 0, y: 0 })
-      store.endStroke()
-
-      store.syncStrokes([
-        { playerId: '1', points: [{ x: 100, y: 100 }], color: '#000000', width: 4, tool: 'brush' },
-      ])
-
-      expect(store.strokes).toHaveLength(1)
-      expect(store.strokes[0].points[0].x).toBe(100)
+      expect(store.isDrawing).toBe(false)
     })
   })
 

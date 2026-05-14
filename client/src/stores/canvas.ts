@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import type { Point } from '@draw-and-guess/shared'
 
 export const useCanvasStore = defineStore('canvas', () => {
-  const strokes = ref<Array<{ points: Point[]; color: string; width: number; tool: string }>>([])
   const tool = ref<'brush' | 'eraser'>('brush')
   const color = ref('#000000')
   const width = ref(4)
@@ -44,43 +43,12 @@ export const useCanvasStore = defineStore('canvas', () => {
     currentStroke.value.push(point)
   }
 
-  function endStroke(canvasWidth?: number, canvasHeight?: number) {
-    if (!isDrawing.value || currentStroke.value.length === 0) return
-
-    const cw = canvasWidth ?? 1
-    const ch = canvasHeight ?? 1
-
-    strokes.value.push({
-      points: currentStroke.value.map((p) => ({
-        x: p.x / cw,
-        y: p.y / ch,
-      })),
-      color: tool.value === 'eraser' ? '#ffffff' : color.value,
-      width: tool.value === 'eraser' ? width.value * 3 : width.value,
-      tool: tool.value,
-    })
-
-    currentStroke.value = []
-    isDrawing.value = false
-  }
-
   function clearCanvas() {
-    strokes.value = []
     currentStroke.value = []
     isDrawing.value = false
-  }
-
-  function syncStrokes(newStrokes: Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string }>) {
-    strokes.value = newStrokes.map((s) => ({
-      points: s.points,
-      color: s.color,
-      width: s.width,
-      tool: s.tool,
-    }))
   }
 
   return {
-    strokes,
     tool,
     color,
     width,
@@ -93,8 +61,6 @@ export const useCanvasStore = defineStore('canvas', () => {
     setWidth,
     startStroke,
     continueStroke,
-    endStroke,
     clearCanvas,
-    syncStrokes,
   }
 })

@@ -77,7 +77,7 @@ function handleTouchEnd(e: TouchEvent) {
   e.preventDefault()
   if (props.readonly || !gameStore.isMyTurn) return
   if (canvasStore.currentStroke.length > 0) emitStroke()
-  canvasStore.endStroke(fabricCanvas?.width, fabricCanvas?.height)
+  finalizeStroke()
   renderCompletedStrokes()
   if (pendingResize) { pendingResize = false; resizeCanvas() }
 }
@@ -108,7 +108,7 @@ function handleMouseMove(e: { e: MouseEvent }) {
 function handleMouseUp() {
   if (props.readonly || !gameStore.isMyTurn) return
   if (canvasStore.currentStroke.length > 0) emitStroke()
-  canvasStore.endStroke(fabricCanvas?.width, fabricCanvas?.height)
+  finalizeStroke()
   renderCompletedStrokes()
   if (pendingResize) { pendingResize = false; resizeCanvas() }
 }
@@ -130,6 +130,20 @@ function emitStroke() {
   )
 }
 
+function finalizeStroke() {
+  if (canvasStore.currentStroke.length === 0 || !fabricCanvas) return
+  const cw = fabricCanvas.width ?? 1
+  const ch = fabricCanvas.height ?? 1
+  gameStore.addCompletedStroke(
+    canvasStore.currentStroke.map((p) => ({ x: p.x / cw, y: p.y / ch })),
+    canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
+    canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
+    canvasStore.tool
+  )
+  canvasStore.currentStroke = []
+  canvasStore.isDrawing = false
+}
+
 function renderCompletedStrokes() {
   if (!fabricCanvas) return
   const cw = fabricCanvas.width ?? 1
@@ -138,7 +152,7 @@ function renderCompletedStrokes() {
   fabricCanvas.clear()
   fabricCanvas.backgroundColor = '#ffffff'
 
-  for (const stroke of canvasStore.strokes) {
+  for (const stroke of gameStore.strokes) {
     if (stroke.points.length < 2) continue
     const pathData = stroke.points
       .map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x * cw} ${p.y * ch}`)
@@ -225,12 +239,6 @@ function resizeCanvas() {
 }
 
 watch(() => gameStore.strokes, () => {
-  canvasStore.syncStrokes(gameStore.strokes)
-}, { deep: true })
-
-// 监听本地 canvasStore.strokes 变化（清空按钮、笔画结束、轮次切换等）
-// 直接驱动 Fabric 画布重绘，不依赖 gameStore.strokes watcher
-watch(() => canvasStore.strokes, () => {
   if (fabricCanvas) {
     renderCompletedStrokes()
   }
@@ -247,7 +255,6 @@ watch(() => gameStore.currentWord, () => {
 // 初始化后同步一次确保不丢失
 function syncExistingStrokes() {
   if (gameStore.strokes.length > 0) {
-    canvasStore.syncStrokes(gameStore.strokes)
     renderCompletedStrokes()
   }
 }
