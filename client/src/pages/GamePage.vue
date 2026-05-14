@@ -316,7 +316,8 @@ function handleStartGame() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-surface);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* ─── Header ─── */
@@ -1110,11 +1111,17 @@ function handleStartGame() {
 /* ─── Mobile (< 768px) ─── */
 @media (max-width: 767px) {
   .game-page {
-    padding: env(safe-area-inset-top, 20px) 0 0 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
   }
 
   .game-header {
-    padding: 0.6rem 0.6rem 0.4rem;
+    padding: 0.5rem 0.6rem 0.5rem 0.6rem;
+    min-height: 2.8rem;
   }
 
   .room-badge {
