@@ -29,6 +29,11 @@ roomManager.onDismissed((roomId) => {
   gameManager.resetGame(roomId)
 })
 
+// 玩家被移除时清理 per-player 状态
+roomManager.onPlayerRemoved((playerId) => {
+  gameManager.removePlayerTimestamps(playerId)
+})
+
 app.use(express.json())
 app.use('/health', healthRouter)
 

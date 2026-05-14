@@ -1,6 +1,7 @@
 import { CLIENT_EVENTS, SERVER_EVENTS, ErrorCode } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { gameManager } from '../game/index.js'
+import { lastChatTime } from './gameHandlers.js'
 import bcrypt from 'bcrypt'
 import type { Room } from '@draw-and-guess/shared'
 
@@ -160,7 +161,6 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
 
     // Reset any lingering game state (e.g. after game_over) before starting fresh
-    gameManager.clearRestartTimer(roomId)
     gameManager.resetGame(roomId)
 
     const result = roomManager.startGame(roomId, playerId)
@@ -191,6 +191,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
     console.log(`[Room] Starting disconnect timer for player ${playerId}`)
     roomManager.startDisconnectTimer(playerId)
+    lastChatTime.delete(playerId)
   })
 
   socket.on(CLIENT_EVENTS.RESTORE_SESSION, ({ roomName, playerId }: { roomName: string; playerId: string }) => {
@@ -271,7 +272,9 @@ function handleLeave(io: any, socket: any): void {
   if (!roomId || !playerId) return
 
   const result = roomManager.leaveRoom(roomId, playerId)
-  if (!result.kicked) return
+  if (!result.removed) return
+
+  lastChatTime.delete(playerId)
 
   if (roomName) {
     socket.leave(roomName)

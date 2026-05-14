@@ -14,10 +14,11 @@ interface RoundTimer {
 
 export class GameManager {
   private roundTimers = new Map<string, RoundTimer>()
-  private restartTimers = new Map<string, NodeJS.Timeout>()
   private strokeHistory = new Map<string, Stroke[]>()
   private usedWords = new Map<string, Set<string>>()
   private currentDrawerId = new Map<string, string>()
+  private lastDrawTime = new Map<string, number>()
+  private static readonly DRAW_RATE_LIMIT_MS = 8 // ~125 events/s per player
 
   startRound(roomId: string): boolean {
     const room = roomManager.getRoomById(roomId)
@@ -167,7 +168,14 @@ export class GameManager {
       return
     }
 
-    console.log(`[Draw] ACCEPT: playerId=${playerId.slice(0,8)} points=${points.length}`)
+    // Rate limiting: ~125 events/s per player
+    const now = Date.now()
+    const lastTime = this.lastDrawTime.get(playerId) ?? 0
+    if (now - lastTime < GameManager.DRAW_RATE_LIMIT_MS) {
+      console.log(`[Draw] RATE_LIMIT: playerId=${playerId.slice(0,8)}`)
+      return
+    }
+    this.lastDrawTime.set(playerId, now)
 
     const strokeEvent: Stroke = { playerId, points, color, width, tool: tool as 'brush' | 'eraser' }
     const roomStrokes = this.strokeHistory.get(roomId) ?? []
@@ -276,6 +284,7 @@ export class GameManager {
     room.state = 'gameover'
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
+    this.cleanupPlayerTimestamps(roomId)
 
     const scores = this.getScoreboard(room)
     const winner = scores.length > 0 ? scores[0].nickname : null
@@ -289,73 +298,28 @@ export class GameManager {
       })
     }
 
-    // Auto-restart game after 15 seconds
-    this.scheduleAutoRestart(roomId)
-
     return true
-  }
-
-  private scheduleAutoRestart(roomId: string): void {
-    this.clearRestartTimer(roomId)
-    const timer = setTimeout(() => {
-      this.restartTimers.delete(roomId)
-      this.autoRestartGame(roomId)
-    }, 15_000)
-    this.restartTimers.set(roomId, timer)
-  }
-
-  clearRestartTimer(roomId: string): void {
-    const timer = this.restartTimers.get(roomId)
-    if (timer) {
-      clearTimeout(timer)
-      this.restartTimers.delete(roomId)
-    }
-  }
-
-  autoRestartGame(roomId: string): void {
-    const room = roomManager.getRoomById(roomId)
-    if (!room || room.state !== 'gameover') return
-
-    roomManager.resetGameState(roomId)
-    room.state = 'playing'
-    room.currentRound = 1
-
-    this.usedWords.delete(roomId)
-    this.strokeHistory.delete(roomId)
-    this.currentDrawerId.delete(roomId)
-
-    const io = this.getIO()
-    if (io) {
-      io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, {
-        room: {
-          id: room.id,
-          code: room.code,
-          name: room.name,
-          state: room.state,
-          maxPlayers: room.maxPlayers,
-          players: room.players.map((p) => ({
-            id: p.id,
-            nickname: p.nickname,
-            isOwner: p.isOwner,
-            score: p.score,
-            hasGuessedCorrectly: p.hasGuessedCorrectly,
-          })),
-          currentRound: room.currentRound,
-          totalRounds: room.totalRounds,
-        },
-      })
-    }
-
-    this.startRound(roomId)
   }
 
   resetGame(roomId: string): void {
     this.clearTimer(roomId)
-    this.clearRestartTimer(roomId)
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
     this.currentDrawerId.delete(roomId)
+    this.cleanupPlayerTimestamps(roomId)
     roomManager.resetGameState(roomId)
+  }
+
+  private cleanupPlayerTimestamps(roomId: string): void {
+    const room = roomManager.getRoomById(roomId)
+    if (!room) return
+    for (const player of room.players) {
+      this.lastDrawTime.delete(player.id)
+    }
+  }
+
+  removePlayerTimestamps(playerId: string): void {
+    this.lastDrawTime.delete(playerId)
   }
 
   getScoreboard(room: Room) {

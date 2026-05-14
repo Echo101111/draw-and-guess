@@ -12,6 +12,7 @@ import { useGameStore } from '@/stores/game'
 import type { Point } from '@draw-and-guess/shared'
 
 type FabricCanvas = InstanceType<typeof fabric.Canvas>
+type FabricPath = InstanceType<typeof fabric.Path>
 
 const props = defineProps<{
   readonly?: boolean
@@ -25,6 +26,7 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 let fabricCanvas: FabricCanvas | null = null
 let lastEmitTime = 0
 let resizeObserver: ResizeObserver | null = null
+let currentPathObject: FabricPath | null = null
 const EMIT_INTERVAL = 16
 const CANVAS_RATIO = 4 / 3
 
@@ -48,7 +50,7 @@ function handleTouchStart(e: TouchEvent) {
   const point = touchEventPoint(e.touches[0])
   canvasStore.startStroke(point)
   lastEmitTime = Date.now()
-  renderStroke()
+  renderCurrentStroke()
 }
 
 function handleTouchMove(e: TouchEvent) {
@@ -58,7 +60,7 @@ function handleTouchMove(e: TouchEvent) {
   if (!canvasRef.value) return
   const point = touchEventPoint(e.touches[0])
   canvasStore.continueStroke(point)
-  renderStroke()
+  renderCurrentStroke()
   const now = Date.now()
   if (now - lastEmitTime >= EMIT_INTERVAL && canvasStore.currentStroke.length > 0) {
     emitStroke()
@@ -71,14 +73,14 @@ function handleTouchEnd(e: TouchEvent) {
   if (props.readonly || !gameStore.isMyTurn) return
   if (canvasStore.currentStroke.length > 0) emitStroke()
   canvasStore.endStroke(fabricCanvas?.width, fabricCanvas?.height)
-  renderStroke()
+  renderCompletedStrokes()
 }
 
 function handleMouseDown(e: { e: MouseEvent }) {
   if (props.readonly || !gameStore.isMyTurn) return
   const point = getCanvasPoint(e)
   canvasStore.startStroke(point)
-  renderStroke()
+  renderCurrentStroke()
 }
 
 function handleMouseMove(e: { e: MouseEvent }) {
@@ -86,7 +88,7 @@ function handleMouseMove(e: { e: MouseEvent }) {
   if (!canvasStore.isDrawing) return
   const point = getCanvasPoint(e)
   canvasStore.continueStroke(point)
-  renderStroke()
+  renderCurrentStroke()
   const now = Date.now()
   if (now - lastEmitTime >= EMIT_INTERVAL && canvasStore.currentStroke.length > 0) {
     emitStroke()
@@ -98,7 +100,7 @@ function handleMouseUp() {
   if (props.readonly || !gameStore.isMyTurn) return
   if (canvasStore.currentStroke.length > 0) emitStroke()
   canvasStore.endStroke(fabricCanvas?.width, fabricCanvas?.height)
-  renderStroke()
+  renderCompletedStrokes()
 }
 
 function emitStroke() {
@@ -114,7 +116,7 @@ function emitStroke() {
   )
 }
 
-function renderStroke() {
+function renderCompletedStrokes() {
   if (!fabricCanvas) return
   const cw = fabricCanvas.width ?? 1
   const ch = fabricCanvas.height ?? 1
@@ -137,20 +139,32 @@ function renderStroke() {
     fabricCanvas.add(path)
   }
 
+  currentPathObject = null
+  renderCurrentStroke()
+}
+
+function renderCurrentStroke() {
+  if (!fabricCanvas) return
+
+  if (currentPathObject) {
+    fabricCanvas.remove(currentPathObject)
+    currentPathObject = null
+  }
+
   if (canvasStore.currentStroke.length >= 2) {
     const currentPathData = canvasStore.currentStroke
       .map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
       .join(' ')
     const currentColor = canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color
     const currentWidth = canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width
-    const currentPath = new fabric.Path(currentPathData, {
+    currentPathObject = new fabric.Path(currentPathData, {
       stroke: currentColor,
       strokeWidth: currentWidth,
       fill: null,
       strokeLineCap: 'round',
       strokeLineJoin: 'round',
     })
-    fabricCanvas.add(currentPath)
+    fabricCanvas.add(currentPathObject)
   }
 
   fabricCanvas.renderAll()
@@ -189,18 +203,18 @@ function resizeCanvas() {
 
   fabricCanvas.setWidth(width)
   fabricCanvas.setHeight(height)
-  renderStroke()
+  renderCompletedStrokes()
 }
 
 watch(() => gameStore.strokes, () => {
   canvasStore.syncStrokes(gameStore.strokes)
-  renderStroke()
+  renderCompletedStrokes()
 }, { deep: true })
 
 watch(() => gameStore.currentWord, () => {
   if (gameStore.currentWord !== null && gameStore.isMyTurn) {
     canvasStore.clearCanvas()
-    if (fabricCanvas) renderStroke()
+    if (fabricCanvas) renderCompletedStrokes()
   }
 })
 
@@ -209,7 +223,7 @@ watch(() => gameStore.currentWord, () => {
 function syncExistingStrokes() {
   if (gameStore.strokes.length > 0) {
     canvasStore.syncStrokes(gameStore.strokes)
-    renderStroke()
+    renderCompletedStrokes()
   }
 }
 
@@ -240,7 +254,7 @@ onMounted(() => {
   })
   resizeObserver.observe(containerRef.value)
 
-  renderStroke()
+  renderCompletedStrokes()
   syncExistingStrokes()
 })
 

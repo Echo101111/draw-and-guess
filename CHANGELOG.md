@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.1.0 — 2026-05-14
+
+- Fix: 移除游戏结束后 15 秒自动重启逻辑，改为房主手动操作
+- Fix: 修复开发环境 Socket.io 连接失败的问题（Vite 代理缺失）
+- Fix: 添加服务端绘图限流（~125 事件/秒/玩家），防止恶意刷笔画
+- Fix: 修复 leaveRoom 返回语义错误（kicked → removed）
+- Fix: 移除 room store 中未使用的 currentPlayer 字段
+- Fix: 修复玩家退出/断线时 lastChatTime、lastDrawTime 内存泄漏
+- Fix: 移除词库 nature 类别中重复的"石头"
+- Perf: Canvas 增量渲染优化，绘图帧仅更新当前笔画而非全量重绘
+- Chore: 新建 client/Dockerfile 和 nginx.conf，修复 docker-compose 构建
+
 ## 2.0.2 — 2026-05-13
 
 - Feat: 更新日志弹窗样式重设计，Feat/Fix 改为中文标签

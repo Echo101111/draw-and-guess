@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getSocket, connectSocket, saveSession, clearSession } from '@/composables/useSocket'
-import { CLIENT_EVENTS, SERVER_EVENTS, type Player } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
 
 interface RoomPlayer {
   id: string
@@ -25,7 +25,6 @@ interface RoomData {
 export const useRoomStore = defineStore('room', () => {
   const room = ref<RoomData | null>(null)
   const currentPlayerId = ref<string | null>(null)
-  const currentPlayer = ref<Player | null>(null)
   const connectionState = ref<'disconnected' | 'connecting' | 'connected'>('disconnected')
   const error = ref<string | null>(null)
   const isSpectator = ref(false)
@@ -191,7 +190,6 @@ export const useRoomStore = defineStore('room', () => {
   return {
     room,
     currentPlayerId,
-    currentPlayer,
     connectionState,
     error,
     isOwner,

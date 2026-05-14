@@ -41,10 +41,15 @@ export class RoomManager {
   private dismissTimers = new Map<string, NodeJS.Timeout>()
   private disconnectTimers = new Map<string, NodeJS.Timeout>()
   private onDismissCallbacks: Array<(roomId: string) => void> = []
+  private onPlayerRemovedCallbacks: Array<(playerId: string) => void> = []
   private RECONNECT_TIMEOUT = 60_000
 
   onDismissed(callback: (roomId: string) => void): void {
     this.onDismissCallbacks.push(callback)
+  }
+
+  onPlayerRemoved(callback: (playerId: string) => void): void {
+    this.onPlayerRemovedCallbacks.push(callback)
   }
 
   async createRoom(
@@ -108,12 +113,12 @@ export class RoomManager {
     return { room, player }
   }
 
-  leaveRoom(roomId: string, playerId: string): { kicked: boolean; ownerChanged: boolean } {
+  leaveRoom(roomId: string, playerId: string): { removed: boolean; ownerChanged: boolean } {
     const room = this.rooms.get(roomId)
-    if (!room) return { kicked: false, ownerChanged: false }
+    if (!room) return { removed: false, ownerChanged: false }
 
     const playerIndex = room.players.findIndex((p) => p.id === playerId)
-    if (playerIndex === -1) return { kicked: false, ownerChanged: false }
+    if (playerIndex === -1) return { removed: false, ownerChanged: false }
 
     const player = room.players[playerIndex]
     const wasOwner = player.isOwner
@@ -129,7 +134,8 @@ export class RoomManager {
       this.startDismissTimer(room.id)
     }
 
-    return { kicked: true, ownerChanged }
+    this.onPlayerRemovedCallbacks.forEach((cb) => cb(playerId))
+    return { removed: true, ownerChanged }
   }
 
   kickPlayer(roomId: string, hostId: string, targetId: string): boolean {
@@ -150,6 +156,7 @@ export class RoomManager {
       this.startDismissTimer(room.id)
     }
 
+    this.onPlayerRemovedCallbacks.forEach((cb) => cb(targetId))
     return true
   }
 
@@ -225,6 +232,7 @@ export class RoomManager {
         break
       }
     }
+    this.onPlayerRemovedCallbacks.forEach((cb) => cb(playerId))
   }
 
   findPlayerBySession(sessionId: string): { room: Room; player: Player } | null {
