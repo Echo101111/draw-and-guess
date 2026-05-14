@@ -45,14 +45,14 @@ export class RoomManager {
   private dismissTimers = new Map<string, NodeJS.Timeout>()
   private disconnectTimers = new Map<string, NodeJS.Timeout>()
   private onDismissCallbacks: Array<(roomId: string) => void> = []
-  private onPlayerRemovedCallbacks: Array<(playerId: string) => void> = []
+  private onPlayerRemovedCallbacks: Array<(playerId: string, roomId: string) => void> = []
   private RECONNECT_TIMEOUT = 60_000
 
   onDismissed(callback: (roomId: string) => void): void {
     this.onDismissCallbacks.push(callback)
   }
 
-  onPlayerRemoved(callback: (playerId: string) => void): void {
+  onPlayerRemoved(callback: (playerId: string, roomId: string) => void): void {
     this.onPlayerRemovedCallbacks.push(callback)
   }
 
@@ -142,7 +142,7 @@ export class RoomManager {
       this.startDismissTimer(room.id)
     }
 
-    this.onPlayerRemovedCallbacks.forEach((cb) => cb(playerId))
+    this.onPlayerRemovedCallbacks.forEach((cb) => cb(playerId, roomId))
     return { removed: true, ownerChanged }
   }
 
@@ -164,7 +164,7 @@ export class RoomManager {
       this.startDismissTimer(room.id)
     }
 
-    this.onPlayerRemovedCallbacks.forEach((cb) => cb(targetId))
+    this.onPlayerRemovedCallbacks.forEach((cb) => cb(targetId, roomId))
     return true
   }
 
@@ -225,9 +225,11 @@ export class RoomManager {
   }
 
   private handleDisconnectTimeout(playerId: string): void {
+    let roomId: string | undefined
     for (const [, room] of this.rooms) {
       const idx = room.players.findIndex((p) => p.id === playerId)
       if (idx !== -1) {
+        roomId = room.id
         room.players.splice(idx, 1)
         if (room.players.length > 0 && !room.players.some((p) => p.isOwner)) {
           room.players[0].isOwner = true
@@ -244,7 +246,9 @@ export class RoomManager {
         break
       }
     }
-    this.onPlayerRemovedCallbacks.forEach((cb) => cb(playerId))
+    if (roomId) {
+      this.onPlayerRemovedCallbacks.forEach((cb) => cb(playerId, roomId))
+    }
   }
 
   findPlayerBySession(sessionId: string): { room: Room; player: Player } | null {

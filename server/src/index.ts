@@ -29,9 +29,13 @@ roomManager.onDismissed((roomId) => {
   gameManager.resetGame(roomId)
 })
 
-// 玩家被移除时清理 per-player 状态
-roomManager.onPlayerRemoved((playerId) => {
+// 玩家被移除时清理 per-player 状态；若移除的是画师则结束当前轮
+roomManager.onPlayerRemoved((playerId, roomId) => {
   gameManager.removePlayerTimestamps(playerId)
+  const drawerId = gameManager.getCurrentDrawerId(roomId)
+  if (drawerId === playerId) {
+    gameManager.endRound(roomId, 'timeout')
+  }
 })
 
 app.use(express.json())

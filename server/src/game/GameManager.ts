@@ -14,6 +14,7 @@ interface RoundTimer {
 
 export class GameManager {
   private roundTimers = new Map<string, RoundTimer>()
+  private nextRoundTimers = new Map<string, NodeJS.Timeout>()
   private strokeHistory = new Map<string, Stroke[]>()
   private usedWords = new Map<string, Set<string>>()
   private currentDrawerId = new Map<string, string>()
@@ -247,7 +248,10 @@ export class GameManager {
     }
 
     // Auto-start next round after 3 seconds
-    setTimeout(() => {
+    const existing = this.nextRoundTimers.get(roomId)
+    if (existing) clearTimeout(existing)
+    this.nextRoundTimers.set(roomId, setTimeout(() => {
+      this.nextRoundTimers.delete(roomId)
       const updatedRoom = roomManager.getRoomById(roomId)
       if (!updatedRoom || updatedRoom.state !== 'playing') return
 
@@ -261,7 +265,7 @@ export class GameManager {
       }
 
       this.startRound(roomId)
-    }, 3000)
+    }, 3000))
   }
 
   endGame(roomId: string): boolean {
@@ -271,6 +275,7 @@ export class GameManager {
     if (!room) return false
 
     room.state = 'gameover'
+    this.clearNextRoundTimer(roomId)
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)
@@ -292,6 +297,7 @@ export class GameManager {
 
   resetGame(roomId: string): void {
     this.clearTimer(roomId)
+    this.clearNextRoundTimer(roomId)
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
     this.currentDrawerId.delete(roomId)
@@ -367,6 +373,14 @@ export class GameManager {
       clearInterval(t.timer)
       clearInterval(t.syncTimer)
       this.roundTimers.delete(roomId)
+    }
+  }
+
+  private clearNextRoundTimer(roomId: string): void {
+    const t = this.nextRoundTimers.get(roomId)
+    if (t) {
+      clearTimeout(t)
+      this.nextRoundTimers.delete(roomId)
     }
   }
 

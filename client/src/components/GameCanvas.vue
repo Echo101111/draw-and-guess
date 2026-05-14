@@ -25,6 +25,7 @@ const containerRef = ref<HTMLDivElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let fabricCanvas: FabricCanvas | null = null
 let lastEmitTime = 0
+let lastEmitPointCount = 0
 let resizeObserver: ResizeObserver | null = null
 let currentPathObject: FabricPath | null = null
 const EMIT_INTERVAL = 16
@@ -50,6 +51,7 @@ function handleTouchStart(e: TouchEvent) {
   const point = touchEventPoint(e.touches[0])
   canvasStore.startStroke(point)
   lastEmitTime = Date.now()
+  lastEmitPointCount = 0
   renderCurrentStroke()
 }
 
@@ -80,6 +82,8 @@ function handleMouseDown(e: { e: MouseEvent }) {
   if (props.readonly || !gameStore.isMyTurn) return
   const point = getCanvasPoint(e)
   canvasStore.startStroke(point)
+  lastEmitTime = Date.now()
+  lastEmitPointCount = 0
   renderCurrentStroke()
 }
 
@@ -104,12 +108,15 @@ function handleMouseUp() {
 }
 
 function emitStroke() {
-  const points = canvasStore.currentStroke
-  if (points.length === 0 || !fabricCanvas) return
+  const allPoints = canvasStore.currentStroke
+  if (allPoints.length === 0 || !fabricCanvas) return
+  const newPoints = allPoints.slice(lastEmitPointCount)
+  if (newPoints.length === 0) return
+  lastEmitPointCount = allPoints.length
   const cw = fabricCanvas.width ?? 1
   const ch = fabricCanvas.height ?? 1
   gameStore.drawStroke(
-    points.map((p) => ({ x: p.x / cw, y: p.y / ch })),
+    newPoints.map((p) => ({ x: p.x / cw, y: p.y / ch })),
     canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
     canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
     canvasStore.tool

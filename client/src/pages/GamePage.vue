@@ -287,9 +287,9 @@ function handleLeave() {
 
 function doLeave() {
   showLeaveConfirm.value = false
-  disconnectSocket()
-  gameStore.resetGame()
   roomStore.leaveRoom()
+  gameStore.resetGame()
+  disconnectSocket()
   router.push('/')
 }
 

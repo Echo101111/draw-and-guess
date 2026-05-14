@@ -56,6 +56,14 @@ export function registerRoomHandlers(io: any, socket: any): void {
       console.log(`[Room] Created: "${room.name}" (${room.id}) by ${trimmedNickname}`)
       console.log(`[Room] Total rooms: ${roomManager.getAllRooms().length}`)
 
+      // 离开旧的 socket 频道（如果有）
+      if (socket.data.roomName) {
+        socket.leave(socket.data.roomName)
+      }
+      if (socket.data.playerId) {
+        socket.leave(socket.data.playerId)
+      }
+
       socket.data.roomId = room.id
       socket.data.playerId = player.id
       socket.data.roomName = room.name
@@ -111,6 +119,13 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
 
     const { room, player } = result
+    // 离开旧的 socket 频道（如果有）
+    if (socket.data.roomName) {
+      socket.leave(socket.data.roomName)
+    }
+    if (socket.data.playerId) {
+      socket.leave(socket.data.playerId)
+    }
     socket.data.roomId = room.id
     socket.data.playerId = player.id
     socket.data.roomName = room.name
