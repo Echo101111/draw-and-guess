@@ -223,6 +223,16 @@ function resizeCanvas() {
 }
 
 watch(() => gameStore.strokes, () => {
+  if (gameStore.strokes.length < renderedRemoteStrokeCount) {
+    renderedRemoteStrokeCount = 0
+    canvasStore.syncStrokes(gameStore.strokes)
+    if (fabricCanvas) {
+      fabricCanvas.clear()
+      fabricCanvas.backgroundColor = '#ffffff'
+      fabricCanvas.renderAll()
+    }
+    return
+  }
   const newStrokes = gameStore.strokes.slice(renderedRemoteStrokeCount)
   canvasStore.syncStrokes(gameStore.strokes)
   if (newStrokes.length === 0 || !fabricCanvas) return
