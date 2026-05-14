@@ -226,6 +226,11 @@ function resizeCanvas() {
 
 watch(() => gameStore.strokes, () => {
   canvasStore.syncStrokes(gameStore.strokes)
+}, { deep: true })
+
+// 监听本地 canvasStore.strokes 变化（清空按钮、笔画结束、轮次切换等）
+// 直接驱动 Fabric 画布重绘，不依赖 gameStore.strokes watcher
+watch(() => canvasStore.strokes, () => {
   if (fabricCanvas) {
     renderCompletedStrokes()
   }

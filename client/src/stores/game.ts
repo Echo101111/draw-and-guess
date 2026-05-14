@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
+import { useCanvasStore } from '@/stores/canvas'
 import { getSocket } from '@/composables/useSocket'
 import { CLIENT_EVENTS, SERVER_EVENTS, type ChatMessage, type Point } from '@draw-and-guess/shared'
 
@@ -113,6 +114,7 @@ export const useGameStore = defineStore('game', () => {
       totalTime.value = data.timeLeft
       currentDrawer.value = data.drawer
       strokes.value = []
+      useCanvasStore().clearCanvas()
       hasGuessedCorrectly.value = false
       wordLength.value = data.wordLength ?? 0
       wordCategory.value = data.wordCategory ?? undefined
@@ -139,6 +141,7 @@ export const useGameStore = defineStore('game', () => {
       wordLength.value = data.wordLength ?? data.word.length
       wordCategory.value = data.wordCategory ?? undefined
       strokes.value = []
+      useCanvasStore().clearCanvas()
       hasGuessedCorrectly.value = false
       recentGuessers.value = []
       categoryHintShown.value = false
@@ -160,6 +163,7 @@ export const useGameStore = defineStore('game', () => {
     socket.off(SERVER_EVENTS.CANVAS_CLEARED)
     socket.on(SERVER_EVENTS.CANVAS_CLEARED, () => {
       strokes.value = []
+      useCanvasStore().clearCanvas()
     })
 
     socket.off(SERVER_EVENTS.ANSWER_RESULT)
@@ -190,6 +194,7 @@ export const useGameStore = defineStore('game', () => {
       state.value = 'round_end'
       stopLocalTimer()
       strokes.value = []
+      useCanvasStore().clearCanvas()
       transitionData.value = {
         word: data.word,
         reason: data.reason,
