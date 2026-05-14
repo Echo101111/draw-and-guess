@@ -1109,12 +1109,12 @@ function handleStartGame() {
 /* ─── Mobile (< 768px) ─── */
 @media (max-width: 767px) {
   .game-page {
-    padding-top: env(safe-area-inset-top);
+    padding-top: 0;
     padding-bottom: env(safe-area-inset-bottom);
   }
 
   .game-header {
-    padding: 0.4rem 0.6rem;
+    padding: max(env(safe-area-inset-top, 0px), 0.8rem) 0.6rem 0.4rem;
   }
 
   .room-badge {
