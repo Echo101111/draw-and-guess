@@ -4,6 +4,7 @@ RUN npm install -g pnpm@9
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY shared/package.json shared/
+COPY shared/tsconfig.json shared/
 COPY server/package.json server/
 RUN pnpm install --frozen-lockfile
 
