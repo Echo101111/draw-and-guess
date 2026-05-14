@@ -224,9 +224,10 @@ export const useGameStore = defineStore('game', () => {
     })
   }
 
+  let sysMsgSeq = 0
   function addSystemMessage(text: string) {
     chatMessages.value.push({
-      id: `sys-${Date.now()}`,
+      id: `sys-${Date.now()}-${++sysMsgSeq}`,
       playerId: null,
       nickname: null,
       text,

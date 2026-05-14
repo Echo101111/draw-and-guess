@@ -268,7 +268,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function handleLeave(io: any, socket: any): void {
-  const { roomId, playerId, roomName } = socket.data
+  const { roomId, playerId } = socket.data
   if (!roomId || !playerId) return
 
   const result = roomManager.leaveRoom(roomId, playerId)
@@ -276,11 +276,11 @@ function handleLeave(io: any, socket: any): void {
 
   lastChatTime.delete(playerId)
 
-  if (roomName) {
-    socket.leave(roomName)
+  const room = roomManager.getRoomById(roomId)
+  if (room) {
+    socket.leave(room.code)
   }
 
-  const room = roomManager.getRoomById(roomId)
   if (!room) return
 
   if (room.players.length === 0) {

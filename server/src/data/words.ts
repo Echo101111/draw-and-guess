@@ -142,8 +142,8 @@ export function getRandomWord(
       .filter(([, level]) => level === sensitivity || level === 'safe')
       .map(([category]) => category)
     pools = pools.filter((word) => {
-      const category = (Object.entries(WORDS) as [keyof typeof WORDS, string[]][]).find(([, words]) => words.includes(word))
-      return category && allowedCategories.includes(category[0])
+      const cat = wordToCategory[word]
+      return cat !== undefined && allowedCategories.includes(cat)
     })
   }
 

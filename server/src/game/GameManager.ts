@@ -33,7 +33,11 @@ export class GameManager {
     const sensitivityLevel: SensitivityLevel = room.players.length < 4 ? 'safe' : 'moderate'
     const difficulties = getDifficultyForRound(room.currentRound, room.totalRounds)
     const word = getRandomWord(this.getUsedWords(roomId), undefined, sensitivityLevel, difficulties)
-    if (!word) return false
+    if (!word) {
+      console.log(`[Round] startRound failed: no word available for room=${roomId}`)
+      this.endGame(roomId)
+      return false
+    }
 
     this.getUsedWords(roomId).add(word)
     room.currentWord = word
@@ -260,21 +264,6 @@ export class GameManager {
     }, 3000)
   }
 
-  nextRound(roomId: string): boolean {
-    const room = roomManager.getRoomById(roomId)
-    if (!room) return false
-
-    room.currentRound++
-    room.currentWord = null
-    room.roundStartTime = null
-
-    if (room.currentRound > room.totalRounds) {
-      return this.endGame(roomId)
-    }
-
-    return this.startRound(roomId)
-  }
-
   endGame(roomId: string): boolean {
     this.clearTimer(roomId)
 
@@ -355,10 +344,9 @@ export class GameManager {
     const syncTimer = setInterval(() => {
       const io = this.getIO()
       if (io && room) {
-        io.to(room.code).emit(SERVER_EVENTS.TIMER_SYNC, {
-          serverTime: Date.now(),
-          timeLeft: remaining,
-        })
+      io.to(room.code).emit(SERVER_EVENTS.TIMER_SYNC, {
+        timeLeft: remaining,
+      })
       }
     }, 5000)
 

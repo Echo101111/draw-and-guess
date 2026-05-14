@@ -1,6 +1,6 @@
 <template>
   <div class="home-page">
-    <button class="btn-changelog" @click="showChangelog = true" title="更新日志">
+    <button class="btn-changelog" @click="loadChangelog(); showChangelog = true" title="更新日志">
       <span class="changelog-icon">📋</span>
       <span class="changelog-label">更新日志</span>
     </button>
@@ -163,15 +163,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
-import changelogMd from '../../../CHANGELOG.md?raw'
 
 const router = useRouter()
 const roomStore = useRoomStore()
 
 const showChangelog = ref(false)
+const changelogMd = ref('')
+const changelogLoading = ref(false)
+
+let createTimer: ReturnType<typeof setTimeout> | null = null
+let joinTimer: ReturnType<typeof setTimeout> | null = null
+let errorTimer: ReturnType<typeof setTimeout> | null = null
 
 function renderMarkdown(md: string): string {
   return md
@@ -214,7 +219,18 @@ function renderMarkdown(md: string): string {
     .replace(/<\/ul>$/, '</ul>')
 }
 
-const renderedChangelog = computed(() => renderMarkdown(changelogMd))
+const renderedChangelog = computed(() => changelogMd.value ? renderMarkdown(changelogMd.value) : '<p>加载中…</p>')
+
+async function loadChangelog() {
+  if (changelogMd.value) return
+  changelogLoading.value = true
+  try {
+    const mod = await import('../../../CHANGELOG.md?raw')
+    changelogMd.value = mod.default
+  } finally {
+    changelogLoading.value = false
+  }
+}
 
 const activeTab = ref<'create' | 'join'>('create')
 const nickname = ref('')
@@ -230,7 +246,8 @@ watch(() => roomStore.error, (newError) => {
   errorMessage.value = newError
   if (newError) {
     isLoading.value = false
-    setTimeout(() => { errorMessage.value = null }, 4000)
+    if (errorTimer) clearTimeout(errorTimer)
+    errorTimer = setTimeout(() => { errorMessage.value = null; errorTimer = null }, 4000)
   }
 })
 
@@ -244,13 +261,15 @@ function handleCreate() {
   if (!nickname.value.trim()) return
   isLoading.value = true
   errorMessage.value = null
+  if (createTimer) clearTimeout(createTimer)
   roomStore.createRoom(nickname.value.trim(), {
     roomName: createRoomName.value.trim() || undefined,
     maxPlayers: maxPlayers.value,
     password: password.value || undefined,
   })
-  setTimeout(() => {
+  createTimer = setTimeout(() => {
     if (!roomStore.room) isLoading.value = false
+    createTimer = null
   }, 5000)
 }
 
@@ -258,11 +277,19 @@ function handleJoin() {
   if (!nickname.value.trim() || !joinRoomName.value.trim()) return
   isLoading.value = true
   errorMessage.value = null
+  if (joinTimer) clearTimeout(joinTimer)
   roomStore.joinRoom(joinRoomName.value.trim(), nickname.value.trim(), password.value || undefined)
-  setTimeout(() => {
+  joinTimer = setTimeout(() => {
     if (!roomStore.room) isLoading.value = false
+    joinTimer = null
   }, 5000)
 }
+
+onUnmounted(() => {
+  if (createTimer) clearTimeout(createTimer)
+  if (joinTimer) clearTimeout(joinTimer)
+  if (errorTimer) clearTimeout(errorTimer)
+})
 </script>
 
 <style scoped>

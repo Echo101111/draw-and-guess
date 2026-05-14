@@ -26,11 +26,11 @@ const timeLeft = computed(() => gameStore.timeLeft)
 const currentRound = computed(() => gameStore.currentRound)
 const totalRounds = computed(() => gameStore.totalRounds)
 
-const maxTime = 90
+const maxTime = computed(() => gameStore.totalTime || 90)
 
 const ringStyle = computed(() => {
   const circumference = 2 * Math.PI * 23
-  const progress = Math.max(0, timeLeft.value / maxTime)
+  const progress = Math.max(0, timeLeft.value / maxTime.value)
   const offset = circumference * (1 - progress)
   return {
     strokeDasharray: `${circumference}`,
