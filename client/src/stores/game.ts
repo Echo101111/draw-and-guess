@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
-import { useCanvasStore } from '@/stores/canvas'
 import { getSocket } from '@/composables/useSocket'
 import { CLIENT_EVENTS, SERVER_EVENTS, type ChatMessage, type Point } from '@draw-and-guess/shared'
 
@@ -192,7 +191,6 @@ export const useGameStore = defineStore('game', () => {
         totalRounds: data.totalRounds ?? totalRounds.value,
         nextDrawer: data.nextDrawer ?? null,
       }
-      useCanvasStore().clearCanvas()
       addSystemMessage(`本轮结束，答案是：${data.word}`)
       if (data.reason === 'timeout') {
         addSystemMessage('时间到！')

@@ -28,6 +28,8 @@ let lastEmitTime = 0
 let lastEmitPointCount = 0
 let resizeObserver: ResizeObserver | null = null
 let currentPathObject: FabricPath | null = null
+let renderedRemoteStrokeCount = 0
+let pendingResize = false
 const EMIT_INTERVAL = 16
 const CANVAS_RATIO = 4 / 3
 
@@ -76,6 +78,7 @@ function handleTouchEnd(e: TouchEvent) {
   if (canvasStore.currentStroke.length > 0) emitStroke()
   canvasStore.endStroke(fabricCanvas?.width, fabricCanvas?.height)
   renderCompletedStrokes()
+  if (pendingResize) { pendingResize = false; resizeCanvas() }
 }
 
 function handleMouseDown(e: { e: MouseEvent }) {
@@ -105,6 +108,7 @@ function handleMouseUp() {
   if (canvasStore.currentStroke.length > 0) emitStroke()
   canvasStore.endStroke(fabricCanvas?.width, fabricCanvas?.height)
   renderCompletedStrokes()
+  if (pendingResize) { pendingResize = false; resizeCanvas() }
 }
 
 function emitStroke() {
@@ -147,6 +151,7 @@ function renderCompletedStrokes() {
   }
 
   currentPathObject = null
+  renderedRemoteStrokeCount = canvasStore.strokes.length
   renderCurrentStroke()
 }
 
@@ -214,8 +219,27 @@ function resizeCanvas() {
 }
 
 watch(() => gameStore.strokes, () => {
+  const newStrokes = gameStore.strokes.slice(renderedRemoteStrokeCount)
   canvasStore.syncStrokes(gameStore.strokes)
-  renderCompletedStrokes()
+  if (newStrokes.length === 0 || !fabricCanvas) return
+  const cw = fabricCanvas.width ?? 1
+  const ch = fabricCanvas.height ?? 1
+  for (const stroke of newStrokes) {
+    if (stroke.points.length < 2) continue
+    const pathData = stroke.points
+      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x * cw} ${p.y * ch}`)
+      .join(' ')
+    const path = new fabric.Path(pathData, {
+      stroke: stroke.color,
+      strokeWidth: stroke.width,
+      fill: null,
+      strokeLineCap: 'round',
+      strokeLineJoin: 'round',
+    })
+    fabricCanvas.add(path)
+  }
+  fabricCanvas.renderAll()
+  renderedRemoteStrokeCount = gameStore.strokes.length
 }, { deep: true })
 
 watch(() => gameStore.currentWord, () => {
@@ -257,7 +281,11 @@ onMounted(() => {
   canvasRef.value.addEventListener('touchend', handleTouchEnd, { passive: false })
 
   resizeObserver = new ResizeObserver(() => {
-    resizeCanvas()
+    if (canvasStore.isDrawing) {
+      pendingResize = true
+    } else {
+      resizeCanvas()
+    }
   })
   resizeObserver.observe(containerRef.value)
 

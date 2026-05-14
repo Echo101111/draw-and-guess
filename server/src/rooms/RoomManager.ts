@@ -44,6 +44,7 @@ export class RoomManager {
   private nameToRoomId = new Map<string, string>()
   private dismissTimers = new Map<string, NodeJS.Timeout>()
   private disconnectTimers = new Map<string, NodeJS.Timeout>()
+  private playerToRoomId = new Map<string, string>()
   private onDismissCallbacks: Array<(roomId: string) => void> = []
   private onPlayerRemovedCallbacks: Array<(playerId: string, roomId: string) => void> = []
   private RECONNECT_TIMEOUT = 60_000
@@ -87,6 +88,7 @@ export class RoomManager {
 
     this.rooms.set(room.id, room)
     this.nameToRoomId.set(normalizedName, room.id)
+    this.playerToRoomId.set(owner.id, room.id)
     return { room, player: owner }
   }
 
@@ -116,6 +118,7 @@ export class RoomManager {
 
     const player = createPlayer(nickname, false)
     room.players.push(player)
+    this.playerToRoomId.set(player.id, room.id)
 
     this.cancelDismissTimer(room.id)
     return { room, player }
@@ -131,6 +134,7 @@ export class RoomManager {
     const player = room.players[playerIndex]
     const wasOwner = player.isOwner
     room.players.splice(playerIndex, 1)
+    this.playerToRoomId.delete(player.id)
 
     let ownerChanged = false
     if (wasOwner && room.players.length > 0) {
@@ -159,6 +163,7 @@ export class RoomManager {
     if (targetIndex === -1) return false
 
     room.players.splice(targetIndex, 1)
+    this.playerToRoomId.delete(targetId)
 
     if (room.players.length === 0) {
       this.startDismissTimer(room.id)
@@ -225,30 +230,31 @@ export class RoomManager {
   }
 
   private handleDisconnectTimeout(playerId: string): void {
-    let roomId: string | undefined
-    for (const [, room] of this.rooms) {
-      const idx = room.players.findIndex((p) => p.id === playerId)
-      if (idx !== -1) {
-        roomId = room.id
-        room.players.splice(idx, 1)
-        if (room.players.length > 0 && !room.players.some((p) => p.isOwner)) {
-          room.players[0].isOwner = true
-        }
+    const roomId = this.playerToRoomId.get(playerId)
+    if (!roomId) return
+    this.playerToRoomId.delete(playerId)
 
-        const io = this.getIO()
-        if (io && room.players.length > 0) {
-          io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: this.sanitizeRoom(room) })
-        }
+    const room = this.rooms.get(roomId)
+    if (!room) return
 
-        if (room.players.length === 0) {
-          this.startDismissTimer(room.id)
-        }
-        break
-      }
+    const idx = room.players.findIndex((p) => p.id === playerId)
+    if (idx === -1) return
+
+    room.players.splice(idx, 1)
+    if (room.players.length > 0 && !room.players.some((p) => p.isOwner)) {
+      room.players[0].isOwner = true
     }
-    if (roomId) {
-      this.onPlayerRemovedCallbacks.forEach((cb) => cb(playerId, roomId))
+
+    const io = this.getIO()
+    if (io && room.players.length > 0) {
+      io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: this.sanitizeRoom(room) })
     }
+
+    if (room.players.length === 0) {
+      this.startDismissTimer(room.id)
+    }
+
+    this.onPlayerRemovedCallbacks.forEach((cb) => cb(playerId, roomId))
   }
 
   findPlayerBySession(sessionId: string): { room: Room; player: Player } | null {
@@ -309,6 +315,9 @@ export class RoomManager {
     if (!room) return
 
     this.cancelDismissTimer(roomId)
+    for (const p of room.players) {
+      this.playerToRoomId.delete(p.id)
+    }
     this.nameToRoomId.delete(room.code.toLowerCase())
     this.rooms.delete(roomId)
     this.onDismissCallbacks.forEach((cb) => cb(roomId))

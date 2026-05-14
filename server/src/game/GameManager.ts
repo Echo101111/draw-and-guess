@@ -19,7 +19,9 @@ export class GameManager {
   private usedWords = new Map<string, Set<string>>()
   private currentDrawerId = new Map<string, string>()
   private lastDrawTime = new Map<string, number>()
+  private lastAnswerTime = new Map<string, number>()
   private static readonly DRAW_RATE_LIMIT_MS = 8 // ~125 events/s per player
+  private static readonly ANSWER_COOLDOWN_MS = 200
 
   startRound(roomId: string): boolean {
     const room = roomManager.getRoomById(roomId)
@@ -65,17 +67,15 @@ export class GameManager {
         hasGuessedCorrectly: p.hasGuessedCorrectly,
       }))
 
+    const io = this.getIO()
+    if (!io) return false
+
     room.players.forEach((p) => {
       p.hasGuessedCorrectly = false
     })
 
     this.strokeHistory.set(roomId, [])
     this.currentDrawerId.set(roomId, drawer.id)
-
-    console.log(`[Round] startRound room=${roomId} drawer=${drawer.nickname}(${drawer.id.slice(0,8)}) currentDrawerId=${drawer.id.slice(0,8)} round=${room.currentRound}`)
-
-    const io = this.getIO()
-    if (!io) return false
 
     io.to(drawer.id).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
       round: room.currentRound,
@@ -113,6 +113,13 @@ export class GameManager {
     if (!room.currentWord || !room.roundStartTime) {
       return { correct: false }
     }
+
+    const now = Date.now()
+    const lastAns = this.lastAnswerTime.get(playerId) ?? 0
+    if (now - lastAns < GameManager.ANSWER_COOLDOWN_MS) {
+      return { correct: false }
+    }
+    this.lastAnswerTime.set(playerId, now)
 
     const normalizedAnswer = answer.trim().toLowerCase()
     const normalizedWord = room.currentWord.toLowerCase()
@@ -310,11 +317,13 @@ export class GameManager {
     if (!room) return
     for (const player of room.players) {
       this.lastDrawTime.delete(player.id)
+      this.lastAnswerTime.delete(player.id)
     }
   }
 
   removePlayerTimestamps(playerId: string): void {
     this.lastDrawTime.delete(playerId)
+    this.lastAnswerTime.delete(playerId)
   }
 
   getScoreboard(room: Room) {
