@@ -6,9 +6,13 @@ import { ErrorCode, SERVER_EVENTS } from '@draw-and-guess/shared'
 const BCRYPT_ROUNDS = 10
 
 function createPlayer(nickname: string, isOwner = false): Player {
+  const trimmed = nickname.trim()
+  if (!trimmed || trimmed.length > 10) {
+    throw new Error('昵称长度需在1-10字符之间')
+  }
   return {
     id: randomUUID(),
-    nickname,
+    nickname: trimmed,
     sessionId: '',
     isOwner,
     score: 0,
@@ -67,6 +71,10 @@ export class RoomManager {
       throw new Error('房间名称不能超过20个字符')
     }
 
+    if (password && (password.length < 4 || password.length > 100)) {
+      throw new Error('密码长度需在4-100字符之间')
+    }
+
     // Check name uniqueness (case-insensitive)
     const normalizedName = trimmedName.toLowerCase()
     if (this.nameToRoomId.has(normalizedName)) {
@@ -101,7 +109,7 @@ export class RoomManager {
       return { error: { code: ErrorCode.ROOM_PASSWORD_WRONG, message: '密码错误' } }
     }
 
-    const nicknameTaken = room.players.some((p) => p.nickname === nickname)
+    const nicknameTaken = room.players.some((p) => p.nickname.toLowerCase() === nickname.toLowerCase())
     if (nicknameTaken) {
       return { error: { code: ErrorCode.NICKNAME_TAKEN, message: '该昵称已被使用，请换一个名字' } }
     }
@@ -169,6 +177,10 @@ export class RoomManager {
     const host = room.players.find((p) => p.id === hostId)
     if (!host?.isOwner) {
       return { success: false, error: { code: ErrorCode.NOT_ROOM_OWNER, message: '只有房主可以开始游戏' } }
+    }
+
+    if (room.state !== 'lobby') {
+      return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '游戏已在进行中' } }
     }
 
     if (room.players.length < 2) {

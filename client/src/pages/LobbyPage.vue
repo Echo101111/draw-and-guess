@@ -115,7 +115,19 @@ onMounted(() => {
 })
 
 function copyRoomName() {
-  navigator.clipboard.writeText(roomName.value).catch(() => {})
+  const text = roomName.value
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).catch(() => {})
+  } else {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
 }
 
 function handleKick(playerId: string) {

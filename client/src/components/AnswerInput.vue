@@ -30,7 +30,7 @@ const answer = ref('')
 
 function handleSubmit() {
   if (!answer.value.trim() || props.disabled) return
-  gameStore.submitAnswer(answer.value)
+  gameStore.submitAnswer(answer.value.trim())
   answer.value = ''
 }
 </script>

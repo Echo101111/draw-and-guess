@@ -236,33 +236,41 @@ export function registerRoomHandlers(io: any, socket: any): void {
   })
 
   socket.on(CLIENT_EVENTS.JOIN_AS_SPECTATOR, async ({ roomName, password }: { roomName: string; password?: string }) => {
-    const room = roomManager.getRoomByName(roomName)
-    if (!room) {
+    try {
+      const room = roomManager.getRoomByName(roomName)
+      if (!room) {
+        socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+          code: ErrorCode.ROOM_NOT_FOUND,
+          message: '房间不存在',
+        })
+        return
+      }
+
+      if (room.password && !(await bcrypt.compare(password ?? '', room.password))) {
+        socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+          code: ErrorCode.ROOM_PASSWORD_WRONG,
+          message: '密码错误',
+        })
+        return
+      }
+
+      socket.data.roomId = room.id
+      socket.data.roomName = room.name
+      socket.data.isSpectator = true
+
+      socket.join(room.code)
+
+      socket.emit(SERVER_EVENTS.SPECTATOR_JOINED, {
+        room: getPlayerRoomData(room),
+        isPlaying: room.state === 'playing',
+      })
+    } catch (err) {
+      console.error('[Spectator] Join failed:', err)
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
         code: ErrorCode.ROOM_NOT_FOUND,
-        message: '房间不存在',
+        message: '加入观战失败，请重试',
       })
-      return
     }
-
-    if (room.password && !(await bcrypt.compare(password ?? '', room.password))) {
-      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
-        code: ErrorCode.ROOM_PASSWORD_WRONG,
-        message: '密码错误',
-      })
-      return
-    }
-
-    socket.data.roomId = room.id
-    socket.data.roomName = room.name
-    socket.data.isSpectator = true
-
-    socket.join(room.code)
-
-    socket.emit(SERVER_EVENTS.SPECTATOR_JOINED, {
-      room: getPlayerRoomData(room),
-      isPlaying: room.state === 'playing',
-    })
   })
 }
 

@@ -20,10 +20,14 @@ export function getSocket(): Socket {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
     })
-    // socket 重连后自动恢复会话（重新加入房间）
-    // 仅当 localStorage 存在有效 session 时才会发送 RESTORE_SESSION
     socket.on('connect', () => {
       restoreSession()
+    })
+    socket.on('disconnect', (reason) => {
+      console.warn('[Socket] Disconnected:', reason)
+    })
+    socket.on('connect_error', (err) => {
+      console.error('[Socket] Connection error:', err.message)
     })
   }
   return socket

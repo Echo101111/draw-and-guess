@@ -47,7 +47,7 @@ const messagesRef = ref<HTMLElement | null>(null)
 
 function handleSend() {
   if (!inputText.value.trim()) return
-  gameStore.sendChat(inputText.value)
+  gameStore.sendChat(inputText.value.trim())
   inputText.value = ''
 }
 
