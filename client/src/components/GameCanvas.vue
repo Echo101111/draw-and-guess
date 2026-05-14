@@ -28,8 +28,8 @@ let lastEmitTime = 0
 let lastEmitPointCount = 0
 let resizeObserver: ResizeObserver | null = null
 let currentPathObject: FabricPath | null = null
-let renderedRemoteStrokeCount = 0
 let pendingResize = false
+let strokeSeq = 0
 const EMIT_INTERVAL = 16
 const CANVAS_RATIO = 4 / 3
 
@@ -50,6 +50,7 @@ function handleTouchStart(e: TouchEvent) {
   e.preventDefault()
   if (props.readonly || !gameStore.isMyTurn) return
   if (!canvasRef.value) return
+  strokeSeq++
   const point = touchEventPoint(e.touches[0])
   canvasStore.startStroke(point)
   lastEmitTime = Date.now()
@@ -83,6 +84,7 @@ function handleTouchEnd(e: TouchEvent) {
 
 function handleMouseDown(e: { e: MouseEvent }) {
   if (props.readonly || !gameStore.isMyTurn) return
+  strokeSeq++
   const point = getCanvasPoint(e)
   canvasStore.startStroke(point)
   lastEmitTime = Date.now()
@@ -123,7 +125,8 @@ function emitStroke() {
     newPoints.map((p) => ({ x: p.x / cw, y: p.y / ch })),
     canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
     canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
-    canvasStore.tool
+    canvasStore.tool,
+    strokeSeq
   )
 }
 
@@ -153,7 +156,6 @@ function renderCompletedStrokes() {
   }
 
   currentPathObject = null
-  renderedRemoteStrokeCount = canvasStore.strokes.length
   renderCurrentStroke()
 }
 
@@ -223,39 +225,10 @@ function resizeCanvas() {
 }
 
 watch(() => gameStore.strokes, () => {
-  if (gameStore.strokes.length < renderedRemoteStrokeCount) {
-    renderedRemoteStrokeCount = 0
-    canvasStore.syncStrokes(gameStore.strokes)
-    if (fabricCanvas) {
-      fabricCanvas.clear()
-      fabricCanvas.backgroundColor = '#ffffff'
-      fabricCanvas.renderAll()
-    }
-    return
-  }
-  const newStrokes = gameStore.strokes.slice(renderedRemoteStrokeCount)
   canvasStore.syncStrokes(gameStore.strokes)
-  if (newStrokes.length === 0 || !fabricCanvas) return
-  const cw = fabricCanvas.width ?? 1
-  const ch = fabricCanvas.height ?? 1
-  for (const stroke of newStrokes) {
-    if (stroke.points.length < 2) continue
-    const pathData = stroke.points
-      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x * cw} ${p.y * ch}`)
-      .join(' ')
-    const path = new fabric.Path(pathData, {
-      stroke: stroke.color,
-      strokeWidth: stroke.width,
-      fill: null,
-      strokeLineCap: 'round',
-      strokeLineJoin: 'round',
-      selectable: false,
-      evented: false,
-    })
-    fabricCanvas.add(path)
+  if (fabricCanvas) {
+    renderCompletedStrokes()
   }
-  fabricCanvas.renderAll()
-  renderedRemoteStrokeCount = gameStore.strokes.length
 }, { deep: true })
 
 watch(() => gameStore.currentWord, () => {

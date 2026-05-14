@@ -167,7 +167,7 @@ export class GameManager {
     return { correct: true, score: totalScore }
   }
 
-  handleDrawStroke(roomId: string, playerId: string, socketId: string, points: Point[], color: string, width: number, tool: string): void {
+  handleDrawStroke(roomId: string, playerId: string, socketId: string, points: Point[], color: string, width: number, tool: string, strokeSeq?: number): void {
     const room = roomManager.getRoomById(roomId)
     if (!room || room.state !== 'playing') {
       console.log(`[Draw] REJECT: room=${roomId} state=${room?.state} noplayer=${!room}`)
@@ -189,9 +189,13 @@ export class GameManager {
     }
     this.lastDrawTime.set(playerId, now)
 
-    const strokeEvent: Stroke = { playerId, points, color, width, tool: tool as 'brush' | 'eraser' }
     const roomStrokes = this.strokeHistory.get(roomId) ?? []
-    roomStrokes.push(strokeEvent)
+    const existing = strokeSeq !== undefined ? roomStrokes.find(s => s.playerId === playerId && s.strokeSeq === strokeSeq) : undefined
+    if (existing) {
+      existing.points = existing.points.concat(points)
+    } else {
+      roomStrokes.push({ playerId, points, color, width, tool: tool as 'brush' | 'eraser', strokeSeq })
+    }
     this.strokeHistory.set(roomId, roomStrokes)
 
     const io = this.getIO()
@@ -203,6 +207,7 @@ export class GameManager {
         color,
         width,
         tool,
+        strokeSeq,
       })
     }
   }

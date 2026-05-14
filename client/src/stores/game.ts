@@ -46,7 +46,7 @@ export const useGameStore = defineStore('game', () => {
   const hasGuessedCorrectly = ref(false)
   const currentWord = ref<string | null>(null)
   const currentDrawer = ref<DrawerInfo | null>(null)
-  const strokes = ref<Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string }>>([])
+  const strokes = ref<Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }>>([])
   const wordLength = ref(0)
   const wordCategory = ref<string | undefined>(undefined)
   const recentGuessers = ref<Array<{ playerId: string; nickname: string }>>([])
@@ -147,8 +147,14 @@ export const useGameStore = defineStore('game', () => {
     })
 
     socket.off(SERVER_EVENTS.DRAW_STROKE)
-    socket.on(SERVER_EVENTS.DRAW_STROKE, (data: { playerId: string; points: Point[]; color: string; width: number; tool: string }) => {
-      strokes.value.push(data)
+    socket.on(SERVER_EVENTS.DRAW_STROKE, (data: { playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }) => {
+      const existing = data.strokeSeq !== undefined ? strokes.value.find(s => s.strokeSeq === data.strokeSeq) : undefined
+      if (existing) {
+        existing.points.push(...data.points)
+        strokes.value = [...strokes.value]
+      } else {
+        strokes.value.push(data)
+      }
     })
 
     socket.off(SERVER_EVENTS.CANVAS_CLEARED)
@@ -249,11 +255,11 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  function drawStroke(points: Point[], color: string, width: number, tool: string) {
+  function drawStroke(points: Point[], color: string, width: number, tool: string, strokeSeq?: number) {
     if (!isMyTurn.value) return
     const socket = getSocket()
     if (socket?.connected) {
-      socket.emit(CLIENT_EVENTS.DRAW_STROKE, { points, color, width, tool })
+      socket.emit(CLIENT_EVENTS.DRAW_STROKE, { points, color, width, tool, strokeSeq })
     }
   }
 

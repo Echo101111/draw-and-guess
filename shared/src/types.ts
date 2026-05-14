@@ -40,6 +40,7 @@ export interface Stroke {
   color: string
   width: number
   tool: 'brush' | 'eraser'
+  strokeSeq?: number
 }
 
 // === Chat ===
