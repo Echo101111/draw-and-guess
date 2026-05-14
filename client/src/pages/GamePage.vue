@@ -316,6 +316,7 @@ function handleStartGame() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--color-surface);
 }
 
 /* ─── Header ─── */
@@ -1109,12 +1110,11 @@ function handleStartGame() {
 /* ─── Mobile (< 768px) ─── */
 @media (max-width: 767px) {
   .game-page {
-    padding-top: 0;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding: env(safe-area-inset-top, 20px) 0 0 0;
   }
 
   .game-header {
-    padding: max(env(safe-area-inset-top, 0px), 0.8rem) 0.6rem 0.4rem;
+    padding: 0.6rem 0.6rem 0.4rem;
   }
 
   .room-badge {

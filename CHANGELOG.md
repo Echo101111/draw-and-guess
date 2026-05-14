@@ -9,6 +9,7 @@
 - Fix: 移除 room store 中未使用的 currentPlayer 字段
 - Fix: 修复玩家退出/断线时 lastChatTime、lastDrawTime 内存泄漏
 - Fix: 移除词库 nature 类别中重复的"石头"
+- Fix: 修复 iOS 刘海遮挡倒计时的问题，优化安全区域适配
 - Perf: Canvas 增量渲染优化，绘图帧仅更新当前笔画而非全量重绘
 - Chore: 新建 client/Dockerfile 和 nginx.conf，修复 docker-compose 构建
 
