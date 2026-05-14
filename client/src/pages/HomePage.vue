@@ -163,9 +163,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onUnmounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
+import { connectSocket, clearSession } from '@/composables/useSocket'
 
 const router = useRouter()
 const roomStore = useRoomStore()
@@ -174,8 +175,6 @@ const showChangelog = ref(false)
 const changelogMd = ref('')
 const changelogLoading = ref(false)
 
-let createTimer: ReturnType<typeof setTimeout> | null = null
-let joinTimer: ReturnType<typeof setTimeout> | null = null
 let errorTimer: ReturnType<typeof setTimeout> | null = null
 
 function renderMarkdown(md: string): string {
@@ -257,38 +256,31 @@ watch(() => roomStore.room, (newRoom) => {
   }
 })
 
-function handleCreate() {
+async function handleCreate() {
   if (!nickname.value.trim()) return
   isLoading.value = true
   errorMessage.value = null
-  if (createTimer) clearTimeout(createTimer)
-  roomStore.createRoom(nickname.value.trim(), {
+  await roomStore.createRoom(nickname.value.trim(), {
     roomName: createRoomName.value.trim() || undefined,
     maxPlayers: maxPlayers.value,
     password: password.value || undefined,
   })
-  createTimer = setTimeout(() => {
-    if (!roomStore.room) isLoading.value = false
-    createTimer = null
-  }, 5000)
 }
 
-function handleJoin() {
+async function handleJoin() {
   if (!nickname.value.trim() || !joinRoomName.value.trim()) return
   isLoading.value = true
   errorMessage.value = null
-  if (joinTimer) clearTimeout(joinTimer)
-  roomStore.joinRoom(joinRoomName.value.trim(), nickname.value.trim(), password.value || undefined)
-  joinTimer = setTimeout(() => {
-    if (!roomStore.room) isLoading.value = false
-    joinTimer = null
-  }, 5000)
+  await roomStore.joinRoom(joinRoomName.value.trim(), nickname.value.trim(), password.value || undefined)
 }
 
 onUnmounted(() => {
-  if (createTimer) clearTimeout(createTimer)
-  if (joinTimer) clearTimeout(joinTimer)
   if (errorTimer) clearTimeout(errorTimer)
+})
+
+onMounted(() => {
+  clearSession()
+  connectSocket()
 })
 </script>
 

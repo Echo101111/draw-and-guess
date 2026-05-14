@@ -19,6 +19,9 @@ const io = new SocketIOServer(httpServer, {
     origin: process.env.CLIENT_URL ?? 'http://localhost:5173',
     methods: ['GET', 'POST'],
   },
+  connectTimeout: 5000,
+  pingTimeout: 10000,
+  pingInterval: 15000,
 })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

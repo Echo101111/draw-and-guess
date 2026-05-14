@@ -5,6 +5,8 @@ declare module 'fabric' {
     fill?: string | null
     strokeLineCap?: string
     strokeLineJoin?: string
+    selectable?: boolean
+    evented?: boolean
   }
 
   export class Path {

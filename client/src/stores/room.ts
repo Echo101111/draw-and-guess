@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getSocket, connectSocket, saveSession, clearSession } from '@/composables/useSocket'
+import { getSocket, connectSocket, saveSession, clearSession, waitForConnection } from '@/composables/useSocket'
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
 
 interface RoomPlayer {
@@ -109,7 +109,29 @@ export const useRoomStore = defineStore('room', () => {
     })
   }
 
-  const createRoom = (
+  function waitForResponse(roomEvent: string, timeoutMs = 15000): Promise<void> {
+    return new Promise((resolve) => {
+      const socket = getSocket()
+      const timer = setTimeout(() => {
+        cleanup()
+        if (!room.value) {
+          error.value = '服务器无响应，请稍后重试'
+          connectionState.value = 'disconnected'
+        }
+        resolve()
+      }, timeoutMs)
+      const onResponse = () => { cleanup(); resolve() }
+      const cleanup = () => {
+        clearTimeout(timer)
+        socket.off(roomEvent, onResponse)
+        socket.off(SERVER_EVENTS.ROOM_ERROR, onResponse)
+      }
+      socket.once(roomEvent, onResponse)
+      socket.once(SERVER_EVENTS.ROOM_ERROR, onResponse)
+    })
+  }
+
+  const createRoom = async (
     nickname: string,
     options?: { roomName?: string; maxPlayers?: number; password?: string }
   ) => {
@@ -117,44 +139,67 @@ export const useRoomStore = defineStore('room', () => {
     error.value = null
     const socket = connectSocket()
     setupSocketListeners()
-    // 先清理上次残留的 session，避免 socket 重连时自动触发 RESTORE_SESSION 干扰
     clearSession()
+    try {
+      await waitForConnection()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '连接失败'
+      error.value = `${msg}，请检查网络后重试`
+      connectionState.value = 'disconnected'
+      return
+    }
+    socket.once(SERVER_EVENTS.ROOM_CREATED, (data) => {
+      saveSession(data.roomCode, data.playerId, nickname)
+    })
     socket.emit(CLIENT_EVENTS.CREATE_ROOM, {
       nickname,
       roomName: options?.roomName,
       maxPlayers: options?.maxPlayers,
       password: options?.password,
     })
-
-    socket.once(SERVER_EVENTS.ROOM_CREATED, (data) => {
-      saveSession(data.roomCode, data.playerId, nickname)
-    })
+    await waitForResponse(SERVER_EVENTS.ROOM_CREATED)
   }
 
-  const joinRoom = (roomName: string, nickname: string, password?: string) => {
+  const joinRoom = async (roomName: string, nickname: string, password?: string) => {
     connectionState.value = 'connecting'
     error.value = null
     const socket = connectSocket()
     setupSocketListeners()
-    // 先清理上次残留的 session，避免 socket 重连时自动触发 RESTORE_SESSION 干扰
     clearSession()
+    try {
+      await waitForConnection()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '连接失败'
+      error.value = `${msg}，请检查网络后重试`
+      connectionState.value = 'disconnected'
+      return
+    }
+    socket.once(SERVER_EVENTS.ROOM_JOINED, (data) => {
+      saveSession(data.room.code, data.playerId, nickname)
+    })
     socket.emit(CLIENT_EVENTS.JOIN_ROOM, {
       roomName,
       nickname,
       password,
     })
-
-    socket.once(SERVER_EVENTS.ROOM_JOINED, (data) => {
-      saveSession(data.room.code, data.playerId, nickname)
-    })
+    await waitForResponse(SERVER_EVENTS.ROOM_JOINED)
   }
 
-  const joinAsSpectator = (roomName: string, password?: string) => {
+  const joinAsSpectator = async (roomName: string, password?: string) => {
     connectionState.value = 'connecting'
     error.value = null
     const socket = connectSocket()
     setupSocketListeners()
+    try {
+      await waitForConnection()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '连接失败'
+      error.value = `${msg}，请检查网络后重试`
+      connectionState.value = 'disconnected'
+      return
+    }
     socket.emit(CLIENT_EVENTS.JOIN_AS_SPECTATOR, { roomName, password })
+    await waitForResponse(SERVER_EVENTS.SPECTATOR_JOINED)
   }
 
   const leaveRoom = () => {

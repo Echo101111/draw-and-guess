@@ -146,6 +146,8 @@ function renderCompletedStrokes() {
       fill: null,
       strokeLineCap: 'round',
       strokeLineJoin: 'round',
+      selectable: false,
+      evented: false,
     })
     fabricCanvas.add(path)
   }
@@ -175,6 +177,8 @@ function renderCurrentStroke() {
       fill: null,
       strokeLineCap: 'round',
       strokeLineJoin: 'round',
+      selectable: false,
+      evented: false,
     })
     fabricCanvas.add(currentPathObject)
   }
@@ -235,6 +239,8 @@ watch(() => gameStore.strokes, () => {
       fill: null,
       strokeLineCap: 'round',
       strokeLineJoin: 'round',
+      selectable: false,
+      evented: false,
     })
     fabricCanvas.add(path)
   }
@@ -269,6 +275,7 @@ onMounted(() => {
     height: initialHeight,
     backgroundColor: '#ffffff',
     isDrawingMode: false,
+    selection: false,
   })
 
   fabricCanvas.on('mouse:down', handleMouseDown)

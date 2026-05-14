@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt'
 import type { Player, Room, RoomErrorPayload } from '@draw-and-guess/shared'
 import { ErrorCode, SERVER_EVENTS } from '@draw-and-guess/shared'
 
-const BCRYPT_ROUNDS = 10
+const BCRYPT_ROUNDS = 8
 
 function createPlayer(nickname: string, isOwner = false): Player {
   const trimmed = nickname.trim()

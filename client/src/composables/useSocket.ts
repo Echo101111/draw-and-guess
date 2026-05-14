@@ -19,6 +19,7 @@ export function getSocket(): Socket {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      timeout: 5000,
     })
     socket.on('connect', () => {
       restoreSession()
@@ -48,6 +49,22 @@ export function disconnectSocket(): void {
   if (socket) {
     socket.disconnect()
   }
+}
+
+export function waitForConnection(timeoutMs = 5000): Promise<void> {
+  const s = getSocket()
+  if (s.connected) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      s.off('connect', onConnect)
+      reject(new Error('连接超时'))
+    }, timeoutMs)
+    const onConnect = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    s.once('connect', onConnect)
+  })
 }
 
 export function saveSession(roomName: string, playerId: string, nickname: string): void {
