@@ -187,7 +187,6 @@
           <div class="game-over-actions">
             <button v-if="roomStore.isOwner" class="btn-restart" @click="handleRestartGame">重新开始</button>
             <button v-if="roomStore.isOwner" class="btn-word-config" @click="showWordConfigGameover = true">⚙️ 词库设置</button>
-            <button class="btn-back-lobby" @click="handleBackToLobby">返回房间</button>
             <button class="btn-leave-game" @click="handleLeave">离开游戏</button>
           </div>
         </div>
@@ -248,6 +247,13 @@
           </div>
         </div>
       </div>
+    </Transition>
+
+    <Transition name="fade">
+      <p v-if="toastSuccess" class="toast toast-success">{{ toastSuccess }}</p>
+    </Transition>
+    <Transition name="fade">
+      <p v-if="toastError" class="toast toast-error">{{ toastError }}</p>
     </Transition>
   </div>
 </template>
@@ -349,13 +355,7 @@ function doLeave() {
   router.push('/')
 }
 
-function handleBackToLobby() {
-  gameStore.resetGame()
-  router.push(`/lobby/${roomName.value}`)
-}
-
 function handleRestartGame() {
-  gameoverSaveConfig()
   gameStore.resetGame()
   roomStore.startGame()
 }
@@ -379,6 +379,8 @@ const gameoverLooseMatching = ref(false)
 const gameoverWords = ref<{ word: string; category: string; customText: string }[]>([
   { word: '', category: 'animals', customText: '' },
 ])
+const toastSuccess = ref<string | null>(null)
+const toastError = ref<string | null>(null)
 
 function gameoverAddWord() {
   gameoverWords.value.push({ word: '', category: 'animals', customText: '' })
@@ -397,8 +399,17 @@ function gameoverSaveConfig() {
     }))
     .filter(w => w.word && w.category)
   roomStore.updateWordConfig({ customWords, looseMatching: gameoverLooseMatching.value })
+  toastSuccess.value = '词库设置已保存'
+  setTimeout(() => toastSuccess.value = null, 2000)
   showWordConfigGameover.value = false
 }
+
+watch(() => roomStore.error, (err) => {
+  if (err) {
+    toastError.value = err
+    setTimeout(() => toastError.value = null, 3000)
+  }
+})
 
 watch(() => roomStore.room?.wordConfig, (wc) => {
   if (wc && wc.customWords.length > 0 && gameoverWords.value.length <= 1 && !gameoverWords.value[0]?.word) {
@@ -409,7 +420,7 @@ watch(() => roomStore.room?.wordConfig, (wc) => {
     }))
     gameoverLooseMatching.value = wc.looseMatching
   }
-}, { immediate: true })
+})
 
 function refreshPage() {
   window.location.reload()
@@ -865,24 +876,6 @@ function refreshPage() {
   width: 100%;
 }
 
-.btn-back-lobby {
-  flex: 1;
-  padding: 0.6rem;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.btn-back-lobby:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(232, 133, 108, 0.3);
-}
-
 .btn-restart {
   flex: 1;
   padding: 0.6rem;
@@ -1149,6 +1142,33 @@ function refreshPage() {
 .btn-confirm-leave:hover {
   background: #c0392b;
   box-shadow: 0 2px 12px rgba(231, 76, 60, 0.3);
+}
+
+/* ─── Toasts ─── */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 500;
+  z-index: 200;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+}
+
+.toast-success {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border: 1px solid rgba(126, 184, 122, 0.3);
+}
+
+.toast-error {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border: 1px solid rgba(217, 117, 107, 0.2);
 }
 
 /* ─── Animations ─── */
