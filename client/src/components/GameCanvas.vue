@@ -326,7 +326,7 @@ onUnmounted(() => {
   margin: 0 auto;
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow: visible;
   box-shadow: var(--shadow-md);
   background: #fff;
   touch-action: none;
@@ -338,6 +338,8 @@ onUnmounted(() => {
   display: block;
   cursor: crosshair;
   touch-action: none;
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 @media (max-width: 768px) {
@@ -346,6 +348,10 @@ onUnmounted(() => {
     border-width: 1px 0;
     max-width: 100%;
     min-height: 0;
+  }
+
+  .game-canvas canvas {
+    border-radius: 0;
   }
 }
 </style>

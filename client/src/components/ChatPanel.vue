@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 
 const gameStore = useGameStore()
@@ -56,11 +56,18 @@ function formatTime(timestamp: number): string {
   return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
 }
 
-watch(() => gameStore.chatMessages.length, async () => {
-  await nextTick()
+function scrollToBottom() {
   if (messagesRef.value) {
     messagesRef.value.scrollTop = messagesRef.value.scrollHeight
   }
+}
+
+onMounted(() => {
+  nextTick(scrollToBottom)
+})
+
+watch(() => gameStore.chatMessages.length, () => {
+  nextTick(scrollToBottom)
 })
 </script>
 

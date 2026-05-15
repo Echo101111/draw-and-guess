@@ -1450,14 +1450,17 @@ function refreshPage() {
   .inline-chat-body {
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   .inline-chat-body :deep(.chat-panel) {
     border: none;
     border-radius: 0;
     box-shadow: none;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
+    height: auto;
   }
 
   .inline-chat-body :deep(.chat-header) {
@@ -1465,7 +1468,8 @@ function refreshPage() {
   }
 
   .inline-chat-body :deep(.messages) {
-    max-height: calc(28vh - 3rem);
+    flex: 1;
+    min-height: 0;
     padding: 0.25rem 0.5rem;
   }
 
