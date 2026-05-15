@@ -13,6 +13,7 @@ export const CLIENT_EVENTS = {
   RESTORE_SESSION: 'c_restore_session',
   JOIN_AS_SPECTATOR: 'c_join_as_spectator',
   UPDATE_WORD_CONFIG: 'c_update_word_config',
+  REQUEST_GAME_STATE: 'c_request_game_state',
 } as const
 
 // Server → Client events
@@ -35,6 +36,7 @@ export const SERVER_EVENTS = {
   SESSION_RESTORED: 's_session_restored',
   SPECTATOR_JOINED: 's_spectator_joined',
   WORD_CONFIG_UPDATED: 's_word_config_updated',
+  GAME_STATE_SNAPSHOT: 's_game_state_snapshot',
 } as const
 
 export type ClientToServerEvents = typeof CLIENT_EVENTS

@@ -138,6 +138,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
+import { useGameStore } from '@/stores/game'
 import type { RoomWordConfig } from '@draw-and-guess/shared'
 
 const WORD_CATEGORIES_DISPLAY = [
@@ -208,6 +209,7 @@ watch(() => roomStore.error, (newError) => {
 
 watch(room, (newRoom) => {
   if (newRoom?.state === 'playing') {
+    useGameStore().setupSocketListeners()
     router.push(`/game/${roomName.value}`)
   }
 }, { immediate: true })

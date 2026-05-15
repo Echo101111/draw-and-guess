@@ -46,6 +46,7 @@ export class RoomManager {
   private dismissTimers = new Map<string, NodeJS.Timeout>()
   private disconnectTimers = new Map<string, NodeJS.Timeout>()
   private playerToRoomId = new Map<string, string>()
+  private playerSocketMap = new Map<string, string>()
   private onDismissCallbacks: Array<(roomId: string) => void> = []
   private onPlayerRemovedCallbacks: Array<(playerId: string, roomId: string) => void> = []
   private RECONNECT_TIMEOUT = 60_000
@@ -219,6 +220,27 @@ export class RoomManager {
     }
   }
 
+  updatePlayerSocket(playerId: string, socketId: string): void {
+    this.playerSocketMap.set(playerId, socketId)
+  }
+
+  isPlayerSocketActive(playerId: string, socketId: string): boolean {
+    return this.playerSocketMap.get(playerId) === socketId
+  }
+
+  getPlayerSocketId(playerId: string): string | undefined {
+    return this.playerSocketMap.get(playerId)
+  }
+
+  markPlayerDisconnected(playerId: string): void {
+    const roomId = this.playerToRoomId.get(playerId)
+    if (!roomId) return
+    const room = this.rooms.get(roomId)
+    if (!room) return
+    const player = room.players.find(p => p.id === playerId)
+    if (player) player.sessionId = ''
+  }
+
   startDisconnectTimer(playerId: string): void {
     this.cancelDisconnectTimer(playerId)
     const timer = setTimeout(() => {
@@ -236,6 +258,7 @@ export class RoomManager {
   }
 
   private handleDisconnectTimeout(playerId: string): void {
+    this.disconnectTimers.delete(playerId)
     const roomId = this.playerToRoomId.get(playerId)
     if (!roomId) return
     this.playerToRoomId.delete(playerId)
@@ -323,6 +346,7 @@ export class RoomManager {
     this.cancelDismissTimer(roomId)
     for (const p of room.players) {
       this.playerToRoomId.delete(p.id)
+      this.cancelDisconnectTimer(p.id)
     }
     this.nameToRoomId.delete(room.code.toLowerCase())
     this.rooms.delete(roomId)

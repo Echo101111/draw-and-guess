@@ -72,6 +72,18 @@ export const useGameStore = defineStore('game', () => {
     return !!wordCategory.value && state.value === 'playing'
   })
 
+  interface GameStateSnapshot {
+    currentRound: number
+    totalRounds: number
+    timeLeft: number
+    drawer: DrawerInfo
+    strokes: Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }>
+    scores: ScoreEntry[]
+    currentWord?: string
+    wordLength?: number
+    wordCategory?: string
+  }
+
   let timerInterval: ReturnType<typeof setInterval> | null = null
 
   function startLocalTimer() {
@@ -139,11 +151,17 @@ export const useGameStore = defineStore('game', () => {
     })
 
     socket.off(SERVER_EVENTS.DRAW_STROKE)
-    socket.on(SERVER_EVENTS.DRAW_STROKE, (data: { playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }) => {
-      if (data.playerId === roomStore.currentPlayerId && !(data as { full?: boolean }).full) return
-      const existing = data.strokeSeq !== undefined ? strokes.value.find(s => s.strokeSeq === data.strokeSeq) : undefined
+    socket.on(SERVER_EVENTS.DRAW_STROKE, (data: { playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number; full?: boolean }) => {
+      if (data.playerId === roomStore.currentPlayerId && !data.full) return
+      const existing = data.strokeSeq !== undefined
+        ? strokes.value.find(s => s.playerId === data.playerId && s.strokeSeq === data.strokeSeq)
+        : undefined
       if (existing) {
-        existing.points.push(...data.points)
+        if (data.full) {
+          existing.points = data.points
+        } else {
+          existing.points.push(...data.points)
+        }
         strokes.value = [...strokes.value]
       } else {
         strokes.value.push(data)
@@ -221,6 +239,28 @@ export const useGameStore = defineStore('game', () => {
         timestamp: data.timestamp,
       })
     })
+
+    // GAME_STATE_SNAPSHOT: 接收完整游戏快照（兜底 ROUND_START 丢失）
+    socket.off(SERVER_EVENTS.GAME_STATE_SNAPSHOT)
+    socket.on(SERVER_EVENTS.GAME_STATE_SNAPSHOT, (data: GameStateSnapshot) => {
+      const wasNotPlaying = state.value !== 'playing'
+      state.value = 'playing'
+      currentRound.value = data.currentRound
+      totalRounds.value = data.totalRounds
+      totalTime.value = data.timeLeft
+      currentDrawer.value = data.drawer
+      myRole.value = data.drawer.id === useRoomStore().currentPlayerId ? 'drawer' : 'guesser'
+      scores.value = data.scores
+      strokes.value = data.strokes
+      timeLeft.value = data.timeLeft
+      if (data.currentWord) currentWord.value = data.currentWord
+      if (data.wordLength !== undefined) wordLength.value = data.wordLength
+      if (data.wordCategory !== undefined) wordCategory.value = data.wordCategory
+      if (wasNotPlaying) {
+        stopLocalTimer()
+        startLocalTimer()
+      }
+    })
   }
 
   let sysMsgSeq = 0
@@ -279,6 +319,19 @@ export const useGameStore = defineStore('game', () => {
     })
   }
 
+  function teardownSocketListeners(): void {
+    const socket = getSocket()
+    if (!socket) return
+    ;[
+      SERVER_EVENTS.ROUND_START, SERVER_EVENTS.ROUND_START_TO_DRAWER,
+      SERVER_EVENTS.DRAW_STROKE, SERVER_EVENTS.CANVAS_CLEARED,
+      SERVER_EVENTS.ANSWER_RESULT, SERVER_EVENTS.SCOREBOARD_UPDATE,
+      SERVER_EVENTS.TIMER_SYNC, SERVER_EVENTS.ROUND_END,
+      SERVER_EVENTS.GAME_OVER, SERVER_EVENTS.CHAT_MESSAGE,
+      SERVER_EVENTS.GAME_STATE_SNAPSHOT,
+    ].forEach(evt => socket.off(evt))
+  }
+
   function resetGame() {
     stopLocalTimer()
     state.value = 'idle'
@@ -321,6 +374,7 @@ export const useGameStore = defineStore('game', () => {
     showCategoryHint,
     recentGuessers,
     setupSocketListeners,
+    teardownSocketListeners,
     submitAnswer,
     sendChat,
     drawStroke,

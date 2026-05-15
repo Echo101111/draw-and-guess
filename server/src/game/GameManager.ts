@@ -11,12 +11,14 @@ interface RoundTimer {
   roomId: string
   timer: NodeJS.Timeout
   syncTimer: NodeJS.Timeout
+  remaining: number
 }
 
 export class GameManager {
   private roundTimers = new Map<string, RoundTimer>()
   private nextRoundTimers = new Map<string, NodeJS.Timeout>()
   private strokeHistory = new Map<string, Stroke[]>()
+  private strokeSeqIndex = new Map<string, Map<string, Stroke>>()
   private usedWords = new Map<string, Set<string>>()
   private currentDrawerId = new Map<string, string>()
   private lastDrawTime = new Map<string, number>()
@@ -74,6 +76,7 @@ export class GameManager {
     })
 
     this.strokeHistory.set(roomId, [])
+    this.strokeSeqIndex.delete(roomId)
     this.currentDrawerId.set(roomId, drawer.id)
 
     io.to(drawer.id).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
@@ -187,11 +190,21 @@ export class GameManager {
     this.lastDrawTime.set(playerId, now)
 
     const roomStrokes = this.strokeHistory.get(roomId) ?? []
-    const existing = strokeSeq !== undefined ? roomStrokes.find(s => s.playerId === playerId && s.strokeSeq === strokeSeq) : undefined
+    let existing: Stroke | undefined
+    if (strokeSeq !== undefined) {
+      const idx = this.strokeSeqIndex.get(roomId)
+      existing = idx?.get(`${playerId}:${strokeSeq}`)
+    }
     if (existing) {
-      existing.points = existing.points.concat(points)
+      existing.points.push(...points)
     } else {
-      roomStrokes.push({ playerId, points, color, width, tool: tool as 'brush' | 'eraser', strokeSeq })
+      const newStroke: Stroke = { playerId, points, color, width, tool: tool as 'brush' | 'eraser', strokeSeq }
+      roomStrokes.push(newStroke)
+      if (strokeSeq !== undefined) {
+        let idx = this.strokeSeqIndex.get(roomId)
+        if (!idx) { idx = new Map(); this.strokeSeqIndex.set(roomId, idx) }
+        idx.set(`${playerId}:${strokeSeq}`, newStroke)
+      }
     }
     this.strokeHistory.set(roomId, roomStrokes)
 
@@ -285,6 +298,7 @@ export class GameManager {
     this.clearNextRoundTimer(roomId)
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
+    this.strokeSeqIndex.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)
 
     const scores = this.getScoreboard(room)
@@ -307,6 +321,7 @@ export class GameManager {
     this.clearNextRoundTimer(roomId)
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
+    this.strokeSeqIndex.delete(roomId)
     this.currentDrawerId.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)
     roomManager.resetGameState(roomId)
@@ -339,41 +354,49 @@ export class GameManager {
 
   private selectNextDrawer(room: Room): Player | null {
     if (room.players.length === 0) return null
-
     const players = room.players
     const prevDrawerId = this.currentDrawerId.get(room.id)
 
-    // 按顺序轮转：上一轮画师的下一个玩家成为本轮画师
+    // 轮转查找下一个在线玩家（sessionId 非空 = 在线）
     const prevIndex = players.findIndex((p) => p.id === prevDrawerId)
-    const nextIndex = prevIndex === -1 ? 0 : (prevIndex + 1) % players.length
-
-    return players[nextIndex] ?? null
+    const startIndex = prevIndex === -1 ? 0 : (prevIndex + 1) % players.length
+    for (let i = 0; i < players.length; i++) {
+      const idx = (startIndex + i) % players.length
+      if (players[idx].sessionId) return players[idx]
+    }
+    return null
   }
 
   private startTimer(roomId: string, duration: number): void {
     this.clearTimer(roomId)
-
-    let remaining = duration
     const room = roomManager.getRoomById(roomId)
+    if (!room) return
 
-    const syncTimer = setInterval(() => {
+    const roundTimer: RoundTimer = {
+      roomId,
+      timer: null as unknown as NodeJS.Timeout,
+      syncTimer: null as unknown as NodeJS.Timeout,
+      remaining: duration,
+    }
+
+    roundTimer.syncTimer = setInterval(() => {
       const io = this.getIO()
       if (io && room) {
-      io.to(room.code).emit(SERVER_EVENTS.TIMER_SYNC, {
-        timeLeft: remaining,
-      })
+        io.to(room.code).emit(SERVER_EVENTS.TIMER_SYNC, {
+          timeLeft: roundTimer.remaining,
+        })
       }
     }, 5000)
 
-    const timer = setInterval(() => {
-      remaining--
-      if (remaining <= 0) {
+    roundTimer.timer = setInterval(() => {
+      roundTimer.remaining--
+      if (roundTimer.remaining <= 0) {
         this.clearTimer(roomId)
         this.endRound(roomId, 'timeout')
       }
     }, 1000)
 
-    this.roundTimers.set(roomId, { roomId, timer, syncTimer })
+    this.roundTimers.set(roomId, roundTimer)
   }
 
   private clearTimer(roomId: string): void {
@@ -415,6 +438,41 @@ export class GameManager {
    */
   sendSpectatorSnapshot(roomId: string, playerId: string): void {
     this.emitGameSnapshot(roomId, playerId)
+  }
+
+  sendGameStateSnapshot(roomId: string, playerId: string): void {
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.state !== 'playing') return
+
+    const drawerId = this.currentDrawerId.get(roomId)
+    const timer = this.roundTimers.get(roomId)
+    const timeLeft = timer ? timer.remaining : 0
+
+    const io = this.getIO()
+    if (!io) return
+
+    const drawerPlayer = drawerId ? room.players.find(p => p.id === drawerId) : undefined
+
+    const wordCategory = room.currentWord ? getWordCategory(room.currentWord) : undefined
+    const wordCategoryName = wordCategory && CATEGORY_DISPLAY_NAMES[wordCategory]
+      ? CATEGORY_DISPLAY_NAMES[wordCategory]
+      : undefined
+
+    io.to(playerId).emit(SERVER_EVENTS.GAME_STATE_SNAPSHOT, {
+      currentRound: room.currentRound,
+      totalRounds: room.totalRounds,
+      timeLeft,
+      drawer: drawerPlayer ? { id: drawerPlayer.id, nickname: drawerPlayer.nickname } : null,
+      strokes: this.strokeHistory.get(roomId) ?? [],
+      scores: room.players.map(p => ({
+        playerId: p.id,
+        nickname: p.nickname,
+        score: p.score,
+      })),
+      currentWord: drawerId && playerId === drawerId ? room.currentWord : undefined,
+      wordLength: room.currentWord?.length ?? 0,
+      wordCategory: wordCategoryName,
+    })
   }
 
   restorePlayerState(roomId: string, playerId: string): void {

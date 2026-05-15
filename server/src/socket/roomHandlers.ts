@@ -71,6 +71,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
       socket.data.playerId = player.id
       socket.data.roomName = room.name
       roomManager.updatePlayerSession(room.id, player.id, socket.id)
+      roomManager.updatePlayerSocket(player.id, socket.id)
 
       socket.join(room.code)
       socket.join(player.id)
@@ -133,6 +134,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
     socket.data.playerId = player.id
     socket.data.roomName = room.name
     roomManager.updatePlayerSession(room.id, player.id, socket.id)
+    roomManager.updatePlayerSocket(player.id, socket.id)
 
     socket.join(room.code)
     socket.join(player.id)
@@ -164,6 +166,15 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
     const room = roomManager.getRoomById(roomId)
     if (!room) return
+
+    // 将被踢玩家的 socket 移出房间频道
+    const kickedSocketId = roomManager.getPlayerSocketId(playerId)
+    const kickedSocket = kickedSocketId ? io.sockets.sockets.get(kickedSocketId) : undefined
+    if (kickedSocket) {
+      kickedSocket.leave(room.code)
+      delete kickedSocket.data.roomId
+      delete kickedSocket.data.playerId
+    }
 
     io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
 
@@ -241,7 +252,11 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
+    // 如果该玩家已通过其他 socket 重连，跳过断线计时
+    if (!roomManager.isPlayerSocketActive(playerId, socket.id)) return
+
     console.log(`[Room] Starting disconnect timer for player ${playerId}`)
+    roomManager.markPlayerDisconnected(playerId)
     roomManager.startDisconnectTimer(playerId)
     lastChatTime.delete(playerId)
   })
@@ -267,6 +282,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
     roomManager.cancelDisconnectTimer(playerId)
     roomManager.updatePlayerSession(room.id, playerId, socket.id)
+    roomManager.updatePlayerSocket(playerId, socket.id)
 
     socket.data.roomId = room.id
     socket.data.playerId = playerId
@@ -335,10 +351,12 @@ function handleLeave(io: any, socket: any): void {
   if (!result.removed) return
 
   lastChatTime.delete(playerId)
+  roomManager.cancelDisconnectTimer(playerId)
 
   const room = roomManager.getRoomById(roomId)
   if (room) {
     socket.leave(room.code)
+    socket.leave(playerId)
   }
 
   if (!room) return
@@ -350,4 +368,8 @@ function handleLeave(io: any, socket: any): void {
   } else {
     io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
   }
+
+  delete socket.data.roomId
+  delete socket.data.playerId
+  delete socket.data.roomName
 }

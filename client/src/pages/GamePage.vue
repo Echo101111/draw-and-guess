@@ -1,5 +1,17 @@
 <template>
   <div class="game-page">
+    <!-- 连接状态栏 -->
+    <Transition name="slide-down">
+      <div v-if="connectionState === 'disconnected'" class="connection-banner disconnected">
+        🔴 连接已断开，正在重连...
+      </div>
+      <div v-else-if="connectionState === 'reconnecting'" class="connection-banner reconnecting">
+        🔄 正在重连...（{{ reconnectAttempt }}/5）
+      </div>
+      <div v-else-if="connectionState === 'reconnect_failed'" class="connection-banner failed">
+        ⚠️ 连接失败，<button @click="refreshPage">点击刷新页面</button>
+      </div>
+    </Transition>
     <header class="game-header">
       <div class="header-left">
         <div class="room-badge">
@@ -206,7 +218,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useGameStore } from '@/stores/game'
-import { connectSocket, disconnectSocket } from '@/composables/useSocket'
+import { connectSocket, disconnectSocket, getSocket, connectionState, reconnectAttempt } from '@/composables/useSocket'
+import { CLIENT_EVENTS } from '@draw-and-guess/shared'
 import Timer from '@/components/Timer.vue'
 import Scoreboard from '@/components/Scoreboard.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
@@ -269,6 +282,9 @@ onMounted(() => {
   connectSocket(serverUrl)
   gameStore.setupSocketListeners()
 
+  // 兜底：请求当前游戏状态（ROUND_START 在注册前到达时恢复）
+  getSocket()?.emit(CLIENT_EVENTS.REQUEST_GAME_STATE)
+
   // 中途加入提示：房间已开始游戏，当前轮仅观战
   if (roomStore.room?.state === 'playing') {
     showSpectatorNotice.value = true
@@ -278,6 +294,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.body.style.overflow = ''
+  gameStore.teardownSocketListeners()
   gameStore.resetGame()
 })
 
@@ -306,6 +323,10 @@ function handleRestartGame() {
 function handleStartGame() {
   roomStore.startGame()
 }
+
+function refreshPage() {
+  window.location.reload()
+}
 </script>
 
 <style scoped>
@@ -318,6 +339,33 @@ function handleStartGame() {
   overflow: hidden;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+.connection-banner {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 100; padding: 8px 16px;
+  text-align: center; font-size: 14px;
+  font-weight: 500;
+}
+.connection-banner.disconnected {
+  background: #fde8e5; color: #c0392b;
+}
+.connection-banner.reconnecting {
+  background: #fef3d5; color: #b8860b;
+}
+.connection-banner.failed {
+  background: #fde8e5; color: #c0392b;
+}
+.connection-banner.failed button {
+  background: none; border: 1px solid currentColor;
+  border-radius: 4px; color: inherit;
+  cursor: pointer; padding: 0 8px; margin-left: 4px;
+}
+.slide-down-enter-active, .slide-down-leave-active {
+  transition: transform 0.3s ease;
+}
+.slide-down-enter-from, .slide-down-leave-to {
+  transform: translateY(-100%);
 }
 
 /* ─── Header ─── */

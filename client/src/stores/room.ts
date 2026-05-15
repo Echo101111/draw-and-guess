@@ -108,6 +108,10 @@ export const useRoomStore = defineStore('room', () => {
       connectionState.value = 'connected'
       error.value = null
       isSpectator.value = false
+      // 游戏进行中 → 请求完整游戏快照（兜底 ROUND_START 丢失）
+      if (data.room?.state === 'playing') {
+        getSocket()?.emit(CLIENT_EVENTS.REQUEST_GAME_STATE)
+      }
     })
 
     socket.off(SERVER_EVENTS.SPECTATOR_JOINED)

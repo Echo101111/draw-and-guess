@@ -1,5 +1,9 @@
 import { io, type Socket } from 'socket.io-client'
-import { CLIENT_EVENTS } from '@draw-and-guess/shared'
+import { ref } from 'vue'
+import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
+
+export const connectionState = ref<'connected' | 'disconnected' | 'reconnecting' | 'reconnect_failed'>('disconnected')
+export const reconnectAttempt = ref(0)
 
 let socket: Socket | null = null
 let serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
@@ -22,13 +26,23 @@ export function getSocket(): Socket {
       timeout: 5000,
     })
     socket.on('connect', () => {
+      connectionState.value = 'connected'
+      reconnectAttempt.value = 0
       restoreSession()
     })
     socket.on('disconnect', (reason) => {
+      connectionState.value = 'disconnected'
       console.warn('[Socket] Disconnected:', reason)
     })
     socket.on('connect_error', (err) => {
       console.error('[Socket] Connection error:', err.message)
+    })
+    socket.on('reconnect_attempt', (attempt) => {
+      connectionState.value = 'reconnecting'
+      reconnectAttempt.value = attempt
+    })
+    socket.io.on('reconnect_failed', () => {
+      connectionState.value = 'reconnect_failed'
     })
   }
   return socket
@@ -85,12 +99,22 @@ export function clearSession(): void {
   localStorage.removeItem(SESSION_KEY)
 }
 
-export function restoreSession(): void {
+export function restoreSession(): Promise<boolean> {
   const session = getStoredSession()
   if (session && socket?.connected) {
-    socket.emit(CLIENT_EVENTS.RESTORE_SESSION, {
-      roomName: session.roomName,
-      playerId: session.playerId,
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(false), 5000)
+      socket!.once(SERVER_EVENTS.SESSION_RESTORED, () => {
+        clearTimeout(timer); resolve(true)
+      })
+      socket!.once(SERVER_EVENTS.ROOM_ERROR, () => {
+        clearTimeout(timer); resolve(false)
+      })
+      socket!.emit(CLIENT_EVENTS.RESTORE_SESSION, {
+        roomName: session.roomName,
+        playerId: session.playerId,
+      })
     })
   }
+  return Promise.resolve(false)
 }
