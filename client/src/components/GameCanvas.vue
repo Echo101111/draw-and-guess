@@ -31,7 +31,6 @@ let currentPathObject: FabricPath | null = null
 let pendingResize = false
 let strokeSeq = 0
 const EMIT_INTERVAL = 16
-const CANVAS_RATIO = 4 / 3
 
 function getCanvasPoint(e: { e: MouseEvent | Touch }): Point {
   const pointer = fabricCanvas?.getPointer(e.e as unknown as MouseEvent)
@@ -210,26 +209,10 @@ function resizeCanvas() {
 
   if (containerWidth <= 0 || containerHeight <= 0) return
 
-  let width: number
-  let height: number
-
-  // Narrow screens (mobile): fill container without aspect ratio constraint
-  // Avoids dead zones where touch events don't reach the canvas
-  if (containerWidth < 768) {
-    width = containerWidth
-    height = containerHeight
-  } else {
-    // Desktop/tablet: maintain 4:3 aspect ratio
-    width = containerWidth
-    height = width / CANVAS_RATIO
-    if (height > containerHeight) {
-      height = containerHeight
-      width = height * CANVAS_RATIO
-    }
-  }
-
-  width = Math.floor(width)
-  height = Math.floor(height)
+  // Always fill container without aspect ratio constraint (same as mobile)
+  // Avoids dead zones where events don't reach the canvas
+  let width = Math.floor(containerWidth)
+  let height = Math.floor(containerHeight)
 
   if (fabricCanvas.width === width && fabricCanvas.height === height) return
 
@@ -263,11 +246,11 @@ onMounted(() => {
   if (!canvasRef.value || !containerRef.value) return
 
   const initialWidth = containerRef.value.clientWidth
-  const initialHeight = Math.floor(initialWidth / CANVAS_RATIO)
+  const initialHeight = containerRef.value.clientHeight
 
   fabricCanvas = new fabric.Canvas(canvasRef.value, {
     width: Math.floor(initialWidth),
-    height: initialHeight,
+    height: Math.floor(initialHeight),
     backgroundColor: '#ffffff',
     isDrawingMode: false,
     selection: false,
