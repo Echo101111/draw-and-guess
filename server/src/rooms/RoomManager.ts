@@ -359,7 +359,6 @@ export class RoomManager {
     room.totalRounds = 10
     room.currentWord = null
     room.roundStartTime = null
-    room.wordConfig.customWords = []
     room.players.forEach((p) => {
       p.score = 0
       p.hasGuessedCorrectly = false

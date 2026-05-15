@@ -98,40 +98,6 @@
           </div>
         </div>
 
-        <div class="word-config-section">
-          <button type="button" class="word-config-toggle" @click="showWordConfig = !showWordConfig">
-            <span class="toggle-icon">⚙️</span>
-            <span>词库设置</span>
-            <span class="toggle-arrow">{{ showWordConfig ? '▾' : '▸' }}</span>
-          </button>
-          <div v-if="showWordConfig" class="word-config-panel">
-            <div class="word-config-field">
-              <label>自定义词汇（留空则使用系统词库，配置 N 个词 = N 轮）</label>
-              <div class="custom-words-list">
-                <div v-for="(item, index) in editableWords" :key="index" class="custom-word-row">
-                  <input v-model="item.word" type="text" placeholder="词汇" maxlength="20" class="word-input" />
-                  <select v-model="item.category" class="cat-select">
-                    <option v-for="opt in CATEGORY_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                    <option value="__custom__">自定义...</option>
-                  </select>
-                  <input v-if="item.category === '__custom__'" v-model="item.customText" type="text" placeholder="输入分类" class="cat-input" />
-                  <button class="btn-remove-word" @click="removeWord(index)" :disabled="editableWords.length <= 1">✕</button>
-                </div>
-              </div>
-              <button type="button" class="btn-add-word" @click="addWord">+ 添加词汇</button>
-              <div v-if="editableWords.filter(w => w.word.trim()).length > 0" class="word-count-hint">
-                共 {{ editableWords.filter(w => w.word.trim()).length }} 个词汇 → {{ editableWords.filter(w => w.word.trim()).length }} 轮
-              </div>
-            </div>
-            <div class="word-config-field">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="looseMatchingLocal" />
-                宽松匹配（接受同义词/近似答案）
-              </label>
-            </div>
-          </div>
-        </div>
-
         <button type="submit" class="btn-primary" :disabled="isLoading">
           <span v-if="isLoading" class="btn-loading" />
           <span v-else>🏠 创建房间</span>
@@ -201,16 +167,6 @@ import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { connectSocket, clearSession } from '@/composables/useSocket'
-
-const CATEGORY_OPTIONS = [
-  { value: 'animals', label: '动物' },
-  { value: 'food', label: '食物' },
-  { value: 'daily', label: '日常物品' },
-  { value: 'nature', label: '自然植物' },
-  { value: 'vehicles', label: '交通工具' },
-  { value: 'sports', label: '体育运动' },
-  { value: 'characters', label: '人物角色' },
-]
 
 const router = useRouter()
 const roomStore = useRoomStore()
@@ -282,21 +238,6 @@ const joinRoomName = ref('')
 const maxPlayers = ref(50)
 const password = ref('')
 const isLoading = ref(false)
-const showWordConfig = ref(false)
-const looseMatchingLocal = ref(false)
-
-const editableWords = ref<{ word: string; category: string; customText: string }[]>([
-  { word: '', category: 'animals', customText: '' },
-])
-
-function addWord() {
-  editableWords.value.push({ word: '', category: 'animals', customText: '' })
-}
-
-function removeWord(index: number) {
-  editableWords.value.splice(index, 1)
-}
-
 const errorMessage = ref<string | null>(null)
 
 watch(() => roomStore.error, (newError) => {
@@ -319,22 +260,10 @@ async function handleCreate() {
   isLoading.value = true
   errorMessage.value = null
 
-  const customWords = editableWords.value
-    .filter(w => w.word.trim())
-    .map(w => ({
-      word: w.word.trim(),
-      category: w.category === '__custom__' ? w.customText.trim() : w.category,
-    }))
-    .filter(w => w.word && w.category)
-
   await roomStore.createRoom(nickname.value.trim(), {
     roomName: createRoomName.value.trim() || undefined,
     maxPlayers: maxPlayers.value,
     password: password.value || undefined,
-    wordConfig: {
-      customWords,
-      looseMatching: looseMatchingLocal.value,
-    },
   })
 }
 
@@ -837,168 +766,6 @@ onMounted(() => {
 @keyframes modalExit {
   from { opacity: 1; transform: scale(1) translateY(0); }
   to { opacity: 0; transform: scale(0.9) translateY(10px); }
-}
-
-/* ─── Word Config Panel ─── */
-.word-config-section {
-  margin-top: 0.25rem;
-}
-
-.word-config-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  width: 100%;
-  padding: 0.4rem 0.6rem;
-  border: 1px dashed var(--color-border);
-  border-radius: 10px;
-  background: var(--color-bg-warm);
-  color: var(--color-text-secondary);
-  font-size: 0.78rem;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-}
-
-.word-config-toggle:hover {
-  border-color: var(--color-accent);
-  background: var(--color-accent-pale);
-}
-
-.toggle-icon {
-  font-size: 0.9rem;
-}
-
-.toggle-arrow {
-  margin-left: auto;
-  font-size: 0.7rem;
-}
-
-.word-config-panel {
-  margin-top: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-bg-warm);
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.word-config-field label {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--color-text-secondary);
-  margin-bottom: 0.25rem;
-  font-weight: 500;
-}
-
-.word-config-field select {
-  width: 100%;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 0.78rem;
-  background: #fff;
-  color: var(--color-text);
-}
-
-.custom-words-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.custom-word-row {
-  display: flex;
-  gap: 0.3rem;
-  align-items: stretch;
-}
-
-.word-input {
-  flex: 2;
-  min-width: 0;
-  padding: 0.35rem 0.4rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 0.76rem;
-}
-
-.cat-select {
-  flex: 1.5;
-  min-width: 0;
-  padding: 0.35rem 0.3rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 0.74rem;
-  background: #fff;
-}
-
-.cat-input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.35rem 0.4rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 0.74rem;
-}
-
-.btn-remove-word {
-  padding: 0.2rem 0.45rem;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.btn-remove-word:hover:not(:disabled) {
-  color: #e74c3c;
-  border-color: rgba(231, 76, 60, 0.25);
-}
-
-.btn-remove-word:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.btn-add-word {
-  margin-top: 0.25rem;
-  padding: 0.3rem 0.7rem;
-  background: none;
-  border: 1px dashed var(--color-border);
-  border-radius: 6px;
-  color: var(--color-text-secondary);
-  font-size: 0.72rem;
-  cursor: pointer;
-  width: 100%;
-}
-
-.btn-add-word:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
-.word-count-hint {
-  font-size: 0.68rem;
-  color: var(--color-text-muted);
-  margin-top: 0.2rem;
-}
-
-.word-config-field > .checkbox-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.76rem;
-  color: var(--color-text);
-  font-weight: 400;
-  cursor: pointer;
-}
-
-.word-config-field > .checkbox-label input[type="checkbox"] {
-  width: auto;
-  margin: 0;
-  accent-color: var(--color-accent);
 }
 
 /* ─── Error toast (keep original transition) ─── */

@@ -320,6 +320,7 @@ export class GameManager {
     if (!room) return false
 
     room.state = 'gameover'
+    room.wordConfig.customWords = []
     this.clearNextRoundTimer(roomId)
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
@@ -336,6 +337,8 @@ export class GameManager {
         finalScores: scores,
         winner,
       })
+      // Sync cleared customWords to clients so the word config modal shows accurate state
+      io.to(room.code).emit(SERVER_EVENTS.WORD_CONFIG_UPDATED, { wordConfig: room.wordConfig })
     }
 
     return true

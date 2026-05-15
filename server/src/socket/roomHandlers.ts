@@ -189,18 +189,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
-    // Save custom words before reset (resetGameState clears them)
-    const room = roomManager.getRoomById(roomId)
-    const savedCustomWords = room?.wordConfig.customWords ?? []
-
-    // Reset any lingering game state (e.g. after game_over) before starting fresh
     gameManager.resetGame(roomId)
-
-    // Restore custom words if they were configured
-    const restoredRoom = roomManager.getRoomById(roomId)
-    if (restoredRoom && savedCustomWords.length > 0) {
-      restoredRoom.wordConfig.customWords = savedCustomWords
-    }
 
     const result = roomManager.startGame(roomId, playerId)
     console.log(`[Room] START_GAME result: success=${result.success}, error=${result.error}`)
