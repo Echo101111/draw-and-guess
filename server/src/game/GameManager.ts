@@ -467,6 +467,7 @@ export class GameManager {
    */
   sendSpectatorSnapshot(roomId: string, playerId: string): void {
     this.emitGameSnapshot(roomId, playerId)
+    this.sendStrokesToPlayer(roomId, playerId)
   }
 
   sendGameStateSnapshot(roomId: string, playerId: string): void {
@@ -555,13 +556,23 @@ export class GameManager {
         wordCategory: wordCategoryName,
       })
     }
+
+    this.sendStrokesToPlayer(roomId, playerId)
   }
 
   /**
-   * 发送通用游戏快照（积分榜、已有笔画、计时器），
+   * 发送通用游戏快照（积分榜、计时器），
    * 供 sendSpectatorSnapshot 和 restorePlayerState 复用。
    * 返回剩余秒数，失败返回 null。
    */
+  private sendStrokesToPlayer(roomId: string, playerId: string): void {
+    const allStrokes = this.getStrokes(roomId)
+    if (allStrokes.length === 0) return
+    const io = this.getIO()
+    if (!io) return
+    io.to(playerId).emit(SERVER_EVENTS.DRAW_STROKE, { allStrokes: true, strokes: allStrokes })
+  }
+
   private emitGameSnapshot(roomId: string, playerId: string): number | null {
     const room = roomManager.getRoomById(roomId)
     if (!room) return null
@@ -576,10 +587,6 @@ export class GameManager {
     io.to(playerId).emit(SERVER_EVENTS.SCOREBOARD_UPDATE, {
       scores: this.getScoreboard(room),
     })
-
-    for (const stroke of this.getStrokes(roomId)) {
-      io.to(playerId).emit(SERVER_EVENTS.DRAW_STROKE, { ...stroke, full: true })
-    }
 
     io.to(playerId).emit(SERVER_EVENTS.TIMER_SYNC, { timeLeft })
 

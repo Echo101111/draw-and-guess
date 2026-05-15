@@ -151,7 +151,11 @@ export const useGameStore = defineStore('game', () => {
     })
 
     socket.off(SERVER_EVENTS.DRAW_STROKE)
-    socket.on(SERVER_EVENTS.DRAW_STROKE, (data: { playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number; full?: boolean }) => {
+    socket.on(SERVER_EVENTS.DRAW_STROKE, (data: { playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number; full?: boolean; allStrokes?: boolean; strokes?: Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }> }) => {
+      if (data.allStrokes && data.strokes) {
+        strokes.value = data.strokes
+        return
+      }
       if (data.playerId === roomStore.currentPlayerId && !data.full) return
       const existing = data.strokeSeq !== undefined
         ? strokes.value.find(s => s.playerId === data.playerId && s.strokeSeq === data.strokeSeq)

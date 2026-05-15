@@ -79,7 +79,6 @@ export const useRoomStore = defineStore('room', () => {
     socket.off(SERVER_EVENTS.ROOM_ERROR)
     socket.on(SERVER_EVENTS.ROOM_ERROR, (data) => {
       error.value = data.message
-      connectionState.value = 'disconnected'
     })
 
     socket.off(SERVER_EVENTS.ROOM_UPDATED)
@@ -250,11 +249,34 @@ export const useRoomStore = defineStore('room', () => {
     error.value = null
   }
 
-  const updateWordConfig = (updates: Partial<RoomWordConfig>) => {
-    const socket = getSocket()
-    if (socket?.connected) {
-      socket.emit(CLIENT_EVENTS.UPDATE_WORD_CONFIG, { wordConfig: updates })
-    }
+  const updateWordConfig = (updates: Partial<RoomWordConfig>): Promise<void> => {
+    return new Promise<void>((resolve, reject) => {
+      const socket = getSocket()
+      if (socket?.connected) {
+        let settled = false
+        const onSuccess = () => {
+          if (settled) return
+          settled = true
+          resolve()
+        }
+        const onError = (data: { message?: string }) => {
+          if (settled) return
+          settled = true
+          reject(new Error(data.message ?? '保存失败'))
+        }
+        socket.once(SERVER_EVENTS.WORD_CONFIG_UPDATED, onSuccess)
+        socket.once(SERVER_EVENTS.ROOM_ERROR, onError)
+        setTimeout(() => {
+          if (!settled) {
+            settled = true
+            reject(new Error('保存超时，请重试'))
+          }
+        }, 10000)
+        socket.emit(CLIENT_EVENTS.UPDATE_WORD_CONFIG, { wordConfig: updates })
+      } else {
+        resolve()
+      }
+    })
   }
 
   return {
