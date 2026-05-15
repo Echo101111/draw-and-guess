@@ -2,8 +2,9 @@ import { CLIENT_EVENTS, SERVER_EVENTS, ErrorCode } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { gameManager } from '../game/index.js'
 import { lastChatTime } from './gameHandlers.js'
+import { validateCustomWords } from '../data/wordValidator.js'
 import bcrypt from 'bcrypt'
-import type { Room } from '@draw-and-guess/shared'
+import type { Room, RoomWordConfig } from '@draw-and-guess/shared'
 
 function getPlayerRoomData(room: Room) {
   return {
@@ -21,12 +22,13 @@ function getPlayerRoomData(room: Room) {
     })),
     currentRound: room.currentRound,
     totalRounds: room.totalRounds,
+    wordConfig: room.wordConfig,
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function registerRoomHandlers(io: any, socket: any): void {
-  socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password }: { nickname: string; roomName?: string; maxPlayers?: number; password?: string }) => {
+  socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password, wordConfig }: { nickname: string; roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig }) => {
     const trimmedNickname = nickname.trim()
     if (!trimmedNickname || trimmedNickname.length > 10) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
@@ -50,7 +52,8 @@ export function registerRoomHandlers(io: any, socket: any): void {
         trimmedNickname,
         trimmedName,
         maxPlayers ?? 50,
-        password ?? ''
+        password ?? '',
+        wordConfig
       )
 
       console.log(`[Room] Created: "${room.name}" (${room.id}) by ${trimmedNickname}`)
@@ -191,6 +194,40 @@ export function registerRoomHandlers(io: any, socket: any): void {
       io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
       gameManager.startRound(roomId)
     }
+  })
+
+  socket.on(CLIENT_EVENTS.UPDATE_WORD_CONFIG, ({ wordConfig, customWordsRaw }: { wordConfig?: Partial<RoomWordConfig>; customWordsRaw?: string }) => {
+    const { roomId, playerId } = socket.data
+    if (!roomId || !playerId) return
+
+    const room = roomManager.getRoomById(roomId)
+    if (!room) return
+
+    const player = room.players.find((p) => p.id === playerId)
+    if (!player?.isOwner) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.NOT_ROOM_OWNER, message: '只有房主可以修改词库设置' })
+      return
+    }
+
+    if (room.state !== 'lobby') {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '游戏开始后无法修改词库设置' })
+      return
+    }
+
+    if (wordConfig) {
+      Object.assign(room.wordConfig, wordConfig)
+    }
+
+    if (customWordsRaw !== undefined) {
+      const result = validateCustomWords(customWordsRaw)
+      if (!result.valid) {
+        socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.INVALID_WORD_CONFIG, message: result.error! })
+        return
+      }
+      room.wordConfig.customWords = result.words!
+    }
+
+    io.to(room.code).emit(SERVER_EVENTS.WORD_CONFIG_UPDATED, { wordConfig: room.wordConfig })
   })
 
   socket.on('disconnect', () => {

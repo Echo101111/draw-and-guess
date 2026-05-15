@@ -1,175 +1,587 @@
-import { randomBytes } from 'crypto'
-import type { SensitivityLevel } from '@draw-and-guess/shared'
-
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array]
-  const bytes = randomBytes(shuffled.length * 4)
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = (bytes.readUInt32LE(i * 4) % (i + 1))
-    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-  }
-  return shuffled
+export interface WordEntry {
+  word: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  drawability: 1 | 2 | 3 | 4 | 5
+  synonyms?: string[]
 }
 
-const WORDS = {
-  animals: [
-    '猫', '狗', '大象', '狮子', '老虎', '兔子', '熊猫', '猴子', '马', '牛',
-    '猪', '羊', '鸡', '鸭', '鹅', '鱼', '鸟', '鹰', '蛇', '青蛙',
-    '乌龟', '蝴蝶', '蜜蜂', '蚂蚁', '蜗牛', '螃蟹', '虾', '章鱼', '海豚', '鲸鱼',
-    '豹子', '狼', '狐狸', '熊', '鹿', '豹', '犀牛', '河马', '斑马', '袋鼠',
-    '考拉', '鹦鹉', '鸽子', '乌鸦', '猫头鹰', '天鹅', '孔雀', '火烈鸟', '企鹅', '鸵鸟',
-  ],
-  food: [
-    '苹果', '香蕉', '橙子', '葡萄', '西瓜', '草莓', '桃子', '梨', '菠萝', '芒果',
-    '米饭', '面条', '饺子', '包子', '馒头', '面包', '蛋糕', '饼干', '巧克力', '冰淇淋',
-    '披萨', '汉堡', '炸鸡', '薯条', '咖啡', '茶', '牛奶', '可乐', '果汁', '水',
-    '火锅', '烤肉', '寿司', '沙拉', '汤', '粥', '饺子', '炒饭', '炒面', '烧烤',
-    '糖葫芦', '月饼', '汤圆', '粽子', '年糕', '豆腐', '鸡蛋', '西红柿', '黄瓜', '土豆',
-  ],
-  daily: [
-    '手机', '电脑', '电视', '冰箱', '洗衣机', '空调', '风扇', '灯', '桌子', '椅子',
-    '床', '沙发', '衣柜', '书柜', '窗户', '门', '钥匙', '锁', '雨伞', '帽子',
-    '眼镜', '手表', '项链', '戒指', '背包', '箱子', '杯子', '碗', '盘子', '勺子',
-    '筷子', '刀', '叉', '锅', '铲子', '砧板', '水壶', '梯子', '镜子', '梳子',
-    '牙刷', '毛巾', '肥皂', '洗发水', '沐浴露', '纸巾', '垃圾桶', '扫帚', '拖把', '抹布',
-  ],
-  vehicles: [
-    '汽车', '卡车', '公交车', '地铁', '火车', '飞机', '直升机', '轮船', '潜艇', '摩托车',
-    '自行车', '电动车', '出租车', '救护车', '消防车', '警车', '校车', '货车', '拖车', '挖掘机',
-    '拖拉机', '收割机', '压路机', '搅拌车', '吊车', '推土机', '叉车', '沙滩车', '卡丁车', '赛车',
-    '游艇', '帆船', '木筏', '皮划艇', '热气球', '滑翔机', '飞艇', '马车', '三轮车', '独轮车',
-  ],
-  nature: [
-    '太阳', '月亮', '星星', '云', '雨', '雪', '风', '雷', '闪电', '彩虹',
-    '山', '河', '湖', '海', '岛', '森林', '草原', '沙漠', '峡谷', '瀑布',
-    '火山', '岩石', '石头', '沙子', '泥土', '草地', '花', '树', '叶子', '树枝',
-    '树干', '树根', '果实', '种子', '水', '冰', '雾', '霜', '露水', '气泡',
-    '山丘', '悬崖', '洞穴', '小溪', '池塘', '井', '喷泉', '冰川', '湿地',
-  ],
-  sports: [
-    '足球', '篮球', '排球', '网球', '羽毛球', '乒乓球', '高尔夫', '保龄球', '棒球', '垒球',
-    '拳击', '摔跤', '柔道', '跆拳道', '武术', '游泳', '跳水', '滑冰', '滑雪', '滑板',
-    '自行车', '赛马', '斗牛', '钓鱼', '划船', '冲浪', '帆船', '攀岩', '跳伞', '蹦极',
-    '跑步', '跳远', '跳高', '标枪', '铅球', '铁饼', '体操', '瑜伽', '跳舞', '啦啦队',
-  ],
-  jobs: [
-    '医生', '护士', '老师', '警察', '消防员', '厨师', '司机', '飞行员', '律师', '法官',
-    '记者', '作家', '画家', '音乐家', '演员', '歌手', '舞蹈家', '建筑师', '工程师', '科学家',
-    '会计', '设计师', '摄影师', '主持人', '导游', '服务员', '售货员', '快递员', '农民', '渔夫',
-    '矿工', '木匠', '电工', '水管工', '飞行员', '船长', '空姐', '店长', '经理', '总统',
-  ],
-}
+import type { WordCategory } from '@draw-and-guess/shared'
 
-export type WordDifficulty = 'easy' | 'medium' | 'hard'
+export { type WordCategory } from '@draw-and-guess/shared'
 
-const WORD_DIFFICULTY: Record<string, WordDifficulty> = {
-  // Medium — less common but recognizable
-  '考拉': 'medium', '火烈鸟': 'medium', '鸵鸟': 'medium', '孔雀': 'medium',
-  '犀牛': 'medium', '河马': 'medium', '斑马': 'medium', '袋鼠': 'medium',
-  '鹦鹉': 'medium', '天鹅': 'medium', '猫头鹰': 'medium', '企鹅': 'medium',
-  '糖葫芦': 'medium', '月饼': 'medium', '汤圆': 'medium', '粽子': 'medium',
-  '年糕': 'medium', '沙拉': 'medium',
-  '砧板': 'medium', '沐浴露': 'medium', '洗发水': 'medium',
-  '扫帚': 'medium', '拖把': 'medium', '抹布': 'medium',
-  '救护车': 'medium', '消防车': 'medium', '挖掘机': 'medium',
-  '收割机': 'medium', '压路机': 'medium', '搅拌车': 'medium',
-  '推土机': 'medium', '皮划艇': 'medium', '滑翔机': 'medium',
-  '飞艇': 'medium', '三轮车': 'medium', '独轮车': 'medium',
-  '卡丁车': 'medium', '赛车': 'medium', '沙滩车': 'medium', '热气球': 'medium',
-  '峡谷': 'medium', '瀑布': 'medium', '悬崖': 'medium', '洞穴': 'medium',
-  '冰川': 'medium', '湿地': 'medium', '火山': 'medium',
-  '保龄球': 'medium', '跆拳道': 'medium', '啦啦队': 'medium',
-  '标枪': 'medium', '铁饼': 'medium', '蹦极': 'medium',
-  '建筑师': 'medium', '摄影师': 'medium', '科学家': 'medium',
-  '售货员': 'medium', '快递员': 'medium', '舞蹈家': 'medium',
-  '音乐家': 'medium', '水管工': 'medium', '主持人': 'medium',
-}
-
-export function getWordDifficulty(word: string): WordDifficulty {
-  return WORD_DIFFICULTY[word] ?? 'easy'
-}
-
-export function getDifficultyForRound(round: number, totalRounds: number): WordDifficulty[] {
-  if (round <= Math.ceil(totalRounds * 0.3)) return ['easy']
-  if (round <= Math.ceil(totalRounds * 0.6)) return ['easy', 'medium']
-  if (round <= Math.ceil(totalRounds * 0.8)) return ['easy', 'medium']
-  return ['easy', 'medium', 'hard']
-}
-
-const wordToCategory: Record<string, keyof typeof WORDS> = {}
-for (const [category, words] of Object.entries(WORDS)) {
-  for (const word of words) {
-    wordToCategory[word] = category as keyof typeof WORDS
-  }
-}
-
-export function getWordCategory(word: string): string | null {
-  return wordToCategory[word] ?? null
-}
-
-export const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
+export const CATEGORY_DISPLAY_NAMES: Record<WordCategory, string> = {
   animals: '动物',
   food: '食物',
-  daily: '日常',
+  daily: '日常物品',
+  nature: '自然植物',
   vehicles: '交通工具',
-  nature: '自然',
-  sports: '体育',
-  jobs: '职业',
+  sports: '体育运动',
+  characters: '人物角色',
 }
 
-const WORD_SENSITIVITY: Record<keyof typeof WORDS, SensitivityLevel> = {
-  animals: 'safe',
-  food: 'safe',
-  daily: 'safe',
-  vehicles: 'safe',
-  nature: 'safe',
-  sports: 'safe',
-  jobs: 'moderate',
+export const WORD_CATEGORIES: WordCategory[] = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'characters']
+
+export const WORDS: Record<WordCategory, WordEntry[]> = {
+  // === 动物 (85) ===
+  animals: [
+    // easy (35)
+    { word: '猫', difficulty: 'easy', drawability: 5, synonyms: ['猫咪'] },
+    { word: '狗', difficulty: 'easy', drawability: 5 },
+    { word: '大象', difficulty: 'easy', drawability: 5 },
+    { word: '狮子', difficulty: 'easy', drawability: 4, synonyms: ['雄狮'] },
+    { word: '老虎', difficulty: 'easy', drawability: 5 },
+    { word: '兔子', difficulty: 'easy', drawability: 5 },
+    { word: '熊猫', difficulty: 'easy', drawability: 4 },
+    { word: '猴子', difficulty: 'easy', drawability: 5 },
+    { word: '马', difficulty: 'easy', drawability: 5 },
+    { word: '牛', difficulty: 'easy', drawability: 4 },
+    { word: '猪', difficulty: 'easy', drawability: 5 },
+    { word: '羊', difficulty: 'easy', drawability: 4 },
+    { word: '鸡', difficulty: 'easy', drawability: 5, synonyms: ['公鸡', '母鸡'] },
+    { word: '鸭', difficulty: 'easy', drawability: 5 },
+    { word: '鹅', difficulty: 'easy', drawability: 4 },
+    { word: '鱼', difficulty: 'easy', drawability: 5 },
+    { word: '蛇', difficulty: 'easy', drawability: 5 },
+    { word: '青蛙', difficulty: 'easy', drawability: 5 },
+    { word: '乌龟', difficulty: 'easy', drawability: 5 },
+    { word: '蝴蝶', difficulty: 'easy', drawability: 4 },
+    { word: '蜜蜂', difficulty: 'easy', drawability: 4 },
+    { word: '蚂蚁', difficulty: 'easy', drawability: 3 },
+    { word: '螃蟹', difficulty: 'easy', drawability: 5 },
+    { word: '虾', difficulty: 'easy', drawability: 4 },
+    { word: '章鱼', difficulty: 'easy', drawability: 5 },
+    { word: '海豚', difficulty: 'easy', drawability: 5 },
+    { word: '鲸鱼', difficulty: 'easy', drawability: 5 },
+    { word: '鲨鱼', difficulty: 'easy', drawability: 5 },
+    { word: '长颈鹿', difficulty: 'easy', drawability: 5 },
+    { word: '袋鼠', difficulty: 'easy', drawability: 5 },
+    { word: '刺猬', difficulty: 'easy', drawability: 5 },
+    { word: '蜘蛛', difficulty: 'easy', drawability: 5 },
+    { word: '蜗牛', difficulty: 'easy', drawability: 5 },
+    { word: '金鱼', difficulty: 'easy', drawability: 4 },
+    { word: '海星', difficulty: 'easy', drawability: 5 },
+    // medium (35)
+    { word: '豹子', difficulty: 'medium', drawability: 4 },
+    { word: '狼', difficulty: 'medium', drawability: 4 },
+    { word: '狐狸', difficulty: 'medium', drawability: 4 },
+    { word: '熊', difficulty: 'medium', drawability: 4 },
+    { word: '鹿', difficulty: 'medium', drawability: 4 },
+    { word: '犀牛', difficulty: 'medium', drawability: 4 },
+    { word: '河马', difficulty: 'medium', drawability: 4 },
+    { word: '斑马', difficulty: 'medium', drawability: 4 },
+    { word: '考拉', difficulty: 'medium', drawability: 4 },
+    { word: '鹦鹉', difficulty: 'medium', drawability: 4 },
+    { word: '鸽子', difficulty: 'medium', drawability: 3 },
+    { word: '猫头鹰', difficulty: 'medium', drawability: 4 },
+    { word: '天鹅', difficulty: 'medium', drawability: 4 },
+    { word: '企鹅', difficulty: 'medium', drawability: 4 },
+    { word: '火烈鸟', difficulty: 'medium', drawability: 4 },
+    { word: '鸵鸟', difficulty: 'medium', drawability: 4 },
+    { word: '孔雀', difficulty: 'medium', drawability: 3 },
+    { word: '海龟', difficulty: 'medium', drawability: 4 },
+    { word: '海马', difficulty: 'medium', drawability: 3 },
+    { word: '水母', difficulty: 'medium', drawability: 3 },
+    { word: '海狮', difficulty: 'medium', drawability: 3 },
+    { word: '鳄鱼', difficulty: 'medium', drawability: 4 },
+    { word: '蝙蝠', difficulty: 'medium', drawability: 3 },
+    { word: '浣熊', difficulty: 'medium', drawability: 3 },
+    { word: '仓鼠', difficulty: 'medium', drawability: 4 },
+    { word: '瓢虫', difficulty: 'medium', drawability: 4 },
+    { word: '蜻蜓', difficulty: 'medium', drawability: 3 },
+    { word: '独角仙', difficulty: 'medium', drawability: 3 },
+    { word: '蝎子', difficulty: 'medium', drawability: 4 },
+    { word: '蜥蜴', difficulty: 'medium', drawability: 3 },
+    { word: '变色龙', difficulty: 'medium', drawability: 4 },
+    { word: '穿山甲', difficulty: 'medium', drawability: 4 },
+    { word: '鸭嘴兽', difficulty: 'medium', drawability: 4 },
+    { word: '蜂鸟', difficulty: 'medium', drawability: 3 },
+    { word: '水獭', difficulty: 'medium', drawability: 3 },
+    // hard (15)
+    { word: '北极熊', difficulty: 'hard', drawability: 4 },
+    { word: '树懒', difficulty: 'hard', drawability: 3 },
+    { word: '食蚁兽', difficulty: 'hard', drawability: 3 },
+    { word: '螳螂', difficulty: 'hard', drawability: 4 },
+    { word: '丹顶鹤', difficulty: 'hard', drawability: 3 },
+    { word: '座头鲸', difficulty: 'hard', drawability: 3 },
+    { word: '魔鬼鱼', difficulty: 'hard', drawability: 4 },
+    { word: '海象', difficulty: 'hard', drawability: 3 },
+    { word: '驯鹿', difficulty: 'hard', drawability: 3 },
+    { word: '翠鸟', difficulty: 'hard', drawability: 3 },
+    { word: '蟒蛇', difficulty: 'hard', drawability: 4 },
+    { word: '鳄龟', difficulty: 'hard', drawability: 3 },
+    { word: '箭毒蛙', difficulty: 'hard', drawability: 3 },
+    { word: '羊驼', difficulty: 'hard', drawability: 4 },
+    { word: '蜜獾', difficulty: 'hard', drawability: 3 },
+  ],
+
+  // === 食物 (85) ===
+  food: [
+    // easy (35)
+    { word: '苹果', difficulty: 'easy', drawability: 5 },
+    { word: '香蕉', difficulty: 'easy', drawability: 5 },
+    { word: '西瓜', difficulty: 'easy', drawability: 5 },
+    { word: '草莓', difficulty: 'easy', drawability: 4 },
+    { word: '桃子', difficulty: 'easy', drawability: 4 },
+    { word: '葡萄', difficulty: 'easy', drawability: 4 },
+    { word: '橙子', difficulty: 'easy', drawability: 4 },
+    { word: '菠萝', difficulty: 'easy', drawability: 5, synonyms: ['凤梨'] },
+    { word: '芒果', difficulty: 'easy', drawability: 4 },
+    { word: '樱桃', difficulty: 'easy', drawability: 4 },
+    { word: '梨', difficulty: 'easy', drawability: 5 },
+    { word: '汉堡', difficulty: 'easy', drawability: 5, synonyms: ['汉堡包'] },
+    { word: '披萨', difficulty: 'easy', drawability: 5, synonyms: ['比萨'] },
+    { word: '蛋糕', difficulty: 'easy', drawability: 5 },
+    { word: '冰淇淋', difficulty: 'easy', drawability: 5, synonyms: ['冰激凌'] },
+    { word: '饺子', difficulty: 'easy', drawability: 4, synonyms: ['水饺'] },
+    { word: '面条', difficulty: 'easy', drawability: 4 },
+    { word: '米饭', difficulty: 'easy', drawability: 4 },
+    { word: '鸡蛋', difficulty: 'easy', drawability: 5 },
+    { word: '面包', difficulty: 'easy', drawability: 5 },
+    { word: '薯条', difficulty: 'easy', drawability: 5 },
+    { word: '包子', difficulty: 'easy', drawability: 4 },
+    { word: '粽子', difficulty: 'easy', drawability: 4 },
+    { word: '巧克力', difficulty: 'easy', drawability: 4 },
+    { word: '饼干', difficulty: 'easy', drawability: 5 },
+    { word: '甜甜圈', difficulty: 'easy', drawability: 5 },
+    { word: '棒棒糖', difficulty: 'easy', drawability: 5 },
+    { word: '炸鸡', difficulty: 'easy', drawability: 4 },
+    { word: '火锅', difficulty: 'easy', drawability: 4 },
+    { word: '烤肉', difficulty: 'easy', drawability: 4 },
+    { word: '玉米', difficulty: 'easy', drawability: 5, synonyms: ['苞米'] },
+    { word: '番茄', difficulty: 'easy', drawability: 5, synonyms: ['西红柿'] },
+    { word: '南瓜', difficulty: 'easy', drawability: 4 },
+    { word: '土豆', difficulty: 'easy', drawability: 4, synonyms: ['马铃薯'] },
+    { word: '西兰花', difficulty: 'easy', drawability: 4 },
+    { word: '胡萝卜', difficulty: 'easy', drawability: 5 },
+    // medium (35)
+    { word: '榴莲', difficulty: 'medium', drawability: 4 },
+    { word: '椰子', difficulty: 'medium', drawability: 4 },
+    { word: '柠檬', difficulty: 'medium', drawability: 4 },
+    { word: '蓝莓', difficulty: 'medium', drawability: 4 },
+    { word: '猕猴桃', difficulty: 'medium', drawability: 4, synonyms: ['奇异果'] },
+    { word: '牛油果', difficulty: 'medium', drawability: 4 },
+    { word: '寿司', difficulty: 'medium', drawability: 4 },
+    { word: '羊肉串', difficulty: 'medium', drawability: 4 },
+    { word: '糖葫芦', difficulty: 'medium', drawability: 4, synonyms: ['冰糖葫芦'] },
+    { word: '月饼', difficulty: 'medium', drawability: 4 },
+    { word: '汤圆', difficulty: 'medium', drawability: 4, synonyms: ['元宵'] },
+    { word: '春卷', difficulty: 'medium', drawability: 4 },
+    { word: '烤鸭', difficulty: 'medium', drawability: 4 },
+    { word: '煎蛋', difficulty: 'medium', drawability: 4, synonyms: ['荷包蛋'] },
+    { word: '三明治', difficulty: 'medium', drawability: 4 },
+    { word: '热狗', difficulty: 'medium', drawability: 4 },
+    { word: '爆米花', difficulty: 'medium', drawability: 4 },
+    { word: '棉花糖', difficulty: 'medium', drawability: 4 },
+    { word: '拉面', difficulty: 'medium', drawability: 4 },
+    { word: '烧卖', difficulty: 'medium', drawability: 4 },
+    { word: '生鱼片', difficulty: 'medium', drawability: 4 },
+    { word: '泡芙', difficulty: 'medium', drawability: 4 },
+    { word: '可颂', difficulty: 'medium', drawability: 4, synonyms: ['羊角面包'] },
+    { word: '马卡龙', difficulty: 'medium', drawability: 4 },
+    { word: '大闸蟹', difficulty: 'medium', drawability: 4 },
+    { word: '龙虾', difficulty: 'medium', drawability: 4 },
+    { word: '烤红薯', difficulty: 'medium', drawability: 4 },
+    { word: '关东煮', difficulty: 'medium', drawability: 4 },
+    { word: '蛋挞', difficulty: 'medium', drawability: 4 },
+    { word: '豆腐', difficulty: 'medium', drawability: 4 },
+    { word: '沙拉', difficulty: 'medium', drawability: 4 },
+    { word: '酸菜鱼', difficulty: 'medium', drawability: 4 },
+    { word: '烤全羊', difficulty: 'medium', drawability: 4 },
+    { word: '糖醋排骨', difficulty: 'medium', drawability: 4 },
+    { word: '煎饼果子', difficulty: 'medium', drawability: 4 },
+    // hard (15)
+    { word: '提拉米苏', difficulty: 'hard', drawability: 3 },
+    { word: '惠灵顿牛排', difficulty: 'hard', drawability: 3 },
+    { word: '天妇罗', difficulty: 'hard', drawability: 3 },
+    { word: '法棍面包', difficulty: 'hard', drawability: 3 },
+    { word: '东坡肉', difficulty: 'hard', drawability: 3 },
+    { word: '小笼包', difficulty: 'hard', drawability: 3 },
+    { word: '肠粉', difficulty: 'hard', drawability: 2 },
+    { word: '煲仔饭', difficulty: 'hard', drawability: 3 },
+    { word: '螺蛳粉', difficulty: 'hard', drawability: 2 },
+    { word: '红油抄手', difficulty: 'hard', drawability: 3 },
+    { word: '佛跳墙', difficulty: 'hard', drawability: 2 },
+    { word: '叉烧包', difficulty: 'hard', drawability: 3 },
+    { word: '拿破仑蛋糕', difficulty: 'hard', drawability: 3 },
+    { word: '冒菜', difficulty: 'hard', drawability: 2 },
+    { word: '烤乳猪', difficulty: 'hard', drawability: 3 },
+  ],
+
+  // === 日常物品 (85) ===
+  daily: [
+    // easy (35)
+    { word: '手机', difficulty: 'easy', drawability: 5 },
+    { word: '电脑', difficulty: 'easy', drawability: 4, synonyms: ['笔记本'] },
+    { word: '电视', difficulty: 'easy', drawability: 4 },
+    { word: '冰箱', difficulty: 'easy', drawability: 4 },
+    { word: '洗衣机', difficulty: 'easy', drawability: 4 },
+    { word: '空调', difficulty: 'easy', drawability: 3 },
+    { word: '电扇', difficulty: 'easy', drawability: 4, synonyms: ['风扇'] },
+    { word: '台灯', difficulty: 'easy', drawability: 4 },
+    { word: '桌子', difficulty: 'easy', drawability: 4 },
+    { word: '椅子', difficulty: 'easy', drawability: 4 },
+    { word: '床', difficulty: 'easy', drawability: 4 },
+    { word: '沙发', difficulty: 'easy', drawability: 4 },
+    { word: '门', difficulty: 'easy', drawability: 4 },
+    { word: '钥匙', difficulty: 'easy', drawability: 5 },
+    { word: '雨伞', difficulty: 'easy', drawability: 5 },
+    { word: '眼镜', difficulty: 'easy', drawability: 5 },
+    { word: '手表', difficulty: 'easy', drawability: 4 },
+    { word: '戒指', difficulty: 'easy', drawability: 5 },
+    { word: '背包', difficulty: 'easy', drawability: 4 },
+    { word: '水杯', difficulty: 'easy', drawability: 4, synonyms: ['杯子'] },
+    { word: '碗', difficulty: 'easy', drawability: 4 },
+    { word: '盘子', difficulty: 'easy', drawability: 4 },
+    { word: '筷子', difficulty: 'easy', drawability: 4 },
+    { word: '刀', difficulty: 'easy', drawability: 4 },
+    { word: '剪刀', difficulty: 'easy', drawability: 5 },
+    { word: '铅笔', difficulty: 'easy', drawability: 5 },
+    { word: '橡皮', difficulty: 'easy', drawability: 5, synonyms: ['橡皮擦'] },
+    { word: '书本', difficulty: 'easy', drawability: 5 },
+    { word: '梯子', difficulty: 'easy', drawability: 5 },
+    { word: '马桶', difficulty: 'easy', drawability: 4 },
+    { word: '梳子', difficulty: 'easy', drawability: 4 },
+    { word: '牙刷', difficulty: 'easy', drawability: 5 },
+    { word: '毛巾', difficulty: 'easy', drawability: 3 },
+    { word: '闹钟', difficulty: 'easy', drawability: 5 },
+    { word: '蜡烛', difficulty: 'easy', drawability: 5 },
+    // medium (35)
+    { word: '衣架', difficulty: 'medium', drawability: 4 },
+    { word: '行李箱', difficulty: 'medium', drawability: 4, synonyms: ['旅行箱'] },
+    { word: '灭火器', difficulty: 'medium', drawability: 4 },
+    { word: '指南针', difficulty: 'medium', drawability: 4 },
+    { word: '望远镜', difficulty: 'medium', drawability: 4 },
+    { word: '放大镜', difficulty: 'medium', drawability: 4 },
+    { word: '订书机', difficulty: 'medium', drawability: 3 },
+    { word: '胶带', difficulty: 'medium', drawability: 3 },
+    { word: '螺丝刀', difficulty: 'medium', drawability: 4 },
+    { word: '扳手', difficulty: 'medium', drawability: 4 },
+    { word: '手电筒', difficulty: 'medium', drawability: 4 },
+    { word: '口罩', difficulty: 'medium', drawability: 4 },
+    { word: '卷尺', difficulty: 'medium', drawability: 3 },
+    { word: '打火机', difficulty: 'medium', drawability: 4 },
+    { word: '温度计', difficulty: 'medium', drawability: 4 },
+    { word: '充电宝', difficulty: 'medium', drawability: 3 },
+    { word: '耳机', difficulty: 'medium', drawability: 4 },
+    { word: '麦克风', difficulty: 'medium', drawability: 4 },
+    { word: '游戏手柄', difficulty: 'medium', drawability: 3 },
+    { word: '魔方', difficulty: 'medium', drawability: 4 },
+    { word: '日历', difficulty: 'medium', drawability: 3 },
+    { word: '地球仪', difficulty: 'medium', drawability: 4 },
+    { word: '沙漏', difficulty: 'medium', drawability: 4 },
+    { word: '算盘', difficulty: 'medium', drawability: 4 },
+    { word: '打字机', difficulty: 'medium', drawability: 3 },
+    { word: '缝纫机', difficulty: 'medium', drawability: 3 },
+    { word: '熨斗', difficulty: 'medium', drawability: 3 },
+    { word: '调色盘', difficulty: 'medium', drawability: 4 },
+    { word: '三角尺', difficulty: 'medium', drawability: 4 },
+    { word: '圆规', difficulty: 'medium', drawability: 4 },
+    { word: '邮筒', difficulty: 'medium', drawability: 4 },
+    { word: '铃铛', difficulty: 'medium', drawability: 4 },
+    { word: '灯笼', difficulty: 'medium', drawability: 4 },
+    { word: '扫帚', difficulty: 'medium', drawability: 4 },
+    { word: '拖把', difficulty: 'medium', drawability: 3 },
+    // hard (15)
+    { word: '陀螺仪', difficulty: 'hard', drawability: 2 },
+    { word: '节拍器', difficulty: 'hard', drawability: 3 },
+    { word: '八音盒', difficulty: 'hard', drawability: 3 },
+    { word: '万花筒', difficulty: 'hard', drawability: 3 },
+    { word: '浑天仪', difficulty: 'hard', drawability: 2 },
+    { word: '日晷', difficulty: 'hard', drawability: 3 },
+    { word: '铜镜', difficulty: 'hard', drawability: 3 },
+    { word: '织布机', difficulty: 'hard', drawability: 3 },
+    { word: '油灯', difficulty: 'hard', drawability: 3 },
+    { word: '纺车', difficulty: 'hard', drawability: 3 },
+    { word: '鼻烟壶', difficulty: 'hard', drawability: 2 },
+    { word: '砚台', difficulty: 'hard', drawability: 3 },
+    { word: '折扇', difficulty: 'hard', drawability: 3 },
+    { word: '留声机', difficulty: 'hard', drawability: 3 },
+    { word: '司南', difficulty: 'hard', drawability: 2 },
+  ],
+
+  // === 自然植物 (70) ===
+  nature: [
+    // easy (35)
+    { word: '太阳', difficulty: 'easy', drawability: 5 },
+    { word: '月亮', difficulty: 'easy', drawability: 5 },
+    { word: '星星', difficulty: 'easy', drawability: 5 },
+    { word: '彩虹', difficulty: 'easy', drawability: 5 },
+    { word: '雪花', difficulty: 'easy', drawability: 5 },
+    { word: '山', difficulty: 'easy', drawability: 4 },
+    { word: '火山', difficulty: 'easy', drawability: 4 },
+    { word: '河流', difficulty: 'easy', drawability: 4 },
+    { word: '瀑布', difficulty: 'easy', drawability: 4 },
+    { word: '大海', difficulty: 'easy', drawability: 4 },
+    { word: '岛屿', difficulty: 'easy', drawability: 4 },
+    { word: '沙漠', difficulty: 'easy', drawability: 4 },
+    { word: '仙人掌', difficulty: 'easy', drawability: 4 },
+    { word: '蘑菇', difficulty: 'easy', drawability: 4 },
+    { word: '玫瑰', difficulty: 'easy', drawability: 4, synonyms: ['玫瑰花'] },
+    { word: '向日葵', difficulty: 'easy', drawability: 4 },
+    { word: '荷花', difficulty: 'easy', drawability: 4, synonyms: ['莲花'] },
+    { word: '樱花', difficulty: 'easy', drawability: 4 },
+    { word: '枫叶', difficulty: 'easy', drawability: 4, synonyms: ['红叶'] },
+    { word: '松树', difficulty: 'easy', drawability: 4 },
+    { word: '竹子', difficulty: 'easy', drawability: 4 },
+    { word: '椰子树', difficulty: 'easy', drawability: 4 },
+    { word: '苹果树', difficulty: 'easy', drawability: 4 },
+    { word: '小草', difficulty: 'easy', drawability: 4 },
+    { word: '荷叶', difficulty: 'easy', drawability: 4 },
+    { word: '芦苇', difficulty: 'easy', drawability: 4 },
+    { word: '银杏', difficulty: 'easy', drawability: 4 },
+    { word: '菊花', difficulty: 'easy', drawability: 4 },
+    { word: '郁金香', difficulty: 'easy', drawability: 4 },
+    { word: '牵牛花', difficulty: 'easy', drawability: 5, synonyms: ['喇叭花'] },
+    { word: '蒲公英', difficulty: 'easy', drawability: 4 },
+    { word: '四叶草', difficulty: 'easy', drawability: 4, synonyms: ['幸运草'] },
+    { word: '海螺', difficulty: 'easy', drawability: 4 },
+    { word: '贝壳', difficulty: 'easy', drawability: 4 },
+    { word: '钟乳石', difficulty: 'easy', drawability: 4 },
+    // medium (25)
+    { word: '龙卷风', difficulty: 'medium', drawability: 4 },
+    { word: '沙尘暴', difficulty: 'medium', drawability: 2 },
+    { word: '冰柱', difficulty: 'medium', drawability: 4, synonyms: ['冰锥'] },
+    { word: '化石', difficulty: 'medium', drawability: 4 },
+    { word: '珊瑚', difficulty: 'medium', drawability: 4 },
+    { word: '极光', difficulty: 'medium', drawability: 4 },
+    { word: '流星', difficulty: 'medium', drawability: 4 },
+    { word: '日食', difficulty: 'medium', drawability: 4 },
+    { word: '月食', difficulty: 'medium', drawability: 4 },
+    { word: '悬崖', difficulty: 'medium', drawability: 4 },
+    { word: '峡谷', difficulty: 'medium', drawability: 4 },
+    { word: '溶洞', difficulty: 'medium', drawability: 2 },
+    { word: '喷泉', difficulty: 'medium', drawability: 4 },
+    { word: '冰川', difficulty: 'medium', drawability: 4 },
+    { word: '湿地', difficulty: 'medium', drawability: 4 },
+    { word: '红杉', difficulty: 'medium', drawability: 4 },
+    { word: '胡杨', difficulty: 'medium', drawability: 4 },
+    { word: '雪莲', difficulty: 'medium', drawability: 4 },
+    { word: '彼岸花', difficulty: 'medium', drawability: 4 },
+    { word: '龟背竹', difficulty: 'medium', drawability: 4 },
+    { word: '猪笼草', difficulty: 'medium', drawability: 4 },
+    { word: '捕蝇草', difficulty: 'medium', drawability: 4 },
+    { word: '含羞草', difficulty: 'medium', drawability: 4 },
+    { word: '爬山虎', difficulty: 'medium', drawability: 4 },
+    { word: '荆棘', difficulty: 'medium', drawability: 4 },
+    // hard (10)
+    { word: '海市蜃楼', difficulty: 'hard', drawability: 2 },
+    { word: '极昼', difficulty: 'hard', drawability: 2 },
+    { word: '龙吸水', difficulty: 'hard', drawability: 2 },
+    { word: '佛光', difficulty: 'hard', drawability: 2 },
+    { word: '蓝洞', difficulty: 'hard', drawability: 2 },
+    { word: '石林', difficulty: 'hard', drawability: 3 },
+    { word: '雅丹地貌', difficulty: 'hard', drawability: 2 },
+    { word: '钙化池', difficulty: 'hard', drawability: 2 },
+    { word: '盐湖', difficulty: 'hard', drawability: 3 },
+    { word: '冰舌', difficulty: 'hard', drawability: 3 },
+  ],
+
+  // === 交通工具 (65) ===
+  vehicles: [
+    // easy (30)
+    { word: '汽车', difficulty: 'easy', drawability: 4 },
+    { word: '卡车', difficulty: 'easy', drawability: 4 },
+    { word: '公交车', difficulty: 'easy', drawability: 4, synonyms: ['公共汽车'] },
+    { word: '地铁', difficulty: 'easy', drawability: 4 },
+    { word: '火车', difficulty: 'easy', drawability: 4 },
+    { word: '飞机', difficulty: 'easy', drawability: 4 },
+    { word: '直升机', difficulty: 'easy', drawability: 4 },
+    { word: '火箭', difficulty: 'easy', drawability: 4 },
+    { word: '轮船', difficulty: 'easy', drawability: 4 },
+    { word: '帆船', difficulty: 'easy', drawability: 4 },
+    { word: '摩托车', difficulty: 'easy', drawability: 4 },
+    { word: '自行车', difficulty: 'easy', drawability: 5, synonyms: ['单车'] },
+    { word: '电动车', difficulty: 'easy', drawability: 4 },
+    { word: '救护车', difficulty: 'easy', drawability: 4 },
+    { word: '消防车', difficulty: 'easy', drawability: 4 },
+    { word: '警车', difficulty: 'easy', drawability: 4 },
+    { word: '校车', difficulty: 'easy', drawability: 4 },
+    { word: '坦克', difficulty: 'easy', drawability: 4 },
+    { word: '潜水艇', difficulty: 'easy', drawability: 4, synonyms: ['潜艇'] },
+    { word: '热气球', difficulty: 'easy', drawability: 4 },
+    { word: '拖拉机', difficulty: 'easy', drawability: 4 },
+    { word: '挖掘机', difficulty: 'easy', drawability: 4 },
+    { word: '压路机', difficulty: 'easy', drawability: 4 },
+    { word: '推土机', difficulty: 'easy', drawability: 4 },
+    { word: '叉车', difficulty: 'easy', drawability: 4 },
+    { word: '雪橇', difficulty: 'easy', drawability: 4 },
+    { word: '缆车', difficulty: 'easy', drawability: 4 },
+    { word: '飞碟', difficulty: 'easy', drawability: 4, synonyms: ['UFO'] },
+    { word: '滑板', difficulty: 'easy', drawability: 4 },
+    { word: '马车', difficulty: 'easy', drawability: 4 },
+    // medium (25)
+    { word: '收割机', difficulty: 'medium', drawability: 3 },
+    { word: '吊车', difficulty: 'medium', drawability: 4 },
+    { word: '搅拌车', difficulty: 'medium', drawability: 3 },
+    { word: '油罐车', difficulty: 'medium', drawability: 3 },
+    { word: '垃圾车', difficulty: 'medium', drawability: 3 },
+    { word: '洒水车', difficulty: 'medium', drawability: 3 },
+    { word: '铲雪车', difficulty: 'medium', drawability: 3 },
+    { word: '卡丁车', difficulty: 'medium', drawability: 3 },
+    { word: '沙滩车', difficulty: 'medium', drawability: 3 },
+    { word: '独木舟', difficulty: 'medium', drawability: 4 },
+    { word: '快艇', difficulty: 'medium', drawability: 3 },
+    { word: '皮划艇', difficulty: 'medium', drawability: 3 },
+    { word: '冲浪板', difficulty: 'medium', drawability: 4 },
+    { word: '降落伞', difficulty: 'medium', drawability: 4 },
+    { word: '滑翔伞', difficulty: 'medium', drawability: 3 },
+    { word: '黄包车', difficulty: 'medium', drawability: 4 },
+    { word: '三轮车', difficulty: 'medium', drawability: 4 },
+    { word: '独轮车', difficulty: 'medium', drawability: 4 },
+    { word: '太空舱', difficulty: 'medium', drawability: 3 },
+    { word: '月球车', difficulty: 'medium', drawability: 3 },
+    { word: '破冰船', difficulty: 'medium', drawability: 3 },
+    { word: '气垫船', difficulty: 'medium', drawability: 3 },
+    { word: '水翼船', difficulty: 'medium', drawability: 3 },
+    { word: '平衡车', difficulty: 'medium', drawability: 4 },
+    { word: '热气球篮', difficulty: 'medium', drawability: 4 },
+    // hard (10)
+    { word: '飞艇', difficulty: 'hard', drawability: 3 },
+    { word: '滑翔机', difficulty: 'hard', drawability: 3 },
+    { word: '水上飞机', difficulty: 'hard', drawability: 3 },
+    { word: '磁悬浮列车', difficulty: 'hard', drawability: 3 },
+    { word: '缆索铁路', difficulty: 'hard', drawability: 3 },
+    { word: '管道列车', difficulty: 'hard', drawability: 3 },
+    { word: '扑翼机', difficulty: 'hard', drawability: 3 },
+    { word: '水陆两栖车', difficulty: 'hard', drawability: 3 },
+    { word: '弹射座椅', difficulty: 'hard', drawability: 3 },
+    { word: '雪地摩托', difficulty: 'hard', drawability: 3 },
+  ],
+
+  // === 体育运动 (55) ===
+  sports: [
+    // easy (20)
+    { word: '足球', difficulty: 'easy', drawability: 4 },
+    { word: '篮球', difficulty: 'easy', drawability: 4 },
+    { word: '网球', difficulty: 'easy', drawability: 4 },
+    { word: '羽毛球', difficulty: 'easy', drawability: 4 },
+    { word: '乒乓球', difficulty: 'easy', drawability: 4 },
+    { word: '游泳', difficulty: 'easy', drawability: 4 },
+    { word: '跑步', difficulty: 'easy', drawability: 4 },
+    { word: '拳击', difficulty: 'easy', drawability: 4 },
+    { word: '举重', difficulty: 'easy', drawability: 4 },
+    { word: '射箭', difficulty: 'easy', drawability: 4 },
+    { word: '击剑', difficulty: 'easy', drawability: 4 },
+    { word: '滑雪', difficulty: 'easy', drawability: 4 },
+    { word: '滑冰', difficulty: 'easy', drawability: 4 },
+    { word: '跳水', difficulty: 'easy', drawability: 4 },
+    { word: '体操', difficulty: 'easy', drawability: 4 },
+    { word: '自行车赛', difficulty: 'easy', drawability: 4 },
+    { word: '拔河', difficulty: 'easy', drawability: 4 },
+    { word: '跳绳', difficulty: 'easy', drawability: 4 },
+    { word: '踢毽子', difficulty: 'easy', drawability: 4 },
+    { word: '放风筝', difficulty: 'easy', drawability: 4 },
+    // medium (25)
+    { word: '排球', difficulty: 'medium', drawability: 3 },
+    { word: '高尔夫', difficulty: 'medium', drawability: 4 },
+    { word: '台球', difficulty: 'medium', drawability: 4 },
+    { word: '保龄球', difficulty: 'medium', drawability: 4 },
+    { word: '棒球', difficulty: 'medium', drawability: 4 },
+    { word: '垒球', difficulty: 'medium', drawability: 3 },
+    { word: '摔跤', difficulty: 'medium', drawability: 3 },
+    { word: '柔道', difficulty: 'medium', drawability: 3 },
+    { word: '跆拳道', difficulty: 'medium', drawability: 4 },
+    { word: '冲浪', difficulty: 'medium', drawability: 4 },
+    { word: '蹦极', difficulty: 'medium', drawability: 4 },
+    { word: '攀岩', difficulty: 'medium', drawability: 4 },
+    { word: '跳伞', difficulty: 'medium', drawability: 4 },
+    { word: '滑板运动', difficulty: 'medium', drawability: 4 },
+    { word: '冰壶', difficulty: 'medium', drawability: 4 },
+    { word: '蹦床', difficulty: 'medium', drawability: 4 },
+    { word: '马术', difficulty: 'medium', drawability: 4 },
+    { word: '马拉松', difficulty: 'medium', drawability: 3 },
+    { word: '铁人三项', difficulty: 'medium', drawability: 3 },
+    { word: '花样滑冰', difficulty: 'medium', drawability: 3 },
+    { word: '冰球', difficulty: 'medium', drawability: 3 },
+    { word: '水球', difficulty: 'medium', drawability: 3 },
+    { word: '帆板', difficulty: 'medium', drawability: 3 },
+    { word: '皮划艇赛', difficulty: 'medium', drawability: 3 },
+    { word: '高尔夫球', difficulty: 'medium', drawability: 4 },
+    // hard (10)
+    { word: '撑杆跳高', difficulty: 'hard', drawability: 3 },
+    { word: '链球', difficulty: 'hard', drawability: 3 },
+    { word: '现代五项', difficulty: 'hard', drawability: 2 },
+    { word: '花样游泳', difficulty: 'hard', drawability: 3 },
+    { word: '自由潜水', difficulty: 'hard', drawability: 2 },
+    { word: '翼装飞行', difficulty: 'hard', drawability: 3 },
+    { word: '速度滑雪', difficulty: 'hard', drawability: 2 },
+    { word: '悬崖跳水', difficulty: 'hard', drawability: 2 },
+    { word: '跑酷', difficulty: 'hard', drawability: 3 },
+    { word: '太极', difficulty: 'hard', drawability: 3 },
+  ],
+
+  // === 人物角色 (55) ===
+  characters: [
+    // easy (20)
+    { word: '医生', difficulty: 'easy', drawability: 4, synonyms: ['大夫'] },
+    { word: '护士', difficulty: 'easy', drawability: 4 },
+    { word: '消防员', difficulty: 'easy', drawability: 4 },
+    { word: '警察', difficulty: 'easy', drawability: 4 },
+    { word: '厨师', difficulty: 'easy', drawability: 4 },
+    { word: '画家', difficulty: 'easy', drawability: 4 },
+    { word: '海盗', difficulty: 'easy', drawability: 4 },
+    { word: '小丑', difficulty: 'easy', drawability: 4 },
+    { word: '圣诞老人', difficulty: 'easy', drawability: 4 },
+    { word: '宇航员', difficulty: 'easy', drawability: 4 },
+    { word: '潜水员', difficulty: 'easy', drawability: 4 },
+    { word: '快递员', difficulty: 'easy', drawability: 4 },
+    { word: '外卖员', difficulty: 'easy', drawability: 4 },
+    { word: '魔术师', difficulty: 'easy', drawability: 4 },
+    { word: '国王', difficulty: 'easy', drawability: 4 },
+    { word: '公主', difficulty: 'easy', drawability: 3 },
+    { word: '骑士', difficulty: 'easy', drawability: 4 },
+    { word: '忍者', difficulty: 'easy', drawability: 4 },
+    { word: '超人', difficulty: 'easy', drawability: 4 },
+    { word: '机器人', difficulty: 'easy', drawability: 4 },
+    // medium (25)
+    { word: '飞行员', difficulty: 'medium', drawability: 3 },
+    { word: '船长', difficulty: 'medium', drawability: 3 },
+    { word: '空姐', difficulty: 'medium', drawability: 3 },
+    { word: '矿工', difficulty: 'medium', drawability: 3 },
+    { word: '木匠', difficulty: 'medium', drawability: 3 },
+    { word: '电工', difficulty: 'medium', drawability: 3 },
+    { word: '渔夫', difficulty: 'medium', drawability: 3, synonyms: ['渔民'] },
+    { word: '摄影师', difficulty: 'medium', drawability: 3 },
+    { word: '科学家', difficulty: 'medium', drawability: 3 },
+    { word: '考古学家', difficulty: 'medium', drawability: 3 },
+    { word: '孙悟空', difficulty: 'medium', drawability: 4 },
+    { word: '唐僧', difficulty: 'medium', drawability: 3 },
+    { word: '猪八戒', difficulty: 'medium', drawability: 4 },
+    { word: '沙僧', difficulty: 'medium', drawability: 3 },
+    { word: '诸葛亮', difficulty: 'medium', drawability: 3 },
+    { word: '关羽', difficulty: 'medium', drawability: 4 },
+    { word: '哪吒', difficulty: 'medium', drawability: 4 },
+    { word: '葫芦娃', difficulty: 'medium', drawability: 4 },
+    { word: '黑猫警长', difficulty: 'medium', drawability: 3 },
+    { word: '奥特曼', difficulty: 'medium', drawability: 4 },
+    { word: '机器猫', difficulty: 'medium', drawability: 4 },
+    { word: '蜘蛛侠', difficulty: 'medium', drawability: 3 },
+    { word: '蝙蝠侠', difficulty: 'medium', drawability: 3 },
+    { word: '钢铁侠', difficulty: 'medium', drawability: 3 },
+    { word: '林黛玉', difficulty: 'medium', drawability: 3 },
+    // hard (10)
+    { word: '福尔摩斯', difficulty: 'hard', drawability: 3 },
+    { word: '哈利波特', difficulty: 'hard', drawability: 3 },
+    { word: '绿巨人', difficulty: 'hard', drawability: 4 },
+    { word: '雷神', difficulty: 'hard', drawability: 3 },
+    { word: '美国队长', difficulty: 'hard', drawability: 3 },
+    { word: '黑寡妇', difficulty: 'hard', drawability: 3 },
+    { word: '灭霸', difficulty: 'hard', drawability: 3 },
+    { word: '武松', difficulty: 'hard', drawability: 3 },
+    { word: '曹操', difficulty: 'hard', drawability: 3 },
+    { word: '张飞', difficulty: 'hard', drawability: 4 },
+  ],
 }
 
-export const WORD_CATEGORIES = Object.keys(WORDS) as (keyof typeof WORDS)[]
+export const TOTAL_WORD_COUNT = Object.values(WORDS).reduce((sum, entries) => sum + entries.length, 0)
 
-export function getRandomWord(
-  usedWords: Set<string>,
-  categories?: (keyof typeof WORDS)[],
-  sensitivity: SensitivityLevel | 'all' = 'all',
-  difficulties?: WordDifficulty[]
-): string | null {
-  let pools = categories ? categories.map((c) => WORDS[c]).flat() : Object.values(WORDS).flat()
-
-  if (sensitivity !== 'all') {
-    const allowedCategories = (Object.entries(WORD_SENSITIVITY) as [keyof typeof WORDS, SensitivityLevel][])
-      .filter(([, level]) => level === sensitivity || level === 'safe')
-      .map(([category]) => category)
-    pools = pools.filter((word) => {
-      const cat = wordToCategory[word]
-      return cat !== undefined && allowedCategories.includes(cat)
-    })
+const wordToCategoryMap: Record<string, WordCategory> = {}
+for (const [category, entries] of Object.entries(WORDS)) {
+  for (const entry of entries) {
+    wordToCategoryMap[entry.word] = category as WordCategory
   }
-
-  if (difficulties && difficulties.length > 0) {
-    pools = pools.filter((word) => difficulties.includes(getWordDifficulty(word)))
-  }
-
-  const available = pools.filter((w) => !usedWords.has(w))
-
-  if (available.length > 0) {
-    return available[Math.floor(randomBytes(4).readUInt32LE(0) / 0xffffffff * available.length)]
-  }
-
-  // Fallback: if all words used, reset and pick randomly
-  // This handles edge case where usedWords size >= pool size
-  if (pools.length > 0) {
-    return pools[Math.floor(randomBytes(4).readUInt32LE(0) / 0xffffffff * pools.length)]
-  }
-
-  return null
 }
 
-export function getRandomWords(count: number, categories?: (keyof typeof WORDS)[]): string[] {
-  const pools = categories ? categories.map((c) => WORDS[c]).flat() : Object.values(WORDS).flat()
-  const shuffled = shuffleArray(pools)
-  return shuffled.slice(0, count)
+export function getWordCategory(word: string): WordCategory | null {
+  return wordToCategoryMap[word] ?? null
 }
-
-export const TOTAL_WORD_COUNT = Object.values(WORDS).flat().length

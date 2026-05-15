@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcrypt'
-import type { Player, Room, RoomErrorPayload } from '@draw-and-guess/shared'
-import { ErrorCode, SERVER_EVENTS } from '@draw-and-guess/shared'
+import type { Player, Room, RoomErrorPayload, RoomWordConfig } from '@draw-and-guess/shared'
+import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG } from '@draw-and-guess/shared'
 
 const BCRYPT_ROUNDS = 8
 
@@ -22,7 +22,7 @@ function createPlayer(nickname: string, isOwner = false): Player {
   }
 }
 
-function createRoom(name: string, maxPlayers: number, password: string, owner: Player): Room {
+function createRoom(name: string, maxPlayers: number, password: string, owner: Player, wordConfig: RoomWordConfig): Room {
   return {
     id: randomUUID(),
     code: name,
@@ -36,6 +36,7 @@ function createRoom(name: string, maxPlayers: number, password: string, owner: P
     totalRounds: 10,
     roundStartTime: null,
     roundDuration: 90,
+    wordConfig,
   }
 }
 
@@ -61,7 +62,8 @@ export class RoomManager {
     nickname: string,
     roomName: string,
     maxPlayers: number,
-    password: string
+    password: string,
+    wordConfig?: RoomWordConfig
   ): Promise<{ room: Room; player: Player }> {
     const trimmedName = roomName.trim()
     if (!trimmedName) {
@@ -84,7 +86,7 @@ export class RoomManager {
 
     const owner = createPlayer(nickname, true)
     const hashedPassword = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : ''
-    const room = createRoom(trimmedName, maxPlayers, hashedPassword, owner)
+    const room = createRoom(trimmedName, maxPlayers, hashedPassword, owner, wordConfig ?? DEFAULT_WORD_CONFIG)
 
     this.rooms.set(room.id, room)
     this.nameToRoomId.set(normalizedName, room.id)
@@ -190,6 +192,10 @@ export class RoomManager {
 
     if (room.players.length < 2) {
       return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '至少需要2名玩家才能开始游戏' } }
+    }
+
+    if (room.wordConfig.useOnlyCustomWords && room.wordConfig.customWords.length < 5) {
+      return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '仅使用自定义词模式至少需要5个词汇' } }
     }
 
     room.state = 'playing'
@@ -353,6 +359,7 @@ export class RoomManager {
       })),
       currentRound: room.currentRound,
       totalRounds: room.totalRounds,
+      wordConfig: room.wordConfig,
     }
   }
 

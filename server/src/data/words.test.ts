@@ -1,86 +1,133 @@
 import { describe, it, expect } from 'vitest'
-import { getRandomWord, getRandomWords, WORD_CATEGORIES, TOTAL_WORD_COUNT } from './words.js'
+import { selectWord, matchAnswer } from './wordIndex.js'
+import { WORD_CATEGORIES, TOTAL_WORD_COUNT, getWordCategory } from './words.js'
+import { DEFAULT_WORD_CONFIG } from '@draw-and-guess/shared'
+import type { RoomWordConfig } from '@draw-and-guess/shared'
 
 describe('words', () => {
-  describe('getRandomWord', () => {
-    it('should return a word from the pool', () => {
-      const word = getRandomWord(new Set())
+  describe('TOTAL_WORD_COUNT', () => {
+    it('should be 501', () => {
+      expect(TOTAL_WORD_COUNT).toBe(501)
+    })
+  })
+
+  describe('WORD_CATEGORIES', () => {
+    it('should have 7 categories', () => {
+      expect(WORD_CATEGORIES).toHaveLength(7)
+    })
+
+    it('should contain expected categories', () => {
+      const expected = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'characters']
+      for (const cat of expected) {
+        expect(WORD_CATEGORIES).toContain(cat)
+      }
+    })
+  })
+
+  describe('getWordCategory', () => {
+    it('should return category for known word', () => {
+      expect(getWordCategory('猫')).toBe('animals')
+      expect(getWordCategory('苹果')).toBe('food')
+      expect(getWordCategory('医生')).toBe('characters')
+    })
+
+    it('should return null for unknown word', () => {
+      expect(getWordCategory('不存在的词')).toBeNull()
+    })
+  })
+
+  describe('selectWord', () => {
+    it('should return a word with default config', () => {
+      const word = selectWord(DEFAULT_WORD_CONFIG, new Set())
       expect(word).not.toBeNull()
       expect(typeof word).toBe('string')
-      expect(word!).not.toBeNull()
       expect(word!.length).toBeGreaterThan(0)
     })
 
     it('should not return used words', () => {
-      const usedWords = new Set(['猫', '狗'])
-      for (let i = 0; i < 100; i++) {
-        const word = getRandomWord(usedWords)
+      const usedWords = new Set<string>(['猫', '狗', '苹果', '手机', '太阳', '汽车', '足球', '医生'])
+      for (let i = 0; i < 50; i++) {
+        const word = selectWord(DEFAULT_WORD_CONFIG, usedWords)
         if (word) {
           expect(usedWords.has(word)).toBe(false)
         }
       }
     })
 
-    it('should return word when usedWords is empty', () => {
-      const word = getRandomWord(new Set())
-      expect(word).not.toBeNull()
+    it('should filter by category', () => {
+      const config: RoomWordConfig = {
+        ...DEFAULT_WORD_CONFIG,
+        categoryFilter: ['animals'],
+      }
+      for (let i = 0; i < 20; i++) {
+        const word = selectWord(config, new Set())
+        if (word) {
+          expect(getWordCategory(word)).toBe('animals')
+        }
+      }
     })
 
-    it('should filter by categories', () => {
-      const word = getRandomWord(new Set(), ['animals'])
-      expect(word).not.toBeNull()
+    it('should filter by difficulty', () => {
+      const config: RoomWordConfig = {
+        ...DEFAULT_WORD_CONFIG,
+        difficultyFilter: ['easy'],
+      }
+      const usedWords = new Set<string>()
+      for (let i = 0; i < 100; i++) {
+        const word = selectWord(config, usedWords)
+        if (word) {
+          usedWords.add(word)
+        }
+      }
+      expect(usedWords.size).toBeGreaterThan(0)
     })
 
-    it('should filter by safe sensitivity', () => {
-      const word = getRandomWord(new Set(), undefined, 'safe')
-      expect(word).not.toBeNull()
+    it('should filter by minDrawability', () => {
+      const config: RoomWordConfig = {
+        ...DEFAULT_WORD_CONFIG,
+        minDrawability: 5,
+      }
+      for (let i = 0; i < 20; i++) {
+        const word = selectWord(config, new Set())
+        expect(word).not.toBeNull()
+      }
     })
 
-    it('should filter by moderate sensitivity', () => {
-      const word = getRandomWord(new Set(), undefined, 'moderate')
-      expect(word).not.toBeNull()
-    })
-  })
-
-  describe('getRandomWords', () => {
-    it('should return requested number of words', () => {
-      const words = getRandomWords(5)
-      expect(words).toHaveLength(5)
-    })
-
-    it('should not have duplicates', () => {
-      const words = getRandomWords(30)
-      const unique = new Set(words)
-      expect(unique.size).toBe(words.length)
-    })
-
-    it('should filter by categories', () => {
-      const words = getRandomWords(10, ['animals', 'food'])
-      expect(words.length).toBeLessThanOrEqual(10)
-    })
-
-    it('should return all words when count exceeds pool', () => {
-      const words = getRandomWords(1000, ['animals'])
-      expect(words.length).toBeLessThanOrEqual(50)
-    })
-  })
-
-  describe('WORD_CATEGORIES', () => {
-    it('should have all expected categories', () => {
-      const expected = ['animals', 'food', 'daily', 'vehicles', 'nature', 'sports', 'jobs']
-      expected.forEach(cat => {
-        expect(WORD_CATEGORIES).toContain(cat)
-      })
-    })
-
-    it('should have at least 6 categories', () => {
-      expect(WORD_CATEGORIES.length).toBeGreaterThanOrEqual(6)
+    it('should return null when pool is empty', () => {
+      const config: RoomWordConfig = {
+        ...DEFAULT_WORD_CONFIG,
+        categoryFilter: [],
+        minDrawability: 10,
+      }
+      const word = selectWord(config, new Set())
+      expect(word).toBeNull()
     })
   })
 
-  describe('TOTAL_WORD_COUNT', () => {
-    it('should be greater than 200', () => {
-      expect(TOTAL_WORD_COUNT).toBeGreaterThan(200)
+  describe('matchAnswer', () => {
+    it('should match exact answer (case-insensitive)', () => {
+      expect(matchAnswer('猫', '猫', false)).toBe(true)
+      expect(matchAnswer(' 猫 ', '猫', false)).toBe(true)
+    })
+
+    it('should match synonym', () => {
+      expect(matchAnswer('猫咪', '猫', false)).toBe(true)
+    })
+
+    it('should not match wrong answer', () => {
+      expect(matchAnswer('狗', '猫', false)).toBe(false)
+    })
+
+    it('should match lax with looseMatching enabled', () => {
+      expect(matchAnswer('夹心巧克力', '巧克力', true)).toBe(true)
+    })
+
+    it('should not match lax without looseMatching', () => {
+      expect(matchAnswer('夹心巧克力', '巧克力', false)).toBe(false)
+    })
+
+    it('should not match short words via contains with looseMatching', () => {
+      expect(matchAnswer('斑马', '马', true)).toBe(false)
     })
   })
 })

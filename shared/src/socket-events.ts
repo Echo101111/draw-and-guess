@@ -12,6 +12,7 @@ export const CLIENT_EVENTS = {
   CHAT_MESSAGE: 'c_chat_message',
   RESTORE_SESSION: 'c_restore_session',
   JOIN_AS_SPECTATOR: 'c_join_as_spectator',
+  UPDATE_WORD_CONFIG: 'c_update_word_config',
 } as const
 
 // Server → Client events
@@ -33,6 +34,7 @@ export const SERVER_EVENTS = {
   CHAT_MESSAGE: 's_chat_message',
   SESSION_RESTORED: 's_session_restored',
   SPECTATOR_JOINED: 's_spectator_joined',
+  WORD_CONFIG_UPDATED: 's_word_config_updated',
 } as const
 
 export type ClientToServerEvents = typeof CLIENT_EVENTS

@@ -51,7 +51,6 @@ export const useGameStore = defineStore('game', () => {
   const wordLength = ref(0)
   const wordCategory = ref<string | undefined>(undefined)
   const recentGuessers = ref<Array<{ playerId: string; nickname: string }>>([])
-  const categoryHintShown = ref(false)
 
   const transitionData = ref<{
     word: string
@@ -70,15 +69,7 @@ export const useGameStore = defineStore('game', () => {
     return `${len}个字`
   })
   const showCategoryHint = computed(() => {
-    if (!wordCategory.value) return false
-    if (state.value !== 'playing') return false
-    if (categoryHintShown.value) return true
-    const elapsed = totalTime.value - timeLeft.value
-    if (elapsed >= totalTime.value / 2) {
-      categoryHintShown.value = true
-      return true
-    }
-    return false
+    return !!wordCategory.value && state.value === 'playing'
   })
 
   let timerInterval: ReturnType<typeof setInterval> | null = null
@@ -119,7 +110,6 @@ export const useGameStore = defineStore('game', () => {
       wordLength.value = data.wordLength ?? 0
       wordCategory.value = data.wordCategory ?? undefined
       recentGuessers.value = []
-      categoryHintShown.value = false
       startLocalTimer()
 
       if (data.drawer.id === roomStore.currentPlayerId) {
@@ -144,7 +134,6 @@ export const useGameStore = defineStore('game', () => {
       useCanvasStore().clearCanvas()
       hasGuessedCorrectly.value = false
       recentGuessers.value = []
-      categoryHintShown.value = false
       myRole.value = 'drawer'
       startLocalTimer()
     })
@@ -307,7 +296,6 @@ export const useGameStore = defineStore('game', () => {
     wordLength.value = 0
     wordCategory.value = undefined
     recentGuessers.value = []
-    categoryHintShown.value = false
   }
 
   return {
@@ -331,7 +319,6 @@ export const useGameStore = defineStore('game', () => {
     wordCategory,
     wordPlaceholders,
     showCategoryHint,
-    categoryHintShown,
     recentGuessers,
     setupSocketListeners,
     submitAnswer,

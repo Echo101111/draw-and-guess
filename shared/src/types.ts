@@ -13,6 +13,36 @@ export interface Player {
 // === Room ===
 export type RoomState = 'lobby' | 'playing' | 'gameover'
 
+export type WordDifficulty = 'easy' | 'medium' | 'hard'
+
+export type WordCategory = 'animals' | 'food' | 'daily' | 'nature' | 'vehicles' | 'sports' | 'characters'
+
+export interface CustomWord {
+  word: string
+  category?: string
+  difficulty?: WordDifficulty
+}
+
+export interface RoomWordConfig {
+  categoryFilter: WordCategory[]
+  difficultyFilter: WordDifficulty[]
+  minDrawability: number
+  customWords: CustomWord[]
+  useOnlyCustomWords: boolean
+  looseMatching: boolean
+  preset: string | null
+}
+
+export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
+  categoryFilter: ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'characters'],
+  difficultyFilter: [],
+  minDrawability: 1,
+  customWords: [],
+  useOnlyCustomWords: false,
+  looseMatching: false,
+  preset: null,
+}
+
 export interface Room {
   id: string
   code: string
@@ -26,6 +56,7 @@ export interface Room {
   totalRounds: number
   roundStartTime: number | null
   roundDuration: number
+  wordConfig: RoomWordConfig
 }
 
 // === Drawing ===
@@ -77,6 +108,7 @@ export enum ErrorCode {
   NOT_ROOM_OWNER = 'NOT_ROOM_OWNER',
   GAME_NOT_IN_LOBBY = 'GAME_NOT_IN_LOBBY',
   RATE_LIMITED = 'RATE_LIMITED',
+  INVALID_WORD_CONFIG = 'INVALID_WORD_CONFIG',
 }
 
 export interface RoomErrorPayload {
@@ -85,4 +117,4 @@ export interface RoomErrorPayload {
 }
 
 // === Word Sensitivity ===
-export type SensitivityLevel = 'safe' | 'moderate'
+// Removed — all words are now 'safe', no sensitivity filtering needed

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getSocket, connectSocket, saveSession, clearSession, waitForConnection } from '@/composables/useSocket'
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
+import type { RoomWordConfig } from '@draw-and-guess/shared'
 
 interface RoomPlayer {
   id: string
@@ -20,6 +21,7 @@ interface RoomData {
   players: RoomPlayer[]
   currentRound: number
   totalRounds: number
+  wordConfig: RoomWordConfig
 }
 
 export const useRoomStore = defineStore('room', () => {
@@ -55,6 +57,15 @@ export const useRoomStore = defineStore('room', () => {
           players: [],
           currentRound: 0,
           totalRounds: 10,
+          wordConfig: {
+            categoryFilter: [],
+            difficultyFilter: [],
+            minDrawability: 1,
+            customWords: [],
+            useOnlyCustomWords: false,
+            looseMatching: false,
+            preset: null,
+          },
         }
       }
       currentPlayerId.value = data.playerId
@@ -107,6 +118,13 @@ export const useRoomStore = defineStore('room', () => {
       error.value = null
       isSpectator.value = true
     })
+
+    socket.off(SERVER_EVENTS.WORD_CONFIG_UPDATED)
+    socket.on(SERVER_EVENTS.WORD_CONFIG_UPDATED, (data: { wordConfig: RoomWordConfig }) => {
+      if (room.value) {
+        room.value.wordConfig = data.wordConfig
+      }
+    })
   }
 
   function waitForResponse(roomEvent: string, timeoutMs = 15000): Promise<void> {
@@ -133,7 +151,7 @@ export const useRoomStore = defineStore('room', () => {
 
   const createRoom = async (
     nickname: string,
-    options?: { roomName?: string; maxPlayers?: number; password?: string }
+    options?: { roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig }
   ) => {
     connectionState.value = 'connecting'
     error.value = null
@@ -156,6 +174,7 @@ export const useRoomStore = defineStore('room', () => {
       roomName: options?.roomName,
       maxPlayers: options?.maxPlayers,
       password: options?.password,
+      wordConfig: options?.wordConfig,
     })
     await waitForResponse(SERVER_EVENTS.ROOM_CREATED)
   }
@@ -232,6 +251,13 @@ export const useRoomStore = defineStore('room', () => {
     error.value = null
   }
 
+  const updateWordConfig = (updates: Partial<RoomWordConfig>, customWordsRaw?: string) => {
+    const socket = getSocket()
+    if (socket?.connected) {
+      socket.emit(CLIENT_EVENTS.UPDATE_WORD_CONFIG, { wordConfig: updates, customWordsRaw })
+    }
+  }
+
   return {
     room,
     currentPlayerId,
@@ -249,5 +275,6 @@ export const useRoomStore = defineStore('room', () => {
     kickPlayer,
     startGame,
     clearError,
+    updateWordConfig,
   }
 })

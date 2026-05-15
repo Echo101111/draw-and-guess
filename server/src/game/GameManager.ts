@@ -1,7 +1,8 @@
 import { SERVER_EVENTS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
-import { getRandomWord, getDifficultyForRound, getWordCategory, CATEGORY_DISPLAY_NAMES } from '../data/words.js'
-import type { Room, Player, Point, SensitivityLevel, Stroke } from '@draw-and-guess/shared'
+import { getWordCategory, CATEGORY_DISPLAY_NAMES } from '../data/words.js'
+import { selectWord, matchAnswer } from '../data/wordIndex.js'
+import type { Room, Player, Point, Stroke } from '@draw-and-guess/shared'
 
 const SCORE_BASE = 100
 const SCORE_DRAWER_BONUS = 50
@@ -33,9 +34,7 @@ export class GameManager {
       return false
     }
 
-    const sensitivityLevel: SensitivityLevel = room.players.length < 4 ? 'safe' : 'moderate'
-    const difficulties = getDifficultyForRound(room.currentRound, room.totalRounds)
-    const word = getRandomWord(this.getUsedWords(roomId), undefined, sensitivityLevel, difficulties)
+    const word = selectWord(room.wordConfig, this.getUsedWords(roomId))
     if (!word) {
       console.log(`[Round] startRound failed: no word available for room=${roomId}`)
       this.endGame(roomId)
@@ -82,6 +81,7 @@ export class GameManager {
       totalRounds: room.totalRounds,
       word,
       timeLeft: room.roundDuration,
+      wordLength: word.length,
       wordCategory: wordCategoryName,
     })
 
@@ -121,10 +121,7 @@ export class GameManager {
     }
     this.lastAnswerTime.set(playerId, now)
 
-    const normalizedAnswer = answer.trim().toLowerCase()
-    const normalizedWord = room.currentWord.toLowerCase()
-
-    if (normalizedAnswer !== normalizedWord) {
+    if (!matchAnswer(answer, room.currentWord, room.wordConfig.looseMatching)) {
       return { correct: false }
     }
 
