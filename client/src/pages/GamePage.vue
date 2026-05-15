@@ -590,7 +590,6 @@ function refreshPage() {
 .toolbar-container,
 .answer-container {
   width: 100%;
-  max-width: 800px;
   display: flex;
   justify-content: center;
   flex-shrink: 0;

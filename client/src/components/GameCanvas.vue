@@ -262,7 +262,7 @@ function syncExistingStrokes() {
 onMounted(() => {
   if (!canvasRef.value || !containerRef.value) return
 
-  const initialWidth = Math.min(containerRef.value.clientWidth, 800)
+  const initialWidth = containerRef.value.clientWidth
   const initialHeight = Math.floor(initialWidth / CANVAS_RATIO)
 
   fabricCanvas = new fabric.Canvas(canvasRef.value, {
@@ -321,7 +321,6 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   width: 100%;
-  max-width: 800px;
   box-sizing: border-box;
   margin: 0 auto;
   border: 2px solid var(--color-border);

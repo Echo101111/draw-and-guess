@@ -38,12 +38,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 
 const gameStore = useGameStore()
 const inputText = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
+let intersectionObserver: IntersectionObserver | null = null
 
 function handleSend() {
   if (!inputText.value.trim()) return
@@ -57,17 +58,38 @@ function formatTime(timestamp: number): string {
 }
 
 function scrollToBottom() {
-  if (messagesRef.value) {
-    messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-  }
+  if (!messagesRef.value) return
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (messagesRef.value) {
+        messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+      }
+    })
+  })
 }
 
 onMounted(() => {
   nextTick(scrollToBottom)
+
+  if (messagesRef.value) {
+    intersectionObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          scrollToBottom()
+        }
+      }
+    })
+    intersectionObserver.observe(messagesRef.value)
+  }
+})
+
+onUnmounted(() => {
+  intersectionObserver?.disconnect()
+  intersectionObserver = null
 })
 
 watch(() => gameStore.chatMessages.length, () => {
-  nextTick(scrollToBottom)
+  scrollToBottom()
 })
 </script>
 
@@ -106,6 +128,18 @@ watch(() => gameStore.chatMessages.length, () => {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  overflow-anchor: auto;
+}
+
+.messages::-webkit-scrollbar {
+  width: 6px;
+}
+.messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+.messages::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
 
 .message {
@@ -114,6 +148,7 @@ watch(() => gameStore.chatMessages.length, () => {
   font-size: 0.85rem;
   line-height: 1.4;
   background: var(--color-bg);
+  flex-shrink: 0;
 }
 
 .message.is-system {
