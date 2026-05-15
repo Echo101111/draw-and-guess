@@ -2,7 +2,8 @@ import { SERVER_EVENTS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { getWordCategory, CATEGORY_DISPLAY_NAMES } from '../data/words.js'
 import { selectWord, matchAnswer } from '../data/wordIndex.js'
-import type { Room, Player, Point, Stroke } from '@draw-and-guess/shared'
+import type { Room, Player, Point, Stroke, CustomWord } from '@draw-and-guess/shared'
+import type { WordCategory } from '../data/words.js'
 
 const SCORE_BASE = 100
 const SCORE_DRAWER_BONUS = 50
@@ -23,6 +24,7 @@ export class GameManager {
   private currentDrawerId = new Map<string, string>()
   private lastDrawTime = new Map<string, number>()
   private lastAnswerTime = new Map<string, number>()
+  private customWordOrder = new Map<string, CustomWord[]>()
   private static readonly DRAW_RATE_LIMIT_MS = 8 // ~125 events/s per player
   private static readonly ANSWER_COOLDOWN_MS = 200
 
@@ -36,19 +38,42 @@ export class GameManager {
       return false
     }
 
-    const word = selectWord(room.wordConfig, this.getUsedWords(roomId))
-    if (!word) {
-      console.log(`[Round] startRound failed: no word available for room=${roomId}`)
-      this.endGame(roomId)
-      return false
+    let word: string
+    let wordCategoryName: string | undefined
+
+    if (room.wordConfig.customWords.length > 0) {
+      if (!this.customWordOrder.has(roomId)) {
+        const shuffled = [...room.wordConfig.customWords]
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+        }
+        this.customWordOrder.set(roomId, shuffled)
+      }
+      const order = this.customWordOrder.get(roomId)!
+      const entry = order[room.currentRound - 1]
+      if (!entry) {
+        console.log(`[Round] custom word out of bounds for room=${roomId}, round=${room.currentRound}`)
+        this.endGame(roomId)
+        return false
+      }
+      word = entry.word
+      wordCategoryName = CATEGORY_DISPLAY_NAMES[entry.category as WordCategory] ?? (entry.category || undefined)
+    } else {
+      const selected = selectWord(this.getUsedWords(roomId))
+      if (!selected) {
+        console.log(`[Round] startRound failed: no word available for room=${roomId}`)
+        this.endGame(roomId)
+        return false
+      }
+      word = selected
+      this.getUsedWords(roomId).add(word)
+      const wc = getWordCategory(word)
+      wordCategoryName = wc ? CATEGORY_DISPLAY_NAMES[wc] : undefined
     }
 
-    this.getUsedWords(roomId).add(word)
     room.currentWord = word
     room.roundStartTime = Date.now()
-
-    const wordCategory = getWordCategory(word)
-    const wordCategoryName = wordCategory ? CATEGORY_DISPLAY_NAMES[wordCategory] : undefined
 
     const drawerData = {
       id: drawer.id,
@@ -323,6 +348,7 @@ export class GameManager {
     this.strokeHistory.delete(roomId)
     this.strokeSeqIndex.delete(roomId)
     this.currentDrawerId.delete(roomId)
+    this.customWordOrder.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)
     roomManager.resetGameState(roomId)
   }

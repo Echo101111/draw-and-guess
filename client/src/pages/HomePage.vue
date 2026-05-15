@@ -106,56 +106,26 @@
           </button>
           <div v-if="showWordConfig" class="word-config-panel">
             <div class="word-config-field">
-              <label>词库预设</label>
-              <select v-model="selectedPreset" @change="applyPreset">
-                <option value="">默认（全部启用）</option>
-                <option v-for="p in WORD_PRESETS" :key="p.name" :value="p.name">{{ p.label }}</option>
-              </select>
-            </div>
-
-            <div class="word-config-field">
-              <label>分类选择</label>
-              <div class="checkbox-group">
-                <label v-for="cat of WORD_CATEGORIES_DISPLAY" :key="cat.key" class="checkbox-label">
-                  <input type="checkbox" :value="cat.key" v-model="wordConfig.categoryFilter" />
-                  {{ cat.label }}
-                </label>
+              <label>自定义词汇（留空则使用系统词库，配置 N 个词 = N 轮）</label>
+              <div class="custom-words-list">
+                <div v-for="(item, index) in editableWords" :key="index" class="custom-word-row">
+                  <input v-model="item.word" type="text" placeholder="词汇" maxlength="20" class="word-input" />
+                  <select v-model="item.category" class="cat-select">
+                    <option v-for="opt in CATEGORY_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                    <option value="__custom__">自定义...</option>
+                  </select>
+                  <input v-if="item.category === '__custom__'" v-model="item.customText" type="text" placeholder="输入分类" class="cat-input" />
+                  <button class="btn-remove-word" @click="removeWord(index)" :disabled="editableWords.length <= 1">✕</button>
+                </div>
+              </div>
+              <button type="button" class="btn-add-word" @click="addWord">+ 添加词汇</button>
+              <div v-if="editableWords.filter(w => w.word.trim()).length > 0" class="word-count-hint">
+                共 {{ editableWords.filter(w => w.word.trim()).length }} 个词汇 → {{ editableWords.filter(w => w.word.trim()).length }} 轮
               </div>
             </div>
-
-            <div class="word-config-field">
-              <label>难度范围</label>
-              <div class="checkbox-group inline">
-                <label class="checkbox-label"><input type="checkbox" value="easy" v-model="wordConfig.difficultyFilter" /> 简单</label>
-                <label class="checkbox-label"><input type="checkbox" value="medium" v-model="wordConfig.difficultyFilter" /> 中等</label>
-                <label class="checkbox-label"><input type="checkbox" value="hard" v-model="wordConfig.difficultyFilter" /> 困难</label>
-              </div>
-            </div>
-
-            <div class="word-config-field">
-              <label>可画性要求：{{ wordConfig.minDrawability }}</label>
-              <div class="slider-wrap">
-                <span class="slider-label">抽象</span>
-                <input type="range" v-model.number="wordConfig.minDrawability" min="1" max="5" step="1" />
-                <span class="slider-label">具象</span>
-              </div>
-            </div>
-
-            <div class="word-config-field">
-              <label>自定义词汇（每行一个或逗号分隔，至少5个）</label>
-              <textarea v-model="customWordsRaw" rows="3" placeholder="例如：奥特曼, 皮卡丘, 柯南, 路飞, 鸣人" />
-            </div>
-
             <div class="word-config-field">
               <label class="checkbox-label">
-                <input type="checkbox" v-model="wordConfig.useOnlyCustomWords" />
-                仅使用自定义词
-              </label>
-            </div>
-
-            <div class="word-config-field">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="wordConfig.looseMatching" />
+                <input type="checkbox" v-model="looseMatchingLocal" />
                 宽松匹配（接受同义词/近似答案）
               </label>
             </div>
@@ -231,23 +201,15 @@ import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { connectSocket, clearSession } from '@/composables/useSocket'
-import type { RoomWordConfig } from '@draw-and-guess/shared'
 
-const WORD_CATEGORIES_DISPLAY = [
-  { key: 'animals', label: '动物' } as const,
-  { key: 'food', label: '食物' } as const,
-  { key: 'daily', label: '日常物品' } as const,
-  { key: 'nature', label: '自然植物' } as const,
-  { key: 'vehicles', label: '交通工具' } as const,
-  { key: 'sports', label: '体育运动' } as const,
-  { key: 'characters', label: '人物角色' } as const,
-]
-
-const WORD_PRESETS = [
-  { name: 'concrete', label: '万物具象', config: { minDrawability: 4, difficultyFilter: ['easy', 'medium'] } as Partial<RoomWordConfig> },
-  { name: 'hardcore', label: '高手挑战', config: { minDrawability: 1, difficultyFilter: ['medium', 'hard'] } as Partial<RoomWordConfig> },
-  { name: 'kids', label: '亲子模式', config: { minDrawability: 5, difficultyFilter: ['easy'], categoryFilter: ['animals', 'food', 'daily'] } as Partial<RoomWordConfig> },
-  { name: 'foodie', label: '美食特辑', config: { categoryFilter: ['food'], minDrawability: 3 } as Partial<RoomWordConfig> },
+const CATEGORY_OPTIONS = [
+  { value: 'animals', label: '动物' },
+  { value: 'food', label: '食物' },
+  { value: 'daily', label: '日常物品' },
+  { value: 'nature', label: '自然植物' },
+  { value: 'vehicles', label: '交通工具' },
+  { value: 'sports', label: '体育运动' },
+  { value: 'characters', label: '人物角色' },
 ]
 
 const router = useRouter()
@@ -321,45 +283,18 @@ const maxPlayers = ref(50)
 const password = ref('')
 const isLoading = ref(false)
 const showWordConfig = ref(false)
-const selectedPreset = ref('')
-const customWordsRaw = ref('')
+const looseMatchingLocal = ref(false)
 
-const ALL_CATEGORIES: RoomWordConfig['categoryFilter'] = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'characters']
+const editableWords = ref<{ word: string; category: string; customText: string }[]>([
+  { word: '', category: 'animals', customText: '' },
+])
 
-const wordConfig = ref<RoomWordConfig>({
-  categoryFilter: ALL_CATEGORIES,
-  difficultyFilter: [],
-  minDrawability: 1,
-  customWords: [],
-  useOnlyCustomWords: false,
-  looseMatching: false,
-  preset: null,
-})
+function addWord() {
+  editableWords.value.push({ word: '', category: 'animals', customText: '' })
+}
 
-function applyPreset() {
-  const preset = WORD_PRESETS.find(p => p.name === selectedPreset.value)
-  if (!preset) {
-    wordConfig.value = {
-      categoryFilter: ALL_CATEGORIES,
-      difficultyFilter: [],
-      minDrawability: 1,
-      customWords: [],
-      useOnlyCustomWords: false,
-      looseMatching: false,
-      preset: null,
-    }
-    return
-  }
-  wordConfig.value = {
-    categoryFilter: ALL_CATEGORIES,
-    difficultyFilter: [],
-    minDrawability: 1,
-    customWords: [],
-    useOnlyCustomWords: false,
-    looseMatching: false,
-    preset: selectedPreset.value,
-    ...preset.config,
-  }
+function removeWord(index: number) {
+  editableWords.value.splice(index, 1)
 }
 
 const errorMessage = ref<string | null>(null)
@@ -383,19 +318,23 @@ async function handleCreate() {
   if (!nickname.value.trim()) return
   isLoading.value = true
   errorMessage.value = null
-  const config = { ...wordConfig.value }
-  if (customWordsRaw.value.trim()) {
-    config.customWords = customWordsRaw.value
-      .split(/[\n,]/)
-      .map((w) => w.trim())
-      .filter((w) => w.length > 0)
-      .map((word) => ({ word }))
-  }
+
+  const customWords = editableWords.value
+    .filter(w => w.word.trim())
+    .map(w => ({
+      word: w.word.trim(),
+      category: w.category === '__custom__' ? w.customText.trim() : w.category,
+    }))
+    .filter(w => w.word && w.category)
+
   await roomStore.createRoom(nickname.value.trim(), {
     roomName: createRoomName.value.trim() || undefined,
     maxPlayers: maxPlayers.value,
     password: password.value || undefined,
-    wordConfig: config,
+    wordConfig: {
+      customWords,
+      looseMatching: looseMatchingLocal.value,
+    },
   })
 }
 
@@ -963,60 +902,103 @@ onMounted(() => {
   color: var(--color-text);
 }
 
-.checkbox-group {
+.custom-words-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.8rem;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
-.checkbox-group.inline {
-  gap: 0.5rem 1rem;
-}
-
-.checkbox-label {
-  display: inline-flex !important;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.76rem !important;
-  color: var(--color-text) !important;
-  font-weight: 400 !important;
-  cursor: pointer;
-}
-
-.checkbox-label input[type="checkbox"] {
-  width: auto;
-  margin: 0;
-  accent-color: var(--color-accent);
-}
-
-.slider-wrap {
+.custom-word-row {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem;
+  align-items: stretch;
 }
 
-.slider-label {
-  font-size: 0.68rem;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-.slider-wrap input[type="range"] {
-  flex: 1;
-  accent-color: var(--color-accent);
-  height: 4px;
-}
-
-.word-config-panel textarea {
-  width: 100%;
-  padding: 0.4rem 0.5rem;
+.word-input {
+  flex: 2;
+  min-width: 0;
+  padding: 0.35rem 0.4rem;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 0.76rem;
-  font-family: inherit;
-  resize: vertical;
+}
+
+.cat-select {
+  flex: 1.5;
+  min-width: 0;
+  padding: 0.35rem 0.3rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.74rem;
   background: #fff;
+}
+
+.cat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.74rem;
+}
+
+.btn-remove-word {
+  padding: 0.2rem 0.45rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.btn-remove-word:hover:not(:disabled) {
+  color: #e74c3c;
+  border-color: rgba(231, 76, 60, 0.25);
+}
+
+.btn-remove-word:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.btn-add-word {
+  margin-top: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  background: none;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-add-word:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.word-count-hint {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  margin-top: 0.2rem;
+}
+
+.word-config-field > .checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.76rem;
   color: var(--color-text);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.word-config-field > .checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--color-accent);
 }
 
 /* ─── Error toast (keep original transition) ─── */

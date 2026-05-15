@@ -195,10 +195,7 @@ export class RoomManager {
       return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '至少需要2名玩家才能开始游戏' } }
     }
 
-    if (room.wordConfig.useOnlyCustomWords && room.wordConfig.customWords.length < 5) {
-      return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '仅使用自定义词模式至少需要5个词汇' } }
-    }
-
+    room.totalRounds = room.wordConfig.customWords.length > 0 ? room.wordConfig.customWords.length : 10
     room.state = 'playing'
     room.currentRound = 1
     room.players.forEach((p) => {
@@ -359,8 +356,10 @@ export class RoomManager {
 
     room.state = 'lobby'
     room.currentRound = 0
+    room.totalRounds = 10
     room.currentWord = null
     room.roundStartTime = null
+    room.wordConfig.customWords = []
     room.players.forEach((p) => {
       p.score = 0
       p.hasGuessedCorrectly = false

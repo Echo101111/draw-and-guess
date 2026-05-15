@@ -189,8 +189,18 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
+    // Save custom words before reset (resetGameState clears them)
+    const room = roomManager.getRoomById(roomId)
+    const savedCustomWords = room?.wordConfig.customWords ?? []
+
     // Reset any lingering game state (e.g. after game_over) before starting fresh
     gameManager.resetGame(roomId)
+
+    // Restore custom words if they were configured
+    const restoredRoom = roomManager.getRoomById(roomId)
+    if (restoredRoom && savedCustomWords.length > 0) {
+      restoredRoom.wordConfig.customWords = savedCustomWords
+    }
 
     const result = roomManager.startGame(roomId, playerId)
     console.log(`[Room] START_GAME result: success=${result.success}, error=${result.error}`)
@@ -200,14 +210,14 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
-    const room = roomManager.getRoomById(roomId)
-    if (room) {
-      io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
+    const currentRoom = roomManager.getRoomById(roomId)
+    if (currentRoom) {
+      io.to(currentRoom.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(currentRoom) })
       gameManager.startRound(roomId)
     }
   })
 
-  socket.on(CLIENT_EVENTS.UPDATE_WORD_CONFIG, ({ wordConfig, customWordsRaw }: { wordConfig?: Partial<RoomWordConfig>; customWordsRaw?: string }) => {
+  socket.on(CLIENT_EVENTS.UPDATE_WORD_CONFIG, ({ wordConfig }: { wordConfig?: Partial<RoomWordConfig> }) => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
 
@@ -220,22 +230,23 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
-    if (room.state !== 'lobby') {
+    if (room.state !== 'lobby' && room.state !== 'gameover') {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '游戏开始后无法修改词库设置' })
       return
     }
 
     if (wordConfig) {
-      Object.assign(room.wordConfig, wordConfig)
-    }
-
-    if (customWordsRaw !== undefined) {
-      const result = validateCustomWords(customWordsRaw)
-      if (!result.valid) {
-        socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.INVALID_WORD_CONFIG, message: result.error! })
-        return
+      if (wordConfig.customWords) {
+        const result = validateCustomWords(wordConfig.customWords)
+        if (!result.valid) {
+          socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.INVALID_WORD_CONFIG, message: result.error! })
+          return
+        }
+        room.wordConfig.customWords = result.words!
       }
-      room.wordConfig.customWords = result.words!
+      if (wordConfig.looseMatching !== undefined) {
+        room.wordConfig.looseMatching = wordConfig.looseMatching
+      }
     }
 
     io.to(room.code).emit(SERVER_EVENTS.WORD_CONFIG_UPDATED, { wordConfig: room.wordConfig })

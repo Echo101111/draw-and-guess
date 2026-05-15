@@ -58,13 +58,8 @@ export const useRoomStore = defineStore('room', () => {
           currentRound: 0,
           totalRounds: 10,
           wordConfig: {
-            categoryFilter: [],
-            difficultyFilter: [],
-            minDrawability: 1,
             customWords: [],
-            useOnlyCustomWords: false,
             looseMatching: false,
-            preset: null,
           },
         }
       }
@@ -255,10 +250,10 @@ export const useRoomStore = defineStore('room', () => {
     error.value = null
   }
 
-  const updateWordConfig = (updates: Partial<RoomWordConfig>, customWordsRaw?: string) => {
+  const updateWordConfig = (updates: Partial<RoomWordConfig>) => {
     const socket = getSocket()
     if (socket?.connected) {
-      socket.emit(CLIENT_EVENTS.UPDATE_WORD_CONFIG, { wordConfig: updates, customWordsRaw })
+      socket.emit(CLIENT_EVENTS.UPDATE_WORD_CONFIG, { wordConfig: updates })
     }
   }
 

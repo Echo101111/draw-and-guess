@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { selectWord, matchAnswer } from './wordIndex.js'
 import { WORD_CATEGORIES, TOTAL_WORD_COUNT, getWordCategory } from './words.js'
-import { DEFAULT_WORD_CONFIG } from '@draw-and-guess/shared'
-import type { RoomWordConfig } from '@draw-and-guess/shared'
 
 describe('words', () => {
   describe('TOTAL_WORD_COUNT', () => {
@@ -37,8 +35,8 @@ describe('words', () => {
   })
 
   describe('selectWord', () => {
-    it('should return a word with default config', () => {
-      const word = selectWord(DEFAULT_WORD_CONFIG, new Set())
+    it('should return a word', () => {
+      const word = selectWord(new Set())
       expect(word).not.toBeNull()
       expect(typeof word).toBe('string')
       expect(word!.length).toBeGreaterThan(0)
@@ -47,60 +45,21 @@ describe('words', () => {
     it('should not return used words', () => {
       const usedWords = new Set<string>(['猫', '狗', '苹果', '手机', '太阳', '汽车', '足球', '医生'])
       for (let i = 0; i < 50; i++) {
-        const word = selectWord(DEFAULT_WORD_CONFIG, usedWords)
+        const word = selectWord(usedWords)
         if (word) {
           expect(usedWords.has(word)).toBe(false)
         }
       }
     })
 
-    it('should filter by category', () => {
-      const config: RoomWordConfig = {
-        ...DEFAULT_WORD_CONFIG,
-        categoryFilter: ['animals'],
+    it('should return all system words', () => {
+      const found = new Set<string>()
+      // Try to get many unique words
+      for (let i = 0; i < 50; i++) {
+        const word = selectWord(found)
+        if (word) found.add(word)
       }
-      for (let i = 0; i < 20; i++) {
-        const word = selectWord(config, new Set())
-        if (word) {
-          expect(getWordCategory(word)).toBe('animals')
-        }
-      }
-    })
-
-    it('should filter by difficulty', () => {
-      const config: RoomWordConfig = {
-        ...DEFAULT_WORD_CONFIG,
-        difficultyFilter: ['easy'],
-      }
-      const usedWords = new Set<string>()
-      for (let i = 0; i < 100; i++) {
-        const word = selectWord(config, usedWords)
-        if (word) {
-          usedWords.add(word)
-        }
-      }
-      expect(usedWords.size).toBeGreaterThan(0)
-    })
-
-    it('should filter by minDrawability', () => {
-      const config: RoomWordConfig = {
-        ...DEFAULT_WORD_CONFIG,
-        minDrawability: 5,
-      }
-      for (let i = 0; i < 20; i++) {
-        const word = selectWord(config, new Set())
-        expect(word).not.toBeNull()
-      }
-    })
-
-    it('should return null when pool is empty', () => {
-      const config: RoomWordConfig = {
-        ...DEFAULT_WORD_CONFIG,
-        categoryFilter: [],
-        minDrawability: 10,
-      }
-      const word = selectWord(config, new Set())
-      expect(word).toBeNull()
+      expect(found.size).toBeGreaterThan(10)
     })
   })
 

@@ -19,28 +19,17 @@ export type WordCategory = 'animals' | 'food' | 'daily' | 'nature' | 'vehicles' 
 
 export interface CustomWord {
   word: string
-  category?: string
-  difficulty?: WordDifficulty
+  category: string
 }
 
 export interface RoomWordConfig {
-  categoryFilter: WordCategory[]
-  difficultyFilter: WordDifficulty[]
-  minDrawability: number
   customWords: CustomWord[]
-  useOnlyCustomWords: boolean
   looseMatching: boolean
-  preset: string | null
 }
 
 export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
-  categoryFilter: ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'characters'],
-  difficultyFilter: [],
-  minDrawability: 1,
   customWords: [],
-  useOnlyCustomWords: false,
   looseMatching: false,
-  preset: null,
 }
 
 export interface Room {
