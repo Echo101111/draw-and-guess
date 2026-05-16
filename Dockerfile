@@ -37,7 +37,7 @@ WORKDIR /app
 EXPOSE 80
 
 RUN npm install -g pnpm@9 && \
-    apk add --no-cache nginx
+    apk add --no-cache nginx curl
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY shared/package.json shared/
@@ -52,5 +52,5 @@ COPY --from=builder /app/client/dist ./client/dist
 COPY nginx.conf /etc/nginx/http.d/default.conf
 RUN rm -f /etc/nginx/conf.d/default.conf
 
-# Start nginx in background, wait for readiness, then run Node.js
-CMD sh -c 'nginx -g "daemon off;" & for i in $(seq 1 30); do curl -sf http://127.0.0.1:80/health >/dev/null && break; sleep 1; done && exec node server/dist/server/src/index.js'
+# Start nginx in background, then run Node.js
+CMD sh -c 'nginx -g "daemon off;" & exec node server/dist/server/src/index.js'
