@@ -53,4 +53,5 @@ COPY nginx.conf /etc/nginx/http.d/default.conf
 RUN rm -f /etc/nginx/conf.d/default.conf
 
 # Start nginx in background, then run Node.js
-CMD sh -c 'nginx -g "daemon off;" & exec node server/dist/server/src/index.js'
+# Railway sets PORT (often 80 from EXPOSE). We must not let Node.js compete with nginx.
+CMD sh -c 'nginx -g "daemon off;" & sleep 1 && exec env PORT=3000 node server/dist/server/src/index.js'
