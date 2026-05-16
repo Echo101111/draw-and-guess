@@ -198,11 +198,15 @@ export const useGameStore = defineStore('game', () => {
     socket.off(SERVER_EVENTS.CANVAS_CLEARED)
     socket.on(SERVER_EVENTS.CANVAS_CLEARED, () => {
       strokes.value = []
+      pendingFullRedraw.value = true
+      strokeVersion.value++
       useCanvasStore().clearCanvas()
     })
 
     socket.off(SERVER_EVENTS.STROKE_UNDONE)
     socket.on(SERVER_EVENTS.STROKE_UNDONE, (data: { playerId: string; strokeSeq?: number }) => {
+      if (undoRollbackTimer) { clearTimeout(undoRollbackTimer); undoRollbackTimer = null }
+      undoSavedStroke = null
       const idx = strokes.value.findIndex(
         (s) => s.playerId === data.playerId && s.strokeSeq === data.strokeSeq,
       )
@@ -346,14 +350,17 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
+  let undoRollbackTimer: ReturnType<typeof setTimeout> | null = null
+  let undoSavedStroke: { playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number } | null = null
+
   function undoStroke() {
     if (!isMyTurn.value) return
     const roomStore = useRoomStore()
-    // 乐观更新：立即从本地删除最后一笔
     const pid = roomStore.currentPlayerId
     if (pid) {
       for (let i = strokes.value.length - 1; i >= 0; i--) {
         if (strokes.value[i].playerId === pid) {
+          undoSavedStroke = { ...strokes.value[i] }
           strokes.value.splice(i, 1)
           pendingFullRedraw.value = true
           strokeVersion.value++
@@ -361,6 +368,18 @@ export const useGameStore = defineStore('game', () => {
         }
       }
     }
+    // 3秒后若服务器未确认，回滚
+    if (undoRollbackTimer) clearTimeout(undoRollbackTimer)
+    undoRollbackTimer = setTimeout(() => {
+      if (undoSavedStroke) {
+        strokes.value.push(undoSavedStroke)
+        undoSavedStroke = null
+        pendingFullRedraw.value = true
+        strokeVersion.value++
+      }
+      undoRollbackTimer = null
+    }, 3000)
+
     const socket = getSocket()
     if (socket?.connected) {
       socket.emit(CLIENT_EVENTS.UNDO_STROKE)

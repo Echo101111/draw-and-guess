@@ -8,6 +8,7 @@ import { registerGameHandlers } from './socket/gameHandlers.js'
 import { gameManager } from './game/index.js'
 import { roomManager } from './rooms/index.js'
 import { setupRedis } from './redis.js'
+import { clearChatCooldown } from './socket/gameHandlers.js'
 
 const app = express()
 const httpServer = createServer(app)
@@ -50,6 +51,7 @@ roomManager.onDismissed((roomId) => {
 // 玩家被移除时清理 per-player 状态；若移除的是画师则结束当前轮
 roomManager.onPlayerRemoved((playerId, roomId) => {
   gameManager.removePlayerTimestamps(playerId)
+  clearChatCooldown(playerId)
   const drawerId = gameManager.getCurrentDrawerId(roomId)
   if (drawerId === playerId) {
     gameManager.endRound(roomId, 'timeout')

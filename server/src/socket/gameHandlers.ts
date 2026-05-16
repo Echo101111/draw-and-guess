@@ -111,20 +111,36 @@ export function registerGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.UNDO_STROKE, () => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
-    gameManager.undoStroke(roomId, playerId)
+    try {
+      gameManager.undoStroke(roomId, playerId)
+    } catch (err) {
+      console.error('[UndoStroke] Error:', err)
+    }
   })
 
   socket.on(CLIENT_EVENTS.REQUEST_GAME_STATE, () => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
-    gameManager.sendGameStateSnapshot(roomId, playerId)
+    try {
+      gameManager.sendGameStateSnapshot(roomId, playerId)
+    } catch (err) {
+      console.error('[RequestGameState] Error:', err)
+    }
   })
 
   socket.on(CLIENT_EVENTS.RESYNC_STROKES, ({ strokes }: { strokes: Array<{ strokeSeq?: number; points: Array<{ x: number; y: number }>; color: string; width: number; tool: string }> }) => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
-    gameManager.resyncStrokes(roomId, playerId, strokes)
+    try {
+      gameManager.resyncStrokes(roomId, playerId, strokes)
+    } catch (err) {
+      console.error('[ResyncStrokes] Error:', err)
+    }
   })
 }
 
 export { lastChatTime, CHAT_COOLDOWN }
+
+export function clearChatCooldown(playerId: string): void {
+  lastChatTime.delete(playerId)
+}

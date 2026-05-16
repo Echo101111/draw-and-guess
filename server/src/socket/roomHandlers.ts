@@ -163,24 +163,30 @@ export function registerRoomHandlers(io: any, socket: any): void {
     const { roomId, playerId: hostId } = socket.data
     if (!roomId) return
 
-    const kicked = roomManager.kickPlayer(roomId, hostId, playerId)
-    if (!kicked) return
+    try {
+      const kicked = roomManager.kickPlayer(roomId, hostId, playerId)
+      if (!kicked) return
 
-    const room = roomManager.getRoomById(roomId)
-    if (!room) return
+      const room = roomManager.getRoomById(roomId)
+      if (!room) return
 
-    // 将被踢玩家的 socket 移出房间频道
-    const kickedSocketId = roomManager.getPlayerSocketId(playerId)
-    const kickedSocket = kickedSocketId ? io.sockets.sockets.get(kickedSocketId) : undefined
-    if (kickedSocket) {
-      kickedSocket.leave(room.code)
-      delete kickedSocket.data.roomId
-      delete kickedSocket.data.playerId
+      lastChatTime.delete(playerId)
+
+      const kickedSocketId = roomManager.getPlayerSocketId(playerId)
+      const kickedSocket = kickedSocketId ? io.sockets.sockets.get(kickedSocketId) : undefined
+      if (kickedSocket) {
+        kickedSocket.leave(room.code)
+        delete kickedSocket.data.roomId
+        delete kickedSocket.data.playerId
+        delete kickedSocket.data.roomName
+        delete kickedSocket.data.isSpectator
+      }
+
+      io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
+      io.to(playerId).emit(SERVER_EVENTS.KICKED, { reason: '你被房主移出了房间' })
+    } catch (err) {
+      console.error('[KickPlayer] Error:', err)
     }
-
-    io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
-
-    io.to(playerId).emit(SERVER_EVENTS.KICKED, { reason: '你被房主移出了房间' })
   })
 
   socket.on(CLIENT_EVENTS.START_GAME, () => {
@@ -191,20 +197,25 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
-    gameManager.resetGame(roomId)
+    try {
+      gameManager.resetGame(roomId)
 
-    const result = roomManager.startGame(roomId, playerId)
-    console.log(`[Room] START_GAME result: success=${result.success}, error=${result.error}`)
+      const result = roomManager.startGame(roomId, playerId)
+      console.log(`[Room] START_GAME result: success=${result.success}, error=${result.error}`)
 
-    if (!result.success) {
-      socket.emit(SERVER_EVENTS.ROOM_ERROR, result.error!)
-      return
-    }
+      if (!result.success) {
+        socket.emit(SERVER_EVENTS.ROOM_ERROR, result.error!)
+        return
+      }
 
-    const currentRoom = roomManager.getRoomById(roomId)
-    if (currentRoom) {
-      io.to(currentRoom.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(currentRoom) })
-      gameManager.startRound(roomId)
+      const currentRoom = roomManager.getRoomById(roomId)
+      if (currentRoom) {
+        io.to(currentRoom.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(currentRoom) })
+        gameManager.startRound(roomId)
+      }
+    } catch (err) {
+      console.error('[StartGame] Error:', err)
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '开始游戏失败，请重试' })
     }
   })
 
@@ -244,65 +255,75 @@ export function registerRoomHandlers(io: any, socket: any): void {
   })
 
   socket.on('disconnect', () => {
-    const { roomId, playerId, isSpectator } = socket.data
-    console.log(`[Socket] Disconnect: ${socket.id}, roomId=${roomId}, playerId=${playerId}, isSpectator=${isSpectator}`)
+    try {
+      const { roomId, playerId, isSpectator } = socket.data
+      console.log(`[Socket] Disconnect: ${socket.id}, roomId=${roomId}, playerId=${playerId}, isSpectator=${isSpectator}`)
 
-    if (!roomId || !playerId) return
+      if (!roomId || !playerId) return
 
-    if (isSpectator) {
-      handleLeave(io, socket)
-      return
+      if (isSpectator) {
+        handleLeave(io, socket)
+        return
+      }
+
+      if (!roomManager.isPlayerSocketActive(playerId, socket.id)) return
+
+      console.log(`[Room] Starting disconnect timer for player ${playerId}`)
+      roomManager.markPlayerDisconnected(playerId)
+      roomManager.startDisconnectTimer(playerId)
+      lastChatTime.delete(playerId)
+    } catch (err) {
+      console.error('[Disconnect] Error:', err)
     }
-
-    // 如果该玩家已通过其他 socket 重连，跳过断线计时
-    if (!roomManager.isPlayerSocketActive(playerId, socket.id)) return
-
-    console.log(`[Room] Starting disconnect timer for player ${playerId}`)
-    roomManager.markPlayerDisconnected(playerId)
-    roomManager.startDisconnectTimer(playerId)
-    lastChatTime.delete(playerId)
   })
 
   socket.on(CLIENT_EVENTS.RESTORE_SESSION, ({ roomName, playerId }: { roomName: string; playerId: string }) => {
-    const room = roomManager.getRoomByName(roomName)
-    if (!room) {
+    try {
+      const room = roomManager.getRoomByName(roomName)
+      if (!room) {
+        socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+          code: ErrorCode.ROOM_NOT_FOUND,
+          message: '房间不存在或已结束',
+        })
+        return
+      }
+
+      const player = room.players.find((p) => p.id === playerId)
+      if (!player) {
+        socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+          code: ErrorCode.ROOM_NOT_FOUND,
+          message: '无法恢复会话，请重新加入',
+        })
+        return
+      }
+
+      roomManager.cancelDisconnectTimer(playerId)
+      roomManager.updatePlayerSession(room.id, playerId, socket.id)
+      roomManager.updatePlayerSocket(playerId, socket.id)
+
+      socket.data.roomId = room.id
+      socket.data.playerId = playerId
+      socket.data.roomName = room.name
+
+      socket.join(room.code)
+      socket.join(playerId)
+
+      socket.emit(SERVER_EVENTS.SESSION_RESTORED, {
+        room: getPlayerRoomData(room),
+        playerId: player.id,
+        isOwner: player.isOwner,
+      })
+
+      gameManager.restorePlayerState(room.id, player.id)
+
+      io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
+    } catch (err) {
+      console.error('[RestoreSession] Error:', err)
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
         code: ErrorCode.ROOM_NOT_FOUND,
-        message: '房间不存在或已结束',
+        message: '会话恢复失败，请重新加入',
       })
-      return
     }
-
-    const player = room.players.find((p) => p.id === playerId)
-    if (!player) {
-      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
-        code: ErrorCode.ROOM_NOT_FOUND,
-        message: '无法恢复会话，请重新加入',
-      })
-      return
-    }
-
-    roomManager.cancelDisconnectTimer(playerId)
-    roomManager.updatePlayerSession(room.id, playerId, socket.id)
-    roomManager.updatePlayerSocket(playerId, socket.id)
-
-    socket.data.roomId = room.id
-    socket.data.playerId = playerId
-    socket.data.roomName = room.name
-
-    socket.join(room.code)
-    socket.join(playerId)
-
-    socket.emit(SERVER_EVENTS.SESSION_RESTORED, {
-      room: getPlayerRoomData(room),
-      playerId: player.id,
-      isOwner: player.isOwner,
-    })
-
-    // 恢复会话后如果游戏进行中，重新发送游戏状态（词语、笔画、计时器等）
-    gameManager.restorePlayerState(room.id, player.id)
-
-    io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
   })
 
   socket.on(CLIENT_EVENTS.JOIN_AS_SPECTATOR, async ({ roomName, password }: { roomName: string; password?: string }) => {
@@ -359,14 +380,12 @@ function handleLeave(io: any, socket: any): void {
   if (room) {
     socket.leave(room.code)
     socket.leave(playerId)
-  }
 
-  if (!room) return
-
-  if (room.players.length === 0) {
-    roomManager.dismissRoom(roomId)
-  } else {
-    io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
+    if (room.players.length === 0) {
+      roomManager.dismissRoom(roomId)
+    } else {
+      io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
+    }
   }
 
   delete socket.data.roomId

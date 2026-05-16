@@ -124,6 +124,7 @@ export class GameManager {
     this.strokeHistory.set(roomId, [])
     this.strokeSeqIndex.delete(roomId)
     this.undoneStrokes.delete(roomId)
+    this.roundEnding.delete(roomId)
     this.currentDrawerId.set(roomId, drawer.id)
 
     io.to(drawer.id).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
@@ -371,7 +372,12 @@ export class GameManager {
     return true
   }
 
+  private roundEnding = new Set<string>()
+
   endRound(roomId: string, reason: 'timeout' | 'all_guessed'): void {
+    if (this.roundEnding.has(roomId)) return
+    this.roundEnding.add(roomId)
+
     const timer = this.roundTimers.get(roomId)
     if (timer) {
       clearInterval(timer.timer)
@@ -458,6 +464,7 @@ export class GameManager {
     this.strokeHistory.delete(roomId)
     this.strokeSeqIndex.delete(roomId)
     this.undoneStrokes.delete(roomId)
+    this.roundEnding.delete(roomId)
     this.currentDrawerId.delete(roomId)
     this.customWordOrder.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)
@@ -486,7 +493,9 @@ export class GameManager {
       }
     }
     for (const key of this.lastDrawTime.keys()) {
-      if (!activePlayers.has(key)) this.lastDrawTime.delete(key)
+      const colonIdx = key.indexOf(':')
+      const pid = colonIdx >= 0 ? key.slice(0, colonIdx) : key
+      if (!activePlayers.has(pid)) this.lastDrawTime.delete(key)
     }
     for (const key of this.lastAnswerTime.keys()) {
       if (!activePlayers.has(key)) this.lastAnswerTime.delete(key)
