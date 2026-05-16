@@ -164,7 +164,8 @@ function finalizeStroke() {
     canvasStore.currentStroke.map((p) => ({ x: p.x / cw, y: p.y / ch })),
     canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
     canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
-    canvasStore.tool
+    canvasStore.tool,
+    strokeSeq
   )
   canvasStore.currentStroke = []
   canvasStore.isDrawing = false
@@ -295,15 +296,21 @@ function resizeCanvas() {
 
   if (containerWidth <= 0 || containerHeight <= 0) return
 
-  // Always fill container without aspect ratio constraint (same as mobile)
-  // Avoids dead zones where events don't reach the canvas
-  let width = Math.floor(containerWidth)
-  let height = Math.floor(containerHeight)
+  const ratio = 4 / 3
+  let w: number, h: number
 
-  if (fabricCanvas.width === width && fabricCanvas.height === height) return
+  if (containerWidth / containerHeight > ratio) {
+    h = Math.floor(containerHeight)
+    w = Math.floor(h * ratio)
+  } else {
+    w = Math.floor(containerWidth)
+    h = Math.floor(w / ratio)
+  }
 
-  fabricCanvas.setWidth(width)
-  fabricCanvas.setHeight(height)
+  if (fabricCanvas.width === w && fabricCanvas.height === h) return
+
+  fabricCanvas.setWidth(w)
+  fabricCanvas.setHeight(h)
   renderCompletedStrokes()
 }
 
@@ -345,16 +352,15 @@ function handleUndoKey(e: KeyboardEvent) {
 onMounted(() => {
   if (!canvasRef.value || !containerRef.value) return
 
-  const initialWidth = containerRef.value.clientWidth
-  const initialHeight = containerRef.value.clientHeight
-
   fabricCanvas = new fabric.Canvas(canvasRef.value, {
-    width: Math.floor(initialWidth),
-    height: Math.floor(initialHeight),
+    width: 1,
+    height: 1,
     backgroundColor: '#ffffff',
     isDrawingMode: false,
     selection: false,
   })
+
+  resizeCanvas()
 
   fabricCanvas.on('mouse:down', handleMouseDown)
   fabricCanvas.on('mouse:move', handleMouseMove)
@@ -417,6 +423,9 @@ onUnmounted(() => {
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .game-canvas canvas {
@@ -425,6 +434,8 @@ onUnmounted(() => {
   touch-action: none;
   border-radius: var(--radius-md);
   overflow: hidden;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 @media (max-width: 768px) {

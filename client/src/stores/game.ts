@@ -354,7 +354,7 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  function addCompletedStroke(points: Point[], color: string, width: number, tool: string) {
+  function addCompletedStroke(points: Point[], color: string, width: number, tool: string, seq?: number) {
     const roomStore = useRoomStore()
     if (!roomStore.currentPlayerId) return
     strokes.value.push({
@@ -363,6 +363,7 @@ export const useGameStore = defineStore('game', () => {
       color,
       width,
       tool,
+      strokeSeq: seq,
     })
   }
 
