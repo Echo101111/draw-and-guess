@@ -180,7 +180,22 @@ function renderCompletedStrokes() {
   strokePathMap.clear()
 
   for (const stroke of gameStore.strokes) {
-    if (stroke.points.length < 2) continue
+    if (stroke.points.length === 0) continue
+    if (stroke.points.length === 1) {
+      const p = stroke.points[0]
+      const radius = stroke.width / 2
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const circle = new (fabric as any).Circle({
+        left: p.x * cw - radius,
+        top: p.y * ch - radius,
+        radius,
+        fill: stroke.color,
+        selectable: false,
+        evented: false,
+      })
+      fabricCanvas.add(circle)
+      continue
+    }
     const pathData = stroke.points
       .map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x * cw} ${p.y * ch}`)
       .join(' ')
@@ -209,6 +224,24 @@ function renderCurrentStroke() {
   if (currentPathObject) {
     fabricCanvas.remove(currentPathObject)
     currentPathObject = null
+  }
+
+  if (canvasStore.currentStroke.length === 1) {
+    const p = canvasStore.currentStroke[0]
+    const circleColor = canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color
+    const circleRadius = (canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width) / 2
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    currentPathObject = new (fabric as any).Circle({
+      left: p.x - circleRadius,
+      top: p.y - circleRadius,
+      radius: circleRadius,
+      fill: circleColor,
+      selectable: false,
+      evented: false,
+    })
+    fabricCanvas.add(currentPathObject!)
+    fabricCanvas.renderAll()
+    return
   }
 
   if (canvasStore.currentStroke.length >= 2) {
