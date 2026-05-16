@@ -31,6 +31,7 @@ let currentPathObject: FabricPath | null = null
 let pendingResize = false
 let strokeSeq = 0
 const EMIT_INTERVAL = 16
+const strokePathMap = new Map<string, FabricPath>()
 
 function getCanvasPoint(e: { e: MouseEvent | Touch }): Point {
   const pointer = fabricCanvas?.getPointer(e.e as unknown as MouseEvent)
@@ -112,11 +113,37 @@ function handleMouseUp() {
   if (pendingResize) { pendingResize = false; resizeCanvas() }
 }
 
+function simplifyPath(points: Point[], epsilon: number): Point[] {
+  if (points.length <= 2) return points
+  const [start, end] = [points[0], points[points.length - 1]]
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const segLen = dx * dx + dy * dy
+
+  let maxDist = 0
+  let maxIdx = 0
+  for (let i = 1; i < points.length - 1; i++) {
+    const dist = segLen === 0
+      ? Math.hypot(points[i].x - start.x, points[i].y - start.y)
+      : Math.abs(dy * points[i].x - dx * points[i].y + end.x * start.y - end.y * start.x) / Math.sqrt(segLen)
+    if (dist > maxDist) { maxDist = dist; maxIdx = i }
+  }
+
+  if (maxDist < epsilon) return [start, end]
+
+  const left = simplifyPath(points.slice(0, maxIdx + 1), epsilon)
+  const right = simplifyPath(points.slice(maxIdx), epsilon)
+  return [...left.slice(0, -1), ...right]
+}
+
 function emitStroke() {
   const allPoints = canvasStore.currentStroke
   if (allPoints.length === 0 || !fabricCanvas) return
-  const newPoints = allPoints.slice(lastEmitPointCount)
+  let newPoints = allPoints.slice(lastEmitPointCount)
   if (newPoints.length === 0) return
+  if (newPoints.length > 10) {
+    newPoints = simplifyPath(newPoints, 2)
+  }
   lastEmitPointCount = allPoints.length
   const cw = fabricCanvas.width ?? 1
   const ch = fabricCanvas.height ?? 1
@@ -150,6 +177,7 @@ function renderCompletedStrokes() {
 
   fabricCanvas.clear()
   fabricCanvas.backgroundColor = '#ffffff'
+  strokePathMap.clear()
 
   for (const stroke of gameStore.strokes) {
     if (stroke.points.length < 2) continue
@@ -166,6 +194,9 @@ function renderCompletedStrokes() {
       evented: false,
     })
     fabricCanvas.add(path)
+    if (stroke.strokeSeq !== undefined) {
+      strokePathMap.set(`${stroke.playerId}:${stroke.strokeSeq}`, path)
+    }
   }
 
   currentPathObject = null
@@ -201,6 +232,28 @@ function renderCurrentStroke() {
   fabricCanvas.renderAll()
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyIncrementalStroke(data: any) {
+  if (!fabricCanvas) return
+  const cw = fabricCanvas.width ?? 1
+  const ch = fabricCanvas.height ?? 1
+  const key = data.strokeSeq !== undefined ? `${data.playerId}:${data.strokeSeq}` : undefined
+  const existing = key ? strokePathMap.get(key) : undefined
+  if (existing) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentPath = existing.get('path') as any
+    if (currentPath) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const newPoints = data.points.map((p: any) => ['L', p.x * cw, p.y * ch])
+      existing.set('path', [...currentPath, ...newPoints])
+      existing.setCoords()
+      fabricCanvas.renderAll()
+      return
+    }
+  }
+  renderCompletedStrokes()
+}
+
 function resizeCanvas() {
   if (!fabricCanvas || !containerRef.value) return
 
@@ -221,11 +274,18 @@ function resizeCanvas() {
   renderCompletedStrokes()
 }
 
-watch(() => gameStore.strokes, () => {
-  if (fabricCanvas) {
-    renderCompletedStrokes()
+watch(() => gameStore.strokeVersion, () => {
+  if (!fabricCanvas) return
+  if (gameStore.pendingStrokeUpdate) {
+    applyIncrementalStroke(gameStore.pendingStrokeUpdate)
+    gameStore.pendingStrokeUpdate = null
   }
-}, { deep: true })
+  if (gameStore.pendingFullRedraw) {
+    strokePathMap.clear()
+    renderCompletedStrokes()
+    gameStore.pendingFullRedraw = false
+  }
+})
 
 watch(() => gameStore.currentWord, () => {
   if (gameStore.currentWord !== null && gameStore.isMyTurn) {

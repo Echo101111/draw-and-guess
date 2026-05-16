@@ -9,6 +9,20 @@ interface HealthStatus {
   uptime: number
   rooms: number
   players: number
+  metrics: {
+    connections: number
+    disconnections: number
+    roomsCreated: number
+    strokesTotal: number
+    answersTotal: number
+    errors: number
+    avgStrokeLatencyMs: number
+    lastStrokeLatencyMs: number
+  }
+  memory: {
+    heapUsedMB: number
+    rssMB: number
+  }
 }
 
 const startTime = Date.now()
@@ -17,6 +31,8 @@ export const healthRouter: ExpressRouter = Router()
 
 healthRouter.get('/', (_req, res) => {
   const rooms = roomManager.getAllRooms()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const m = (global as any).metrics ?? {}
 
   const status: HealthStatus = {
     status: 'ok',
@@ -25,6 +41,20 @@ healthRouter.get('/', (_req, res) => {
     uptime: Date.now() - startTime,
     rooms: rooms.length,
     players: rooms.reduce((sum, r) => sum + r.players.length, 0),
+    metrics: {
+      connections: m.connections ?? 0,
+      disconnections: m.disconnections ?? 0,
+      roomsCreated: m.roomsCreated ?? 0,
+      strokesTotal: m.strokesReceived ?? 0,
+      answersTotal: m.answersSubmitted ?? 0,
+      errors: m.errors ?? 0,
+      avgStrokeLatencyMs: Math.round(m.avgStrokeLatency ?? 0),
+      lastStrokeLatencyMs: m.lastStrokeLatency ?? 0,
+    },
+    memory: {
+      heapUsedMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      rssMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    },
   }
 
   res.json(status)

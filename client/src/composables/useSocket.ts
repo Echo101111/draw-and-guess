@@ -21,8 +21,10 @@ export function getSocket(): Socket {
     socket = io(serverUrl, {
       autoConnect: false,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 30000,
+      randomizationFactor: 0.3,
       timeout: 5000,
     })
     socket.on('connect', () => {

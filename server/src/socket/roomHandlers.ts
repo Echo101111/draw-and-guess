@@ -55,6 +55,8 @@ export function registerRoomHandlers(io: any, socket: any): void {
         password ?? '',
         wordConfig
       )
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(global as any).metrics.roomsCreated++
 
       console.log(`[Room] Created: "${room.name}" (${room.id}) by ${trimmedNickname}`)
       console.log(`[Room] Total rooms: ${roomManager.getAllRooms().length}`)

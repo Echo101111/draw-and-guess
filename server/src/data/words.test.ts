@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { selectWord, matchAnswer } from './wordIndex.js'
-import { WORD_CATEGORIES, TOTAL_WORD_COUNT, getWordCategory } from './words.js'
+import { WORD_CATEGORIES, TOTAL_WORD_COUNT, getWordCategory, WORDS } from './words.js'
 
 describe('words', () => {
   describe('TOTAL_WORD_COUNT', () => {
@@ -60,6 +60,23 @@ describe('words', () => {
         if (word) found.add(word)
       }
       expect(found.size).toBeGreaterThan(10)
+    })
+
+    it('should auto-reset and not return null when pool exhausted', () => {
+      const usedWords = new Set<string>()
+      const allWordSet = new Set<string>()
+      for (const entries of Object.values(WORDS)) {
+        for (const entry of entries) {
+          allWordSet.add(entry.word)
+          usedWords.add(entry.word)
+        }
+      }
+      // 所有词已使用，应自动重置并返回有效词
+      const word = selectWord(usedWords)
+      expect(word).not.toBeNull()
+      expect(typeof word).toBe('string')
+      // usedWords 应被清空（重置）
+      expect(usedWords.size).toBe(0)
     })
   })
 

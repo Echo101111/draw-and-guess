@@ -38,7 +38,10 @@ export function selectWord(usedWords: Set<string>): string | null {
   const idx = getIndex()
   const available = idx.allWords.filter(e => !usedWords.has(e.word))
   if (available.length > 0) return available[randomIndex(available.length)].word
-  if (idx.allWords.length > 0) return idx.allWords[randomIndex(idx.allWords.length)].word
+  if (idx.allWords.length > 0) {
+    usedWords.clear()
+    return idx.allWords[randomIndex(idx.allWords.length)].word
+  }
   return null
 }
 

@@ -156,13 +156,15 @@ export const useRoomStore = defineStore('room', () => {
     const socket = connectSocket()
     setupSocketListeners()
     clearSession()
-    try {
-      await waitForConnection()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '连接失败'
-      error.value = `${msg}，请检查网络后重试`
-      connectionState.value = 'disconnected'
-      return
+    if (!socket.connected) {
+      try {
+        await waitForConnection(3000)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '连接失败'
+        error.value = `${msg}，请检查网络后重试`
+        connectionState.value = 'disconnected'
+        return
+      }
     }
     socket.once(SERVER_EVENTS.ROOM_CREATED, (data) => {
       saveSession(data.roomCode, data.playerId, nickname)
@@ -183,13 +185,15 @@ export const useRoomStore = defineStore('room', () => {
     const socket = connectSocket()
     setupSocketListeners()
     clearSession()
-    try {
-      await waitForConnection()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '连接失败'
-      error.value = `${msg}，请检查网络后重试`
-      connectionState.value = 'disconnected'
-      return
+    if (!socket.connected) {
+      try {
+        await waitForConnection(3000)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '连接失败'
+        error.value = `${msg}，请检查网络后重试`
+        connectionState.value = 'disconnected'
+        return
+      }
     }
     socket.once(SERVER_EVENTS.ROOM_JOINED, (data) => {
       saveSession(data.room.code, data.playerId, nickname)
@@ -207,13 +211,15 @@ export const useRoomStore = defineStore('room', () => {
     error.value = null
     const socket = connectSocket()
     setupSocketListeners()
-    try {
-      await waitForConnection()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '连接失败'
-      error.value = `${msg}，请检查网络后重试`
-      connectionState.value = 'disconnected'
-      return
+    if (!socket.connected) {
+      try {
+        await waitForConnection(3000)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '连接失败'
+        error.value = `${msg}，请检查网络后重试`
+        connectionState.value = 'disconnected'
+        return
+      }
     }
     socket.emit(CLIENT_EVENTS.JOIN_AS_SPECTATOR, { roomName, password })
     await waitForResponse(SERVER_EVENTS.SPECTATOR_JOINED)

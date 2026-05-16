@@ -27,6 +27,18 @@ export class GameManager {
   private customWordOrder = new Map<string, CustomWord[]>()
   private static readonly DRAW_RATE_LIMIT_MS = 8 // ~125 events/s per player
   private static readonly ANSWER_COOLDOWN_MS = 200
+  private pruneTimer: NodeJS.Timeout | null = null
+
+  constructor() {
+    this.pruneTimer = setInterval(() => this.prune(), 300_000) // 每5分钟清理
+  }
+
+  destroy(): void {
+    if (this.pruneTimer) {
+      clearInterval(this.pruneTimer)
+      this.pruneTimer = null
+    }
+  }
 
   startRound(roomId: string): boolean {
     const room = roomManager.getRoomById(roomId)
@@ -62,9 +74,9 @@ export class GameManager {
     } else {
       const selected = selectWord(this.getUsedWords(roomId))
       if (!selected) {
-        console.log(`[Round] startRound failed: no word available for room=${roomId}`)
-        this.endGame(roomId)
-        return false
+        console.warn(`[Round] No word available for room=${roomId}, resetting word pool`)
+        this.usedWords.delete(roomId)
+        return this.startRound(roomId)
       }
       word = selected
       this.getUsedWords(roomId).add(word)
@@ -243,6 +255,12 @@ export class GameManager {
         tool,
         strokeSeq,
       })
+      if (strokeSeq !== undefined) {
+        io.to(playerId).emit(SERVER_EVENTS.ACK_STROKE, {
+          strokeSeq,
+          pointCount: points.length,
+        })
+      }
     }
   }
 
@@ -368,6 +386,21 @@ export class GameManager {
   removePlayerTimestamps(playerId: string): void {
     this.lastDrawTime.delete(playerId)
     this.lastAnswerTime.delete(playerId)
+  }
+
+  private prune(): void {
+    const activePlayers = new Set<string>()
+    for (const room of roomManager.getAllRooms()) {
+      for (const p of room.players) {
+        activePlayers.add(p.id)
+      }
+    }
+    for (const key of this.lastDrawTime.keys()) {
+      if (!activePlayers.has(key)) this.lastDrawTime.delete(key)
+    }
+    for (const key of this.lastAnswerTime.keys()) {
+      if (!activePlayers.has(key)) this.lastAnswerTime.delete(key)
+    }
   }
 
   getScoreboard(room: Room) {
@@ -578,6 +611,13 @@ export class GameManager {
     if (!room) return null
     const io = this.getIO()
     if (!io) return null
+
+    if (!room.roundStartTime && room.currentRound > 0) {
+      io.to(playerId).emit(SERVER_EVENTS.SCOREBOARD_UPDATE, {
+        scores: this.getScoreboard(room),
+      })
+      return null
+    }
 
     const elapsed = room.roundStartTime
       ? Math.floor((Date.now() - room.roundStartTime) / 1000)

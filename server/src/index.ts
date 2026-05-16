@@ -7,12 +7,21 @@ import { registerRoomHandlers } from './socket/index.js'
 import { registerGameHandlers } from './socket/gameHandlers.js'
 import { gameManager } from './game/index.js'
 import { roomManager } from './rooms/index.js'
+import { setupRedis } from './redis.js'
 
 const app = express()
 const httpServer = createServer(app)
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-;(global as any).io = null
+const metrics = {
+  connections: 0,
+  disconnections: 0,
+  roomsCreated: 0,
+  strokesReceived: 0,
+  answersSubmitted: 0,
+  errors: 0,
+  avgStrokeLatency: 0,
+  lastStrokeLatency: 0,
+}
 
 const io = new SocketIOServer(httpServer, {
   cors: {
@@ -26,6 +35,12 @@ const io = new SocketIOServer(httpServer, {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ;(global as any).io = io
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+;(global as any).metrics = metrics
+
+setupRedis(io).catch((err) => {
+  console.warn('[Server] Redis setup failed, continuing in single-node mode:', (err as Error).message)
+})
 
 // 房间解散时清理游戏数据
 roomManager.onDismissed((roomId) => {
@@ -45,12 +60,14 @@ app.use(express.json())
 app.use('/health', healthRouter)
 
 io.on('connection', (socket) => {
+  metrics.connections++
   console.log(`[Socket] Client connected: ${socket.id}`)
 
   registerRoomHandlers(io, socket)
   registerGameHandlers(io, socket)
 
   socket.on('disconnect', () => {
+    metrics.disconnections++
     console.log(`[Socket] Client disconnected: ${socket.id}`)
   })
 })

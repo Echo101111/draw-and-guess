@@ -11,6 +11,9 @@ declare module 'fabric' {
 
   export class Path {
     constructor(pathData: string, options?: IObjectOptions)
+    get(property: string): unknown
+    set(property: string, value: unknown): this
+    setCoords(): void
   }
 
   export class Canvas {

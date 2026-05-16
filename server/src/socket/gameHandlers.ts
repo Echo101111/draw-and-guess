@@ -15,6 +15,8 @@ export function registerGameHandlers(io: any, socket: any): void {
 
     try {
       const result = gameManager.submitAnswer(roomId, playerId, answer)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(global as any).metrics.answersSubmitted++
       if (result.correct) {
         socket.emit(SERVER_EVENTS.ANSWER_RESULT, {
           playerId,
@@ -33,7 +35,13 @@ export function registerGameHandlers(io: any, socket: any): void {
     if (!roomId || !playerId) return
 
     try {
+      const start = Date.now()
       gameManager.handleDrawStroke(roomId, playerId, socket.id, points, color, width, tool, strokeSeq)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const m = (global as any).metrics
+      m.strokesReceived++
+      m.lastStrokeLatency = Date.now() - start
+      m.avgStrokeLatency = (m.avgStrokeLatency * (m.strokesReceived - 1) + m.lastStrokeLatency) / m.strokesReceived
     } catch (err) {
       console.error('[DrawStroke] Error:', err)
     }
@@ -104,6 +112,14 @@ export function registerGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     gameManager.sendGameStateSnapshot(roomId, playerId)
+  })
+
+  socket.on(CLIENT_EVENTS.RESYNC_STROKES, ({ strokes }: { strokes: Array<{ strokeSeq?: number; points: Array<{ x: number; y: number }>; color: string; width: number; tool: string }> }) => {
+    const { roomId, playerId } = socket.data
+    if (!roomId || !playerId) return
+    for (const stroke of strokes) {
+      gameManager.handleDrawStroke(roomId, playerId, socket.id, stroke.points, stroke.color, stroke.width, stroke.tool, stroke.strokeSeq)
+    }
   })
 }
 

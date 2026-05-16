@@ -72,4 +72,22 @@ describe('RoomManager', () => {
       expect(rooms.length).toBeGreaterThan(0)
     })
   })
+
+  describe('cleanup on player removal', () => {
+    it('should clean up playerSocketMap on leaveRoom', async () => {
+      const { room, player } = await roomManager.createRoom('Host', 'Cleanup_Room', 8, '')
+      roomManager.updatePlayerSocket(player.id, 'socket1')
+      expect(roomManager.getPlayerSocketId(player.id)).toBe('socket1')
+      roomManager.leaveRoom(room.id, player.id)
+      expect(roomManager.getPlayerSocketId(player.id)).toBeUndefined()
+    })
+
+    it('should clean up playerSocketMap on dismissRoom', async () => {
+      const { room, player } = await roomManager.createRoom('Host', 'Dismiss_Room', 8, '')
+      roomManager.updatePlayerSocket(player.id, 'socket1')
+      roomManager.dismissRoom(room.id)
+      expect(roomManager.getPlayerSocketId(player.id)).toBeUndefined()
+      expect(roomManager.getRoomById(room.id)).toBeNull()
+    })
+  })
 })

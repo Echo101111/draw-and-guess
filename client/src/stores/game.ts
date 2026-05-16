@@ -51,6 +51,16 @@ export const useGameStore = defineStore('game', () => {
   const wordLength = ref(0)
   const wordCategory = ref<string | undefined>(undefined)
   const recentGuessers = ref<Array<{ playerId: string; nickname: string }>>([])
+  const strokeVersion = ref(0)
+  const pendingFullRedraw = ref(false)
+  const pendingStrokeUpdate = ref<{
+    playerId: string
+    points: Point[]
+    color: string
+    width: number
+    tool: string
+    strokeSeq?: number
+  } | null>(null)
 
   const transitionData = ref<{
     word: string
@@ -154,6 +164,8 @@ export const useGameStore = defineStore('game', () => {
     socket.on(SERVER_EVENTS.DRAW_STROKE, (data: { playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number; full?: boolean; allStrokes?: boolean; strokes?: Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }> }) => {
       if (data.allStrokes && data.strokes) {
         strokes.value = data.strokes
+        pendingFullRedraw.value = true
+        strokeVersion.value++
         return
       }
       if (data.playerId === roomStore.currentPlayerId && !data.full) return
@@ -163,13 +175,24 @@ export const useGameStore = defineStore('game', () => {
       if (existing) {
         if (data.full) {
           existing.points = data.points
+          pendingFullRedraw.value = true
         } else {
           existing.points.push(...data.points)
+          pendingStrokeUpdate.value = {
+            playerId: data.playerId,
+            points: data.points,
+            color: data.color,
+            width: data.width,
+            tool: data.tool,
+            strokeSeq: data.strokeSeq,
+          }
         }
         strokes.value = [...strokes.value]
       } else {
         strokes.value.push(data)
+        pendingFullRedraw.value = true
       }
+      strokeVersion.value++
     })
 
     socket.off(SERVER_EVENTS.CANVAS_CLEARED)
@@ -353,6 +376,9 @@ export const useGameStore = defineStore('game', () => {
     wordLength.value = 0
     wordCategory.value = undefined
     recentGuessers.value = []
+    strokeVersion.value = 0
+    pendingFullRedraw.value = false
+    pendingStrokeUpdate.value = null
   }
 
   return {
@@ -377,6 +403,9 @@ export const useGameStore = defineStore('game', () => {
     wordPlaceholders,
     showCategoryHint,
     recentGuessers,
+    strokeVersion,
+    pendingFullRedraw,
+    pendingStrokeUpdate,
     setupSocketListeners,
     teardownSocketListeners,
     submitAnswer,

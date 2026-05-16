@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt'
 import type { Player, Room, RoomErrorPayload, RoomWordConfig } from '@draw-and-guess/shared'
 import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG } from '@draw-and-guess/shared'
 
-const BCRYPT_ROUNDS = 8
+const BCRYPT_ROUNDS = 6
 
 function createPlayer(nickname: string, isOwner = false): Player {
   const trimmed = nickname.trim()
@@ -138,6 +138,7 @@ export class RoomManager {
     const wasOwner = player.isOwner
     room.players.splice(playerIndex, 1)
     this.playerToRoomId.delete(player.id)
+    this.cleanupPlayer(player.id)
 
     let ownerChanged = false
     if (wasOwner && room.players.length > 0) {
@@ -167,6 +168,7 @@ export class RoomManager {
 
     room.players.splice(targetIndex, 1)
     this.playerToRoomId.delete(targetId)
+    this.cleanupPlayer(targetId)
 
     if (room.players.length === 0) {
       this.startDismissTimer(room.id)
@@ -225,6 +227,11 @@ export class RoomManager {
     return this.playerSocketMap.get(playerId) === socketId
   }
 
+  private cleanupPlayer(playerId: string): void {
+    this.playerSocketMap.delete(playerId)
+    this.cancelDisconnectTimer(playerId)
+  }
+
   getPlayerSocketId(playerId: string): string | undefined {
     return this.playerSocketMap.get(playerId)
   }
@@ -267,6 +274,7 @@ export class RoomManager {
     if (idx === -1) return
 
     room.players.splice(idx, 1)
+    this.cleanupPlayer(playerId)
     if (room.players.length > 0 && !room.players.some((p) => p.isOwner)) {
       room.players[0].isOwner = true
     }
@@ -343,6 +351,7 @@ export class RoomManager {
     this.cancelDismissTimer(roomId)
     for (const p of room.players) {
       this.playerToRoomId.delete(p.id)
+      this.playerSocketMap.delete(p.id)
       this.cancelDisconnectTimer(p.id)
     }
     this.nameToRoomId.delete(room.code.toLowerCase())
