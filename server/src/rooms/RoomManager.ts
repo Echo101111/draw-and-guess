@@ -268,6 +268,17 @@ export class RoomManager {
     const room = this.rooms.get(roomId)
     if (!room) return
 
+    // 如果玩家已经重连（有活跃 socket），不踢出玩家
+    const activeSocketId = this.playerSocketMap.get(playerId)
+    if (activeSocketId) {
+      const io = this.getIO()
+      const activeSocket = io?.sockets.sockets.get(activeSocketId)
+      if (activeSocket?.connected) {
+        console.log(`[Room] Disconnect timer expired for ${playerId}, but player reconnected. Keeping.`)
+        return
+      }
+    }
+
     const idx = room.players.findIndex((p) => p.id === playerId)
     if (idx === -1) return
 

@@ -161,7 +161,13 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
   socket.on(CLIENT_EVENTS.KICK_PLAYER, ({ playerId }: { playerId: string }) => {
     const { roomId, playerId: hostId } = socket.data
-    if (!roomId) return
+    if (!roomId) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: '连接已断开，请刷新页面重新加入房间',
+      })
+      return
+    }
 
     try {
       const kicked = roomManager.kickPlayer(roomId, hostId, playerId)
@@ -225,10 +231,22 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
   socket.on(CLIENT_EVENTS.UPDATE_WORD_CONFIG, ({ wordConfig }: { wordConfig?: Partial<RoomWordConfig> }) => {
     const { roomId, playerId } = socket.data
-    if (!roomId || !playerId) return
+    if (!roomId || !playerId) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: '连接已断开，请刷新页面重新加入房间',
+      })
+      return
+    }
 
     const room = roomManager.getRoomById(roomId)
-    if (!room) return
+    if (!room) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: '房间不存在或已结束',
+      })
+      return
+    }
 
     const player = room.players.find((p) => p.id === playerId)
     if (!player?.isOwner) {

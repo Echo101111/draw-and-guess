@@ -86,7 +86,12 @@ export const useRoomStore = defineStore('room', () => {
 
     socket.off(SERVER_EVENTS.ROOM_UPDATED)
     socket.on(SERVER_EVENTS.ROOM_UPDATED, (data) => {
+      const prevOwner = room.value?.players.find((p) => p.isOwner)
       room.value = data.room
+      const newOwner = room.value?.players.find((p) => p.isOwner)
+      if (prevOwner && newOwner && prevOwner.id !== newOwner.id) {
+        error.value = `房主变更为 ${newOwner.nickname}`
+      }
     })
 
     socket.off(SERVER_EVENTS.KICKED)
@@ -126,6 +131,13 @@ export const useRoomStore = defineStore('room', () => {
         room.value.wordConfig = data.wordConfig
       }
     })
+
+    socket.off('disconnect', onSocketDisconnect)
+    socket.on('disconnect', onSocketDisconnect)
+  }
+
+  function onSocketDisconnect() {
+    connectionState.value = 'disconnected'
   }
 
   function waitForResponse(roomEvent: string, timeoutMs = 15000): Promise<void> {
