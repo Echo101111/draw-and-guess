@@ -9,4 +9,4 @@ dist
 pnpm-debug.log*
 CLAUDE.md
 AGENTS.md
-deployment-lessons.md
+deployment-lessons.mdcoverage/

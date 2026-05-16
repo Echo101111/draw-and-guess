@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { RoomManager } from './RoomManager.js'
+import { ErrorCode } from '@draw-and-guess/shared'
+
+const mockEmit = vi.fn()
+const mockTo = vi.fn().mockReturnValue({ emit: mockEmit })
+
+Object.defineProperty(global, 'io', {
+  value: { to: mockTo },
+  writable: true,
+})
 
 describe('RoomManager', () => {
   let roomManager: RoomManager
@@ -88,6 +97,153 @@ describe('RoomManager', () => {
       roomManager.dismissRoom(room.id)
       expect(roomManager.getPlayerSocketId(player.id)).toBeUndefined()
       expect(roomManager.getRoomById(room.id)).toBeNull()
+    })
+  })
+
+  describe('joinRoom', () => {
+    it('should return ROOM_NOT_FOUND for non-existent room', async () => {
+      const result = await roomManager.joinRoom('NoSuchRoom', '', 'Player')
+      expect('error' in result).toBe(true)
+      if ('error' in result) {
+        expect(result.error.code).toBe(ErrorCode.ROOM_NOT_FOUND)
+      }
+    })
+
+    it('should return ROOM_FULL when at max capacity', async () => {
+      await roomManager.createRoom('Host', 'FullRoom', 2, '')
+      await roomManager.joinRoom('FullRoom', '', 'Player2')
+      const result = await roomManager.joinRoom('FullRoom', '', 'Player3')
+      expect('error' in result).toBe(true)
+      if ('error' in result) {
+        expect(result.error.code).toBe(ErrorCode.ROOM_FULL)
+      }
+    })
+
+    it('should return NICKNAME_TAKEN for duplicate nickname', async () => {
+      await roomManager.createRoom('Host', 'NickDup', 8, '')
+      const result = await roomManager.joinRoom('NickDup', '', 'Host')
+      expect('error' in result).toBe(true)
+      if ('error' in result) {
+        expect(result.error.code).toBe(ErrorCode.NICKNAME_TAKEN)
+      }
+    })
+
+    it('should return ROOM_PASSWORD_WRONG for wrong password', async () => {
+      await roomManager.createRoom('Host', 'PwRoom', 8, 'secret')
+      const result = await roomManager.joinRoom('PwRoom', 'wrong', 'Player')
+      expect('error' in result).toBe(true)
+      if ('error' in result) {
+        expect(result.error.code).toBe(ErrorCode.ROOM_PASSWORD_WRONG)
+      }
+    })
+
+    it('should join with correct password', async () => {
+      await roomManager.createRoom('Host', 'PwRoom2', 8, 'secret')
+      const result = await roomManager.joinRoom('PwRoom2', 'secret', 'Player')
+      expect('error' in result).toBe(false)
+      expect('player' in result).toBe(true)
+    })
+  })
+
+  describe('leaveRoom', () => {
+    it('should transfer ownership when owner leaves', async () => {
+      const { room } = await roomManager.createRoom('Host', 'OwnerLeave', 8, '')
+      const r2 = await roomManager.joinRoom('OwnerLeave', '', 'Player2')
+      if ('error' in r2) throw new Error('join failed')
+      roomManager.leaveRoom(room.id, room.players[0].id)
+      const updated = roomManager.getRoomById(room.id)!
+      expect(updated.players[0].isOwner).toBe(true)
+    })
+
+    it('should start dismiss timer when last player leaves', async () => {
+      // Notes: dismissTimer is private and triggers 30s timeout. We test that room still exists immediately after leave.
+      const { room, player } = await roomManager.createRoom('Host', 'LastLeave', 8, '')
+      roomManager.leaveRoom(room.id, player.id)
+      // Room should still exist (30s timer active), but empty
+      const r = roomManager.getRoomById(room.id)
+      expect(r).not.toBeNull()
+      expect(r!.players).toHaveLength(0)
+      // Cleanup
+      roomManager.dismissRoom(room.id)
+    })
+  })
+
+  describe('kickPlayer', () => {
+    it('should reject kick from non-owner', async () => {
+      const { room } = await roomManager.createRoom('Host', 'KickRoom', 8, '')
+      const r2 = await roomManager.joinRoom('KickRoom', '', 'Player2')
+      if ('error' in r2) throw new Error('join failed')
+      // Player2 tries to kick Host
+      expect(roomManager.kickPlayer(room.id, r2.player.id, room.players[0].id)).toBe(false)
+    })
+
+    it('should prevent self-kick', async () => {
+      const { room, player } = await roomManager.createRoom('Host', 'SelfKick', 8, '')
+      expect(roomManager.kickPlayer(room.id, player.id, player.id)).toBe(false)
+    })
+
+    it('should allow owner to kick player', async () => {
+      const { room, player: host } = await roomManager.createRoom('Host', 'KickOk', 8, '')
+      const r2 = await roomManager.joinRoom('KickOk', '', 'Player2')
+      if ('error' in r2) throw new Error('join failed')
+      expect(roomManager.kickPlayer(room.id, host.id, r2.player.id)).toBe(true)
+    })
+  })
+
+  describe('startGame', () => {
+    it('should reject start from non-owner', async () => {
+      const { room } = await roomManager.createRoom('Host', 'StartGame', 8, '')
+      const r2 = await roomManager.joinRoom('StartGame', '', 'Player2')
+      if ('error' in r2) throw new Error('join failed')
+      const result = roomManager.startGame(room.id, r2.player.id)
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject start with fewer than 2 players', async () => {
+      const { room, player } = await roomManager.createRoom('Host', 'SoloRoom', 8, '')
+      const result = roomManager.startGame(room.id, player.id)
+      expect(result.success).toBe(false)
+    })
+
+    it('should set state to playing and reset scores', async () => {
+      const { room, player } = await roomManager.createRoom('Host', 'PlayRoom', 8, '')
+      const r2 = await roomManager.joinRoom('PlayRoom', '', 'Player2')
+      if ('error' in r2) throw new Error('join failed')
+      const result = roomManager.startGame(room.id, player.id)
+      expect(result.success).toBe(true)
+      const updated = roomManager.getRoomById(room.id)!
+      expect(updated.state).toBe('playing')
+      expect(updated.currentRound).toBe(1)
+      for (const p of updated.players) {
+        expect(p.score).toBe(0)
+      }
+    })
+  })
+
+  describe('findPlayerBySession', () => {
+    it('should find player by session id', async () => {
+      const { room, player } = await roomManager.createRoom('Host', 'SessRoom', 8, '')
+      roomManager.updatePlayerSession(room.id, player.id, 'session-abc')
+      const result = roomManager.findPlayerBySession('session-abc')
+      expect(result).not.toBeNull()
+      expect(result!.player.id).toBe(player.id)
+    })
+
+    it('should return null for unknown session', () => {
+      expect(roomManager.findPlayerBySession('nonexistent')).toBeNull()
+    })
+  })
+
+  describe('resetGameState', () => {
+    it('should reset room to lobby with cleared scores', async () => {
+      const { room, player } = await roomManager.createRoom('Host', 'ResetRoom', 8, '')
+      const r2 = await roomManager.joinRoom('ResetRoom', '', 'Player2')
+      if ('error' in r2) throw new Error('join failed')
+      roomManager.startGame(room.id, player.id)
+      roomManager.resetGameState(room.id)
+      const updated = roomManager.getRoomById(room.id)!
+      expect(updated.state).toBe('lobby')
+      expect(updated.currentRound).toBe(0)
     })
   })
 })
