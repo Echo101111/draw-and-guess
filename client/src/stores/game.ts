@@ -348,6 +348,19 @@ export const useGameStore = defineStore('game', () => {
 
   function undoStroke() {
     if (!isMyTurn.value) return
+    const roomStore = useRoomStore()
+    // 乐观更新：立即从本地删除最后一笔
+    const pid = roomStore.currentPlayerId
+    if (pid) {
+      for (let i = strokes.value.length - 1; i >= 0; i--) {
+        if (strokes.value[i].playerId === pid) {
+          strokes.value.splice(i, 1)
+          pendingFullRedraw.value = true
+          strokeVersion.value++
+          break
+        }
+      }
+    }
     const socket = getSocket()
     if (socket?.connected) {
       socket.emit(CLIENT_EVENTS.UNDO_STROKE)

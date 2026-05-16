@@ -123,9 +123,7 @@ export function registerGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.RESYNC_STROKES, ({ strokes }: { strokes: Array<{ strokeSeq?: number; points: Array<{ x: number; y: number }>; color: string; width: number; tool: string }> }) => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
-    for (const stroke of strokes) {
-      gameManager.handleDrawStroke(roomId, playerId, socket.id, stroke.points, stroke.color, stroke.width, stroke.tool, stroke.strokeSeq)
-    }
+    gameManager.resyncStrokes(roomId, playerId, strokes)
   })
 }
 

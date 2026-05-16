@@ -285,6 +285,7 @@ function applyIncrementalStroke(data: any) {
       return
     }
   }
+  gameStore.pendingFullRedraw = false
   renderCompletedStrokes()
 }
 

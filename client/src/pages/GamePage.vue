@@ -6,10 +6,7 @@
         🔴 连接已断开，正在重连...
       </div>
       <div v-else-if="connectionState === 'reconnecting'" class="connection-banner reconnecting">
-        🔄 正在重连...（{{ reconnectAttempt }}/5）
-      </div>
-      <div v-else-if="connectionState === 'reconnect_failed'" class="connection-banner failed">
-        ⚠️ 连接失败，<button @click="refreshPage">点击刷新页面</button>
+        🔄 正在重连...（第 {{ reconnectAttempt }} 次）
       </div>
     </Transition>
     <header class="game-header">
@@ -227,7 +224,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useGameStore } from '@/stores/game'
-import { connectSocket, disconnectSocket, getSocket, connectionState, reconnectAttempt } from '@/composables/useSocket'
+import { connectSocket, disconnectSocket, getSocket, connectionState, reconnectAttempt, restoreSession } from '@/composables/useSocket'
 import { CLIENT_EVENTS } from '@draw-and-guess/shared'
 import type { RoomWordConfig } from '@draw-and-guess/shared'
 import Timer from '@/components/Timer.vue'
@@ -290,14 +287,22 @@ watch(() => gameStore.currentRound, () => {
 onMounted(() => {
   document.body.style.overflow = 'hidden'
   const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
-  connectSocket(serverUrl)
+
+  roomStore.setupSocketListeners()
   gameStore.setupSocketListeners()
+
+  connectSocket(serverUrl)
 
   // 兜底：请求当前游戏状态（ROUND_START 在注册前到达时恢复）
   getSocket()?.emit(CLIENT_EVENTS.REQUEST_GAME_STATE)
 
-  // 中途加入提示：房间已开始游戏，当前轮仅观战
-  if (roomStore.room?.state === 'playing') {
+  // 已连接状态（从首页预热来），显式恢复会话
+  if (getSocket()?.connected) {
+    restoreSession()
+  }
+
+  // 中途加入提示：房间已开始游戏且为观战者
+  if (roomStore.room?.state === 'playing' && roomStore.isSpectator) {
     showSpectatorNotice.value = true
     setTimeout(() => { showSpectatorNotice.value = false }, 4000)
   }
@@ -352,9 +357,6 @@ watch(() => roomStore.error, (err) => {
   }
 })
 
-function refreshPage() {
-  window.location.reload()
-}
 </script>
 
 <style scoped>

@@ -25,6 +25,7 @@ export class GameManager {
   private lastDrawTime = new Map<string, number>()
   private lastAnswerTime = new Map<string, number>()
   private customWordOrder = new Map<string, CustomWord[]>()
+  private undoneStrokes = new Map<string, Set<string>>()
   private static readonly DRAW_RATE_LIMIT_MS = 8 // ~125 events/s per player
   private static readonly ANSWER_COOLDOWN_MS = 200
   private pruneTimer: NodeJS.Timeout | null = null
@@ -76,6 +77,14 @@ export class GameManager {
       if (!selected) {
         console.warn(`[Round] No word available for room=${roomId}, resetting word pool`)
         this.usedWords.delete(roomId)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const retries: number = (this as any)._startRoundRetries?.[roomId] ?? 0
+        if (retries >= 1) {
+          this.endGame(roomId)
+          return false
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-extra-semi
+        ;(this as any)._startRoundRetries = { ...((this as any)._startRoundRetries ?? {}), [roomId]: retries + 1 }
         return this.startRound(roomId)
       }
       word = selected
@@ -114,6 +123,7 @@ export class GameManager {
 
     this.strokeHistory.set(roomId, [])
     this.strokeSeqIndex.delete(roomId)
+    this.undoneStrokes.delete(roomId)
     this.currentDrawerId.set(roomId, drawer.id)
 
     io.to(drawer.id).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
@@ -204,7 +214,7 @@ export class GameManager {
     return { correct: true, score: totalScore }
   }
 
-  handleDrawStroke(roomId: string, playerId: string, _socketId: string, points: Point[], color: string, width: number, tool: string, strokeSeq?: number): void {
+  handleDrawStroke(roomId: string, playerId: string, _socketId: string, points: Point[], color: string, width: number, tool: string, strokeSeq?: number, skipRateLimit?: boolean): void {
     const room = roomManager.getRoomById(roomId)
     if (!room || room.state !== 'playing') {
       console.log(`[Draw] REJECT: room=${roomId} state=${room?.state} noplayer=${!room}`)
@@ -217,14 +227,25 @@ export class GameManager {
       return
     }
 
-    // Rate limiting: ~125 events/s per player
-    const now = Date.now()
-    const lastTime = this.lastDrawTime.get(playerId) ?? 0
-    if (now - lastTime < GameManager.DRAW_RATE_LIMIT_MS) {
-      console.log(`[Draw] RATE_LIMIT: playerId=${playerId.slice(0,8)}`)
-      return
+    // 拒绝已撤销的笔画增量
+    if (strokeSeq !== undefined) {
+      const undone = this.undoneStrokes.get(roomId)
+      if (undone?.has(`${playerId}:${strokeSeq}`)) {
+        return
+      }
     }
-    this.lastDrawTime.set(playerId, now)
+
+    // Rate limiting: per-(playerId:strokeSeq) ~125 events/s
+    if (!skipRateLimit) {
+      const rateKey = strokeSeq !== undefined ? `${playerId}:${strokeSeq}` : playerId
+      const now = Date.now()
+      const lastTime = this.lastDrawTime.get(rateKey) ?? 0
+      if (now - lastTime < GameManager.DRAW_RATE_LIMIT_MS) {
+        console.log(`[Draw] RATE_LIMIT: key=${rateKey.slice(0,14)}`)
+        return
+      }
+      this.lastDrawTime.set(rateKey, now)
+    }
 
     const roomStrokes = this.strokeHistory.get(roomId) ?? []
     let existing: Stroke | undefined
@@ -287,11 +308,14 @@ export class GameManager {
 
     strokes.splice(removedIdx, 1)
 
+    // 标记已撤销，阻止延迟增量点
     if (removedStroke.strokeSeq !== undefined) {
-      const idx = this.strokeSeqIndex.get(roomId)
-      if (idx) {
-        idx.delete(`${playerId}:${removedStroke.strokeSeq}`)
-      }
+      const key = `${playerId}:${removedStroke.strokeSeq}`
+      let undone = this.undoneStrokes.get(roomId)
+      if (!undone) { undone = new Set(); this.undoneStrokes.set(roomId, undone) }
+      undone.add(key)
+      // 清理 strokeSeqIndex
+      this.strokeSeqIndex.get(roomId)?.delete(key)
     }
 
     const io = this.getIO()
@@ -303,6 +327,29 @@ export class GameManager {
     }
 
     return true
+  }
+
+  resyncStrokes(roomId: string, playerId: string, strokes: Array<{ points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }>): void {
+    const room = roomManager.getRoomById(roomId)
+    if (!room) return
+
+    const roomStrokes = this.strokeHistory.get(roomId) ?? []
+    let idx = this.strokeSeqIndex.get(roomId)
+    for (const s of strokes) {
+      const key = s.strokeSeq !== undefined ? `${playerId}:${s.strokeSeq}` : undefined
+      const existing = key ? idx?.get(key) : undefined
+      if (existing) {
+        existing.points.push(...s.points)
+      } else {
+        const ns: Stroke = { playerId, points: s.points, color: s.color, width: s.width, tool: s.tool as 'brush' | 'eraser', strokeSeq: s.strokeSeq }
+        roomStrokes.push(ns)
+        if (key) {
+          if (!idx) { idx = new Map(); this.strokeSeqIndex.set(roomId, idx) }
+          idx.set(key, ns)
+        }
+      }
+    }
+    this.strokeHistory.set(roomId, roomStrokes)
   }
 
   clearCanvas(roomId: string, playerId: string, socketId: string): boolean {
@@ -384,6 +431,7 @@ export class GameManager {
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
     this.strokeSeqIndex.delete(roomId)
+    this.undoneStrokes.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)
 
     const scores = this.getScoreboard(room)
@@ -409,6 +457,7 @@ export class GameManager {
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
     this.strokeSeqIndex.delete(roomId)
+    this.undoneStrokes.delete(roomId)
     this.currentDrawerId.delete(roomId)
     this.customWordOrder.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)

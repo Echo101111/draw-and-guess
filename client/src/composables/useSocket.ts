@@ -2,11 +2,12 @@ import { io, type Socket } from 'socket.io-client'
 import { ref } from 'vue'
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
 
-export const connectionState = ref<'connected' | 'disconnected' | 'reconnecting' | 'reconnect_failed'>('disconnected')
+export const connectionState = ref<'connected' | 'disconnected' | 'reconnecting'>('disconnected')
 export const reconnectAttempt = ref(0)
 
 let socket: Socket | null = null
 let serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
+let disconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 const SESSION_KEY = 'dag-session'
 
@@ -28,13 +29,19 @@ export function getSocket(): Socket {
       timeout: 5000,
     })
     socket.on('connect', () => {
+      if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null }
       connectionState.value = 'connected'
       reconnectAttempt.value = 0
       restoreSession()
     })
     socket.on('disconnect', (reason) => {
-      connectionState.value = 'disconnected'
       console.warn('[Socket] Disconnected:', reason)
+      if (disconnectTimer) clearTimeout(disconnectTimer)
+      disconnectTimer = setTimeout(() => {
+        if (!socket?.connected) {
+          connectionState.value = 'disconnected'
+        }
+      }, 800)
     })
     socket.on('connect_error', (err) => {
       console.error('[Socket] Connection error:', err.message)
@@ -44,7 +51,8 @@ export function getSocket(): Socket {
       reconnectAttempt.value = attempt
     })
     socket.io.on('reconnect_failed', () => {
-      connectionState.value = 'reconnect_failed'
+      if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null }
+      connectionState.value = 'disconnected'
     })
   }
   return socket

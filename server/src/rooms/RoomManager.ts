@@ -137,7 +137,6 @@ export class RoomManager {
     const player = room.players[playerIndex]
     const wasOwner = player.isOwner
     room.players.splice(playerIndex, 1)
-    this.playerToRoomId.delete(player.id)
     this.cleanupPlayer(player.id)
 
     let ownerChanged = false
@@ -167,7 +166,6 @@ export class RoomManager {
     if (targetIndex === -1) return false
 
     room.players.splice(targetIndex, 1)
-    this.playerToRoomId.delete(targetId)
     this.cleanupPlayer(targetId)
 
     if (room.players.length === 0) {
@@ -228,6 +226,7 @@ export class RoomManager {
   }
 
   private cleanupPlayer(playerId: string): void {
+    this.playerToRoomId.delete(playerId)
     this.playerSocketMap.delete(playerId)
     this.cancelDisconnectTimer(playerId)
   }
@@ -265,7 +264,6 @@ export class RoomManager {
     this.disconnectTimers.delete(playerId)
     const roomId = this.playerToRoomId.get(playerId)
     if (!roomId) return
-    this.playerToRoomId.delete(playerId)
 
     const room = this.rooms.get(roomId)
     if (!room) return
