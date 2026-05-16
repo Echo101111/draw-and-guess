@@ -415,11 +415,6 @@ onUnmounted(() => {
   width: 100%;
   box-sizing: border-box;
   margin: 0 auto;
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: visible;
-  box-shadow: var(--shadow-md);
-  background: #fff;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
@@ -432,7 +427,10 @@ onUnmounted(() => {
   display: block;
   cursor: crosshair;
   touch-action: none;
+  border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  background: #fff;
   overflow: hidden;
   max-width: 100%;
   max-height: 100%;
@@ -440,14 +438,12 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
   .game-canvas {
-    border-radius: 0;
-    border-width: 1px 0;
-    max-width: 100%;
     min-height: 0;
   }
 
   .game-canvas canvas {
     border-radius: 0;
+    border-width: 1px 0;
   }
 }
 </style>
