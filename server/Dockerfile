@@ -1,6 +1,7 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 RUN npm install -g pnpm@9
+RUN pnpm config set registry https://registry.npmmirror.com
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY shared/package.json shared/
@@ -15,6 +16,7 @@ RUN pnpm --filter @draw-and-guess/shared build && pnpm --filter @draw-and-guess/
 FROM node:18-alpine
 WORKDIR /app
 RUN npm install -g pnpm@9
+RUN pnpm config set registry https://registry.npmmirror.com
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY shared/package.json shared/

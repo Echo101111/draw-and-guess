@@ -24,9 +24,17 @@ const metrics = {
   lastStrokeLatency: 0,
 }
 
+const corsOrigin = process.env.CLIENT_URL?.split(',').map(s => s.trim()) ?? ['http://localhost:5173']
+
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL ?? 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin || corsOrigin.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(new Error('Not allowed by CORS'))
+      }
+    },
     methods: ['GET', 'POST'],
   },
   connectTimeout: 15000,

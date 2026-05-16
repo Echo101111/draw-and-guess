@@ -11,3 +11,6 @@ CLAUDE.md
 AGENTS.md
 deployment-lessons.md
 coverage/
+
+# 部署临时包
+.deploy-package.tar.gz
