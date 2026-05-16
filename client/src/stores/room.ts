@@ -173,7 +173,7 @@ export const useRoomStore = defineStore('room', () => {
     clearSession()
     if (!socket.connected) {
       try {
-        await waitForConnection(3000)
+        await waitForConnection(15000)
       } catch (e) {
         const msg = e instanceof Error ? e.message : '连接失败'
         error.value = `${msg}，请检查网络后重试`
@@ -202,7 +202,7 @@ export const useRoomStore = defineStore('room', () => {
     clearSession()
     if (!socket.connected) {
       try {
-        await waitForConnection(3000)
+        await waitForConnection(15000)
       } catch (e) {
         const msg = e instanceof Error ? e.message : '连接失败'
         error.value = `${msg}，请检查网络后重试`
@@ -228,7 +228,7 @@ export const useRoomStore = defineStore('room', () => {
     setupSocketListeners()
     if (!socket.connected) {
       try {
-        await waitForConnection(3000)
+        await waitForConnection(15000)
       } catch (e) {
         const msg = e instanceof Error ? e.message : '连接失败'
         error.value = `${msg}，请检查网络后重试`

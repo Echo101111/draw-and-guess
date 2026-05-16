@@ -29,7 +29,7 @@ const io = new SocketIOServer(httpServer, {
     origin: process.env.CLIENT_URL ?? 'http://localhost:5173',
     methods: ['GET', 'POST'],
   },
-  connectTimeout: 5000,
+  connectTimeout: 15000,
   pingTimeout: 35000,
   pingInterval: 15000,
 })

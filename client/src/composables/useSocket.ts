@@ -26,7 +26,7 @@ export function getSocket(): Socket {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 30000,
       randomizationFactor: 0.3,
-      timeout: 5000,
+      timeout: 15000,
     })
     socket.on('connect', () => {
       if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null }
@@ -75,7 +75,7 @@ export function disconnectSocket(): void {
   }
 }
 
-export function waitForConnection(timeoutMs = 5000): Promise<void> {
+export function waitForConnection(timeoutMs = 15000): Promise<void> {
   const s = getSocket()
   if (s.connected) return Promise.resolve()
   return new Promise((resolve, reject) => {
