@@ -51,11 +51,11 @@
         <button
           v-if="isOwner"
           class="btn-start"
-          :disabled="players.length < 2 || gameState === 'playing'"
+          :disabled="players.length < 2 || gameState === 'playing' || roomStore.connectionState !== 'connected'"
           @click="handleStartGame"
         >
           <span class="btn-start-icon">{{ players.length < 2 ? '👥' : '🎯' }}</span>
-          {{ players.length < 2 ? '等待更多玩家...' : '开始游戏' }}
+          {{ roomStore.connectionState !== 'connected' ? '连接中...' : (players.length < 2 ? '等待更多玩家...' : '开始游戏') }}
         </button>
 
         <button v-if="isOwner" class="btn-word-config" @click="showWordConfig = true">

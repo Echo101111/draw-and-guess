@@ -194,6 +194,10 @@ export function registerRoomHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) {
       console.log(`[Room] START_GAME rejected: missing roomId or playerId`)
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: '连接已断开，请刷新页面重新加入房间',
+      })
       return
     }
 

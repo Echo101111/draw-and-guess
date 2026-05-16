@@ -251,6 +251,8 @@ export const useRoomStore = defineStore('room', () => {
     const socket = getSocket()
     if (socket?.connected) {
       socket.emit(CLIENT_EVENTS.START_GAME)
+    } else {
+      error.value = '连接未就绪，请等待重新连接'
     }
   }
 
