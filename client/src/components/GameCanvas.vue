@@ -335,6 +335,13 @@ function syncExistingStrokes() {
   }
 }
 
+function handleUndoKey(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !props.readonly && gameStore.isMyTurn) {
+    e.preventDefault()
+    gameStore.undoStroke()
+  }
+}
+
 onMounted(() => {
   if (!canvasRef.value || !containerRef.value) return
 
@@ -367,11 +374,14 @@ onMounted(() => {
   })
   resizeObserver.observe(containerRef.value)
 
+  window.addEventListener('keydown', handleUndoKey)
+
   renderCompletedStrokes()
   syncExistingStrokes()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleUndoKey)
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null

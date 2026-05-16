@@ -264,6 +264,47 @@ export class GameManager {
     }
   }
 
+  undoStroke(roomId: string, playerId: string): boolean {
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.state !== 'playing') return false
+
+    const drawerId = this.currentDrawerId.get(roomId)
+    if (!drawerId || drawerId !== playerId) return false
+
+    const strokes = this.strokeHistory.get(roomId)
+    if (!strokes || strokes.length === 0) return false
+
+    let removedIdx = -1
+    let removedStroke: Stroke | undefined
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      if (strokes[i].playerId === playerId) {
+        removedStroke = strokes[i]
+        removedIdx = i
+        break
+      }
+    }
+    if (!removedStroke) return false
+
+    strokes.splice(removedIdx, 1)
+
+    if (removedStroke.strokeSeq !== undefined) {
+      const idx = this.strokeSeqIndex.get(roomId)
+      if (idx) {
+        idx.delete(`${playerId}:${removedStroke.strokeSeq}`)
+      }
+    }
+
+    const io = this.getIO()
+    if (io) {
+      io.to(room.code).emit(SERVER_EVENTS.STROKE_UNDONE, {
+        playerId,
+        strokeSeq: removedStroke.strokeSeq,
+      })
+    }
+
+    return true
+  }
+
   clearCanvas(roomId: string, playerId: string, socketId: string): boolean {
     const room = roomManager.getRoomById(roomId)
     if (!room) return false

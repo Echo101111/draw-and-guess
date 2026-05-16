@@ -201,6 +201,18 @@ export const useGameStore = defineStore('game', () => {
       useCanvasStore().clearCanvas()
     })
 
+    socket.off(SERVER_EVENTS.STROKE_UNDONE)
+    socket.on(SERVER_EVENTS.STROKE_UNDONE, (data: { playerId: string; strokeSeq?: number }) => {
+      const idx = strokes.value.findIndex(
+        (s) => s.playerId === data.playerId && s.strokeSeq === data.strokeSeq,
+      )
+      if (idx !== -1) {
+        strokes.value.splice(idx, 1)
+        pendingFullRedraw.value = true
+        strokeVersion.value++
+      }
+    })
+
     socket.off(SERVER_EVENTS.ANSWER_RESULT)
     socket.on(SERVER_EVENTS.ANSWER_RESULT, (data: { playerId: string; nickname: string; correct: boolean }) => {
       if (data.correct) {
@@ -334,6 +346,14 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
+  function undoStroke() {
+    if (!isMyTurn.value) return
+    const socket = getSocket()
+    if (socket?.connected) {
+      socket.emit(CLIENT_EVENTS.UNDO_STROKE)
+    }
+  }
+
   function addCompletedStroke(points: Point[], color: string, width: number, tool: string) {
     const roomStore = useRoomStore()
     if (!roomStore.currentPlayerId) return
@@ -352,6 +372,7 @@ export const useGameStore = defineStore('game', () => {
     ;[
       SERVER_EVENTS.ROUND_START, SERVER_EVENTS.ROUND_START_TO_DRAWER,
       SERVER_EVENTS.DRAW_STROKE, SERVER_EVENTS.CANVAS_CLEARED,
+      SERVER_EVENTS.STROKE_UNDONE,
       SERVER_EVENTS.ANSWER_RESULT, SERVER_EVENTS.SCOREBOARD_UPDATE,
       SERVER_EVENTS.TIMER_SYNC, SERVER_EVENTS.ROUND_END,
       SERVER_EVENTS.GAME_OVER, SERVER_EVENTS.CHAT_MESSAGE,
@@ -412,6 +433,7 @@ export const useGameStore = defineStore('game', () => {
     sendChat,
     drawStroke,
     clearCanvas,
+    undoStroke,
     addCompletedStroke,
     resetGame,
   }

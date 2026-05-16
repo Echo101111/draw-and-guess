@@ -56,6 +56,15 @@
       <div class="divider" />
 
       <div class="tool-group">
+        <button class="tool-btn" @click="handleUndo" title="撤销 (Ctrl+Z)">
+          <span class="tool-icon">↩️</span>
+          <span class="tool-label">撤销</span>
+        </button>
+      </div>
+
+      <div class="divider" />
+
+      <div class="tool-group">
         <button class="tool-btn btn-clear" @click="handleClear" title="清空画布">
           <span class="tool-icon">🗑️</span>
           <span class="tool-label">清空</span>
@@ -96,6 +105,10 @@ function selectWidth(width: number) {
 function handleClear() {
   canvasStore.clearCanvas()
   gameStore.clearCanvas()
+}
+
+function handleUndo() {
+  gameStore.undoStroke()
 }
 </script>
 

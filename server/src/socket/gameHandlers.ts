@@ -108,6 +108,12 @@ export function registerGameHandlers(io: any, socket: any): void {
     }
   })
 
+  socket.on(CLIENT_EVENTS.UNDO_STROKE, () => {
+    const { roomId, playerId } = socket.data
+    if (!roomId || !playerId) return
+    gameManager.undoStroke(roomId, playerId)
+  })
+
   socket.on(CLIENT_EVENTS.REQUEST_GAME_STATE, () => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return

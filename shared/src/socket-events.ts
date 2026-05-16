@@ -15,6 +15,7 @@ export const CLIENT_EVENTS = {
   UPDATE_WORD_CONFIG: 'c_update_word_config',
   REQUEST_GAME_STATE: 'c_request_game_state',
   RESYNC_STROKES: 'c_resync_strokes',
+  UNDO_STROKE: 'c_undo_stroke',
 } as const
 
 // Server → Client events
@@ -39,6 +40,7 @@ export const SERVER_EVENTS = {
   WORD_CONFIG_UPDATED: 's_word_config_updated',
   GAME_STATE_SNAPSHOT: 's_game_state_snapshot',
   ACK_STROKE: 's_ack_stroke',
+  STROKE_UNDONE: 's_stroke_undone',
 } as const
 
 export type ClientToServerEvents = typeof CLIENT_EVENTS
