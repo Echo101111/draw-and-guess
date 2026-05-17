@@ -450,6 +450,8 @@ onUnmounted(() => {
     fabricCanvas.dispose()
     fabricCanvas = null
   }
+  strokePathMap.clear()
+  currentPathObject = null
 
   if (canvasRef.value) {
     canvasRef.value.removeEventListener('touchstart', handleTouchStart)

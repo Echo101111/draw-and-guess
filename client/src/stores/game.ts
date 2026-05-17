@@ -297,6 +297,9 @@ export const useGameStore = defineStore('game', () => {
         isWrongGuess: data.isWrongGuess ?? false,
         timestamp: data.timestamp,
       })
+      if (chatMessages.value.length > 500) {
+        chatMessages.value = chatMessages.value.slice(-300)
+      }
     })
 
     // GAME_STATE_SNAPSHOT: 接收完整游戏快照（兜底 ROUND_START 丢失）
@@ -335,6 +338,9 @@ export const useGameStore = defineStore('game', () => {
       isSystem: true,
       timestamp: Date.now(),
     })
+    if (chatMessages.value.length > 500) {
+      chatMessages.value = chatMessages.value.slice(-300)
+    }
   }
 
   function submitAnswer(answer: string) {
@@ -463,6 +469,8 @@ export const useGameStore = defineStore('game', () => {
     recentGuessers.value = []
     strokeVersion.value = 0
     pendingFullRedraw.value = false
+    if (undoRollbackTimer) { clearTimeout(undoRollbackTimer); undoRollbackTimer = null }
+    undoSavedStroke = null
   }
 
   return {

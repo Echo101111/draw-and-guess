@@ -629,10 +629,14 @@ export class GameManager {
     room.state = 'gameover'
     room.wordConfig.customWords = []
     this.clearNextRoundTimer(roomId)
+    this.clearWordSelection(roomId)
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
     this.strokeSeqIndex.delete(roomId)
     this.undoneStrokes.delete(roomId)
+    this.roundEnding.delete(roomId)
+    this.currentDrawerId.delete(roomId)
+    this.customWordOrder.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)
 
     const scores = this.getScoreboard(room)
@@ -671,13 +675,16 @@ export class GameManager {
     const room = roomManager.getRoomById(roomId)
     if (!room) return
     for (const player of room.players) {
-      this.lastDrawTime.delete(player.id)
-      this.lastAnswerTime.delete(player.id)
+      this.removePlayerTimestamps(player.id)
     }
   }
 
   removePlayerTimestamps(playerId: string): void {
-    this.lastDrawTime.delete(playerId)
+    for (const key of this.lastDrawTime.keys()) {
+      if (key === playerId || key.startsWith(playerId + ':')) {
+        this.lastDrawTime.delete(key)
+      }
+    }
     this.lastAnswerTime.delete(playerId)
   }
 
