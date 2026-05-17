@@ -3,11 +3,12 @@ import { GameManager } from './GameManager.js'
 import { roomManager } from '../rooms/index.js'
 import { SERVER_EVENTS } from '@draw-and-guess/shared'
 
+const mockExceptToEmit = vi.fn()
+const mockExceptTo = vi.fn().mockReturnValue({ emit: mockExceptToEmit })
 const mockExceptEmit = vi.fn()
-const mockExceptTo = vi.fn().mockReturnValue({ emit: mockExceptEmit })
-const mockExcept = vi.fn().mockReturnValue({ to: mockExceptTo })
+const mockExcept = vi.fn().mockReturnValue({ emit: mockExceptEmit, to: mockExceptTo })
 const mockEmit = vi.fn()
-const mockTo = vi.fn().mockReturnValue({ emit: mockEmit })
+const mockTo = vi.fn().mockReturnValue({ emit: mockEmit, except: mockExcept })
 
 Object.defineProperty(global, 'io', {
   value: { to: mockTo, except: mockExcept },
@@ -40,6 +41,19 @@ async function setupGame(opts?: { players?: number }): Promise<{
   return { roomId: room.id, hostId: host.id, playerIds: ids }
 }
 
+function startRoundWithWord(gm: GameManager, roomId: string): string {
+  gm.startRound(roomId)
+  const calls = mockEmit.mock.calls.filter(
+    (c: unknown[]) => c[0] === SERVER_EVENTS.WORD_SELECTION,
+  )
+  if (calls.length === 0) return ''
+  const options = (calls[0][1] as Record<string, unknown>).options as Array<{ word: string }>
+  const word = options[0]?.word ?? ''
+  const drawerId = gm.getCurrentDrawerId(roomId)!
+  gm.handleWordSelection(roomId, drawerId, word)
+  return word
+}
+
 describe('GameManager', () => {
   let gameManager: GameManager
 
@@ -69,7 +83,7 @@ describe('GameManager', () => {
 
     it('should allow drawer to clear canvas', async () => {
       const { roomId } = await setupGame()
-      gameManager.startRound(roomId)
+      startRoundWithWord(gameManager, roomId)
       const drawerId = gameManager.getCurrentDrawerId(roomId)!
       gameManager.handleDrawStroke(roomId, drawerId, 'sock', [
         { x: 0.1, y: 0.1 },
@@ -139,7 +153,7 @@ describe('GameManager', () => {
 
     it('should reject already-guessed player', async () => {
       const { roomId, playerIds } = await setupGame()
-      gameManager.startRound(roomId)
+      startRoundWithWord(gameManager, roomId)
       const guesser = playerIds[1] ?? playerIds[0]
       const room = roomManager.getRoomById(roomId)!
       room.players.find((p) => p.id === guesser)!.hasGuessedCorrectly = true
@@ -148,23 +162,22 @@ describe('GameManager', () => {
 
     it('should return correct when answer matches', async () => {
       const { roomId, playerIds } = await setupGame()
-      gameManager.startRound(roomId)
+      const word = startRoundWithWord(gameManager, roomId)
       const guesser = playerIds[1] ?? playerIds[0]
-      const room = roomManager.getRoomById(roomId)!
       await new Promise((r) => setTimeout(r, 210))
-      const result = gameManager.submitAnswer(roomId, guesser, room.currentWord!)
+      const result = gameManager.submitAnswer(roomId, guesser, word)
       expect(result.correct).toBe(true)
       expect(result.score).toBeGreaterThan(0)
     })
 
     it('should give drawer 50 bonus points', async () => {
       const { roomId, playerIds } = await setupGame()
-      gameManager.startRound(roomId)
+      const word = startRoundWithWord(gameManager, roomId)
       const guesser = playerIds[1] ?? playerIds[0]
       const room = roomManager.getRoomById(roomId)!
       const drawerId = gameManager.getCurrentDrawerId(roomId)!
       await new Promise((r) => setTimeout(r, 210))
-      gameManager.submitAnswer(roomId, guesser, room.currentWord!)
+      gameManager.submitAnswer(roomId, guesser, word)
       const drawer = room.players.find((p) => p.id === drawerId)!
       expect(drawer.score).toBe(50)
     })
@@ -181,12 +194,19 @@ describe('GameManager', () => {
       expect(gameManager.getCurrentDrawerId(roomId)).toBeTruthy()
     })
 
-    it('should set room currentWord', async () => {
+    it('should set room currentWord after selection', async () => {
       const { roomId } = await setupGame()
       gameManager.startRound(roomId)
       const room = roomManager.getRoomById(roomId)!
-      expect(room.currentWord).toBeTruthy()
-      expect(room.currentWord!.length).toBeGreaterThan(0)
+      expect(room.currentWord).toBeFalsy()
+      const drawerId = gameManager.getCurrentDrawerId(roomId)!
+      const calls = mockEmit.mock.calls.filter(
+        (c: unknown[]) => c[0] === SERVER_EVENTS.WORD_SELECTION,
+      )
+      const options = (calls[0][1] as Record<string, unknown>).options as Array<{ word: string }>
+      const word = options[0].word
+      gameManager.handleWordSelection(roomId, drawerId, word)
+      expect(room.currentWord).toBe(word)
     })
 
     it('should reset all players hasGuessedCorrectly', async () => {
@@ -198,14 +218,16 @@ describe('GameManager', () => {
       }
     })
 
-    it('should emit ROUND_START_TO_DRAWER', async () => {
+    it('should emit WORD_SELECTION to drawer', async () => {
       const { roomId } = await setupGame()
       gameManager.startRound(roomId)
       const calls = mockEmit.mock.calls.filter(
-        (c: unknown[]) => c[0] === SERVER_EVENTS.ROUND_START_TO_DRAWER,
+        (c: unknown[]) => c[0] === SERVER_EVENTS.WORD_SELECTION,
       )
       expect(calls.length).toBeGreaterThanOrEqual(1)
-      expect((calls[0][1] as Record<string, unknown>).word).toBeTruthy()
+      const options = (calls[0][1] as Record<string, unknown>).options as Array<{ word: string }>
+      expect(options.length).toBe(5)
+      expect(options[0].word).toBeTruthy()
     })
   })
 
@@ -224,7 +246,7 @@ describe('GameManager', () => {
 
     it('should include current word in ROUND_END', async () => {
       const { roomId } = await setupGame()
-      gameManager.startRound(roomId)
+      startRoundWithWord(gameManager, roomId)
       const room = roomManager.getRoomById(roomId)!
       const word = room.currentWord!
       vi.clearAllMocks()
@@ -279,7 +301,7 @@ describe('GameManager', () => {
 
     it('should send ROUND_START to guesser', async () => {
       const { roomId, playerIds } = await setupGame()
-      gameManager.startRound(roomId)
+      startRoundWithWord(gameManager, roomId)
       const guesser = playerIds[1] ?? playerIds[0]
       vi.clearAllMocks()
       gameManager.restorePlayerState(roomId, guesser)
@@ -291,7 +313,7 @@ describe('GameManager', () => {
 
     it('should send word to reconnecting drawer', async () => {
       const { roomId } = await setupGame()
-      gameManager.startRound(roomId)
+      startRoundWithWord(gameManager, roomId)
       const drawerId = gameManager.getCurrentDrawerId(roomId)!
       vi.clearAllMocks()
       gameManager.restorePlayerState(roomId, drawerId)
@@ -352,7 +374,7 @@ describe('GameManager', () => {
   describe('sendSpectatorSnapshot', () => {
     it('should send scoreboard and timer to spectator', async () => {
       const { roomId } = await setupGame()
-      gameManager.startRound(roomId)
+      startRoundWithWord(gameManager, roomId)
       vi.clearAllMocks()
       gameManager.sendSpectatorSnapshot(roomId, 'spectator-1')
       const scoreCall = mockEmit.mock.calls.find(
@@ -373,7 +395,7 @@ describe('GameManager', () => {
 
     it('should include currentWord for drawer', async () => {
       const { roomId } = await setupGame()
-      gameManager.startRound(roomId)
+      startRoundWithWord(gameManager, roomId)
       const drawerId = gameManager.getCurrentDrawerId(roomId)!
       vi.clearAllMocks()
       gameManager.sendGameStateSnapshot(roomId, drawerId)

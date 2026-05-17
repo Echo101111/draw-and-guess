@@ -72,14 +72,18 @@ export function registerGameHandlers(io: any, socket: any): void {
       const player = room.players.find((p) => p.id === playerId)
       const now = Date.now()
       let isWrongGuess = false
+      const isCustomOwner = room.wordConfig.customWords.length > 0 && player?.isOwner
 
       // 游戏进行中且发送者是猜题者 → 检查是否为答案
       if (room.state === 'playing' && player && !socket.data.isSpectator && !player.isSpectator) {
         const drawerId = gameManager.getCurrentDrawerId(roomId)
         // 画师禁言
         if (playerId === drawerId) return
-        // 已猜对者输入答案词 → 静默丢弃（防止泄露）
-        if (player.hasGuessedCorrectly) {
+        // 自定义词库房间：房主只能当画师或观战，不能猜题
+        if (isCustomOwner) {
+          // 正常聊天，不触发猜词检查
+        } else if (player.hasGuessedCorrectly) {
+          // 已猜对者输入答案词 → 静默丢弃（防止泄露）
           if (matchAnswer(text, room.currentWord ?? '', room.wordConfig.looseMatching)) return
         } else {
           const result = gameManager.submitAnswer(roomId, playerId, text)
@@ -153,6 +157,16 @@ export function registerGameHandlers(io: any, socket: any): void {
       gameManager.resyncStrokes(roomId, playerId, strokes)
     } catch (err) {
       console.error('[ResyncStrokes] Error:', err)
+    }
+  })
+
+  socket.on(CLIENT_EVENTS.SELECT_WORD, ({ word }: { word: string }) => {
+    const { roomId, playerId } = socket.data
+    if (!roomId || !playerId) return
+    try {
+      gameManager.handleWordSelection(roomId, playerId, word)
+    } catch (err) {
+      console.error('[SelectWord] Error:', err)
     }
   })
 }

@@ -1,18 +1,29 @@
 import { SERVER_EVENTS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
-import { getWordCategory, CATEGORY_DISPLAY_NAMES } from '../data/words.js'
+import { getWordCategory, CATEGORY_DISPLAY_NAMES, WORD_CATEGORIES, WORDS } from '../data/words.js'
 import { selectWord, matchAnswer } from '../data/wordIndex.js'
 import type { Room, Player, Point, Stroke, CustomWord } from '@draw-and-guess/shared'
 import type { WordCategory } from '../data/words.js'
 
 const SCORE_BASE = 100
 const SCORE_DRAWER_BONUS = 50
+const WORD_SELECTION_TIMEOUT_MS = 30000
 
 interface RoundTimer {
   roomId: string
   timer: NodeJS.Timeout
   syncTimer: NodeJS.Timeout
   remaining: number
+}
+
+interface WordOption {
+  word: string
+  category?: string
+}
+
+interface PendingSelection {
+  drawerId: string
+  options: WordOption[]
 }
 
 export class GameManager {
@@ -26,7 +37,9 @@ export class GameManager {
   private lastAnswerTime = new Map<string, number>()
   private customWordOrder = new Map<string, CustomWord[]>()
   private undoneStrokes = new Map<string, Set<string>>()
-  private static readonly DRAW_RATE_LIMIT_MS = 8 // ~125 events/s per player
+  private pendingWordSelection = new Map<string, PendingSelection>()
+  private wordSelectionTimers = new Map<string, NodeJS.Timeout>()
+  private static readonly DRAW_RATE_LIMIT_MS = 8
   private static readonly ANSWER_COOLDOWN_MS = 200
   private pruneTimer: NodeJS.Timeout | null = null
 
@@ -45,56 +58,34 @@ export class GameManager {
     const room = roomManager.getRoomById(roomId)
     if (!room || room.state !== 'playing') return false
 
+    this.clearWordSelection(roomId)
+
     const drawer = this.selectNextDrawer(room)
     if (!drawer) {
       this.endGame(roomId)
       return false
     }
 
-    let word: string
-    let wordCategoryName: string | undefined
+    const io = this.getIO()
+    if (!io) return false
 
-    if (room.wordConfig.customWords.length > 0) {
-      if (!this.customWordOrder.has(roomId)) {
-        const shuffled = [...room.wordConfig.customWords]
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    room.players.forEach((p) => {
+      p.hasGuessedCorrectly = false
+      p.isSpectator = false
+      const socketId = roomManager.getPlayerSocketId(p.id)
+      if (socketId) {
+        const socket = io.sockets.sockets.get(socketId)
+        if (socket) {
+          delete socket.data.isSpectator
         }
-        this.customWordOrder.set(roomId, shuffled)
       }
-      const order = this.customWordOrder.get(roomId)!
-      const entry = order[room.currentRound - 1]
-      if (!entry) {
-        console.log(`[Round] custom word out of bounds for room=${roomId}, round=${room.currentRound}`)
-        this.endGame(roomId)
-        return false
-      }
-      word = entry.word
-      wordCategoryName = CATEGORY_DISPLAY_NAMES[entry.category as WordCategory] ?? (entry.category || undefined)
-    } else {
-      const selected = selectWord(this.getUsedWords(roomId))
-      if (!selected) {
-        console.warn(`[Round] No word available for room=${roomId}, resetting word pool`)
-        this.usedWords.delete(roomId)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const retries: number = (this as any)._startRoundRetries?.[roomId] ?? 0
-        if (retries >= 1) {
-          this.endGame(roomId)
-          return false
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-extra-semi
-        ;(this as any)._startRoundRetries = { ...((this as any)._startRoundRetries ?? {}), [roomId]: retries + 1 }
-        return this.startRound(roomId)
-      }
-      word = selected
-      this.getUsedWords(roomId).add(word)
-      const wc = getWordCategory(word)
-      wordCategoryName = wc ? CATEGORY_DISPLAY_NAMES[wc] : undefined
-    }
+    })
 
-    room.currentWord = word
-    room.roundStartTime = Date.now()
+    this.strokeHistory.set(roomId, [])
+    this.strokeSeqIndex.delete(roomId)
+    this.undoneStrokes.delete(roomId)
+    this.roundEnding.delete(roomId)
+    this.currentDrawerId.set(roomId, drawer.id)
 
     const drawerData = {
       id: drawer.id,
@@ -114,49 +105,239 @@ export class GameManager {
         hasGuessedCorrectly: p.hasGuessedCorrectly,
       }))
 
+    // 自定义词库：直接选一个词开始，不走 5 选 1
+    if (room.wordConfig.customWords.length > 0) {
+      return this.startCustomRound(room, drawer, drawerData, guesserData)
+    }
+
+    // 默认词库：5 选 1
+    return this.startSelectionRound(room, drawer, drawerData, guesserData)
+  }
+
+  private startCustomRound(room: Room, drawer: Player, drawerData: object, guesserData: object): boolean {
+    if (!this.customWordOrder.has(room.id)) {
+      const shuffled = [...room.wordConfig.customWords]
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+      this.customWordOrder.set(room.id, shuffled)
+    }
+    const order = this.customWordOrder.get(room.id)!
+    const idx = room.currentRound - 1
+    if (idx >= order.length) {
+      this.endGame(room.id)
+      return false
+    }
+    const entry = order[idx]
+    const word = entry.word
+    const wordCategoryName = CATEGORY_DISPLAY_NAMES[entry.category as WordCategory] ?? (entry.category || undefined)
+
+    room.currentWord = word
+    room.roundStartTime = Date.now()
+
+    const io = this.getIO()
+    if (io) {
+      io.to(drawer.id).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
+        round: room.currentRound,
+        totalRounds: room.totalRounds,
+        word,
+        timeLeft: room.roundDuration,
+        wordLength: word.length,
+        wordCategory: wordCategoryName,
+      })
+      io.to(room.code).emit(SERVER_EVENTS.ROUND_START, {
+        round: room.currentRound,
+        totalRounds: room.totalRounds,
+        drawer: drawerData,
+        guessers: guesserData,
+        timeLeft: room.roundDuration,
+        wordLength: word.length,
+        wordCategory: wordCategoryName,
+      })
+    }
+
+    this.startTimer(room.id, room.roundDuration)
+    return true
+  }
+
+  private startSelectionRound(room: Room, drawer: Player, drawerData: object, guesserData: object): boolean {
     const io = this.getIO()
     if (!io) return false
 
-    room.players.forEach((p) => {
-      p.hasGuessedCorrectly = false
-      p.isSpectator = false
-      // 重置 socket 上的观战者标记
-      const socketId = roomManager.getPlayerSocketId(p.id)
-      if (socketId) {
-        const socket = io.sockets.sockets.get(socketId)
-        if (socket) {
-          delete socket.data.isSpectator
-        }
-      }
-    })
+    const options = this.selectWordOptions(room)
+    this.pendingWordSelection.set(room.id, { drawerId: drawer.id, options })
 
-    this.strokeHistory.set(roomId, [])
-    this.strokeSeqIndex.delete(roomId)
-    this.undoneStrokes.delete(roomId)
-    this.roundEnding.delete(roomId)
-    this.currentDrawerId.set(roomId, drawer.id)
-
-    io.to(drawer.id).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
-      round: room.currentRound,
-      totalRounds: room.totalRounds,
-      word,
-      timeLeft: room.roundDuration,
-      wordLength: word.length,
-      wordCategory: wordCategoryName,
-    })
-
-    io.to(room.code).emit(SERVER_EVENTS.ROUND_START, {
+    io.to(drawer.id).emit(SERVER_EVENTS.WORD_SELECTION, {
+      options: options.map((o) => ({ word: o.word, category: o.category })),
       round: room.currentRound,
       totalRounds: room.totalRounds,
       drawer: drawerData,
       guessers: guesserData,
-      timeLeft: room.roundDuration,
-      wordLength: word.length,
-      wordCategory: wordCategoryName,
     })
+
+    io.to(room.code).except(drawer.id).emit(SERVER_EVENTS.WORD_SELECTING, {
+      round: room.currentRound,
+      totalRounds: room.totalRounds,
+      drawer: drawerData,
+      guessers: guesserData,
+    })
+
+    const selectionTimer = setTimeout(() => {
+      if (!this.pendingWordSelection.has(room.id)) return
+      this.handleWordSelection(room.id, drawer.id, options[0].word)
+    }, WORD_SELECTION_TIMEOUT_MS)
+    this.wordSelectionTimers.set(room.id, selectionTimer)
+
+    return true
+  }
+
+  handleWordSelection(roomId: string, playerId: string, selectedWord: string): boolean {
+    const pending = this.pendingWordSelection.get(roomId)
+    if (!pending) return false
+    if (pending.drawerId !== playerId) return false
+    if (!pending.options.some((o) => o.word === selectedWord)) return false
+
+    this.clearWordSelection(roomId)
+
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.state !== 'playing') return false
+
+    room.currentWord = selectedWord
+    room.roundStartTime = Date.now()
+
+    const drawerId = this.currentDrawerId.get(roomId)
+    const drawer = drawerId ? room.players.find((p) => p.id === drawerId) : undefined
+    const wc = getWordCategory(selectedWord)
+    const wordCategoryName = wc ? CATEGORY_DISPLAY_NAMES[wc] : undefined
+
+    const drawerData = {
+      id: drawerId ?? '',
+      nickname: drawer?.nickname ?? '',
+      isOwner: drawer?.isOwner ?? false,
+      score: drawer?.score ?? 0,
+      hasGuessedCorrectly: drawer?.hasGuessedCorrectly ?? false,
+    }
+
+    const guesserData = room.players
+      .filter((p) => p.id !== drawerId)
+      .map((p) => ({
+        id: p.id,
+        nickname: p.nickname,
+        isOwner: p.isOwner,
+        score: p.score,
+        hasGuessedCorrectly: p.hasGuessedCorrectly,
+      }))
+
+    const io = this.getIO()
+    if (io) {
+      io.to(drawerId!).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
+        round: room.currentRound,
+        totalRounds: room.totalRounds,
+        word: selectedWord,
+        timeLeft: room.roundDuration,
+        wordLength: selectedWord.length,
+        wordCategory: wordCategoryName,
+      })
+
+      io.to(room.code).emit(SERVER_EVENTS.ROUND_START, {
+        round: room.currentRound,
+        totalRounds: room.totalRounds,
+        drawer: drawerData,
+        guessers: guesserData,
+        timeLeft: room.roundDuration,
+        wordLength: selectedWord.length,
+        wordCategory: wordCategoryName,
+      })
+    }
 
     this.startTimer(roomId, room.roundDuration)
     return true
+  }
+
+  private clearWordSelection(roomId: string): void {
+    this.pendingWordSelection.delete(roomId)
+    const st = this.wordSelectionTimers.get(roomId)
+    if (st) {
+      clearTimeout(st)
+      this.wordSelectionTimers.delete(roomId)
+    }
+  }
+
+  private selectWordOptions(room: Room): WordOption[] {
+    const used = this.getUsedWords(room.id)
+
+    if (room.wordConfig.customWords.length > 0) {
+      if (!this.customWordOrder.has(room.id)) {
+        const shuffled = [...room.wordConfig.customWords]
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+        }
+        this.customWordOrder.set(room.id, shuffled)
+      }
+      const order = this.customWordOrder.get(room.id)!
+      const startIdx = room.currentRound - 1
+      const options: WordOption[] = []
+      for (let i = startIdx; i < order.length && options.length < 5; i++) {
+        const entry = order[i]
+        if (!used.has(entry.word)) {
+          options.push({ word: entry.word, category: entry.category })
+          used.add(entry.word)
+        }
+      }
+      if (options.length === 0) {
+        // 自定义词已用完，回退到默认词库
+        for (let i = 0; i < 5; i++) {
+          const w = selectWord(used)
+          if (!w) break
+          options.push({ word: w, category: CATEGORY_DISPLAY_NAMES[getWordCategory(w) as WordCategory] })
+          used.add(w)
+        }
+      }
+      return options
+    }
+
+    // 默认词库：从不同分类选词，尽量覆盖多种类别
+    const categories = [...WORD_CATEGORIES]
+    for (let i = categories.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [categories[i], categories[j]] = [categories[j], categories[i]]
+    }
+
+    const options: WordOption[] = []
+    const catIdx: Record<string, number> = {}
+    for (const cat of categories) catIdx[cat] = 0
+
+    let attempts = 0
+    while (options.length < 5 && attempts < 50) {
+      attempts++
+      for (const cat of categories) {
+        if (options.length >= 5) break
+        const catWords = WORDS[cat]
+        if (!catWords) continue
+        const available = catWords.filter((e) => !used.has(e.word))
+        if (available.length === 0) continue
+        const idx = Math.floor(Math.random() * available.length)
+        const entry = available[idx]
+        if (!options.some((o) => o.word === entry.word)) {
+          options.push({ word: entry.word, category: CATEGORY_DISPLAY_NAMES[cat] })
+          used.add(entry.word)
+        }
+      }
+    }
+
+    // 保底：如果还没凑够 5 个，从所有词里随便选
+    while (options.length < 5) {
+      const w = selectWord(used)
+      if (!w) break
+      if (!options.some((o) => o.word === w)) {
+        options.push({ word: w, category: CATEGORY_DISPLAY_NAMES[getWordCategory(w) as WordCategory] ?? undefined })
+        used.add(w)
+      }
+    }
+
+    return options
   }
 
   submitAnswer(roomId: string, playerId: string, answer: string): { correct: boolean; score?: number } {
@@ -167,6 +348,11 @@ export class GameManager {
 
     const player = room.players.find((p) => p.id === playerId)
     if (!player || player.hasGuessedCorrectly) {
+      return { correct: false }
+    }
+
+    // 自定义词库房间：房主只能当画师或观战，不能猜题
+    if (room.wordConfig.customWords.length > 0 && player.isOwner) {
       return { correct: false }
     }
 
@@ -469,6 +655,7 @@ export class GameManager {
   resetGame(roomId: string): void {
     this.clearTimer(roomId)
     this.clearNextRoundTimer(roomId)
+    this.clearWordSelection(roomId)
     this.usedWords.delete(roomId)
     this.strokeHistory.delete(roomId)
     this.strokeSeqIndex.delete(roomId)
@@ -612,6 +799,9 @@ export class GameManager {
   }
 
   sendGameStateSnapshot(roomId: string, playerId: string): void {
+    // 如果有待选词状态，重发选词弹窗（兜底客户端导航延迟导致的事件丢失）
+    if (this.resendWordSelection(roomId, playerId)) return
+
     const room = roomManager.getRoomById(roomId)
     if (!room || room.state !== 'playing') return
 
@@ -645,6 +835,60 @@ export class GameManager {
       wordLength: room.currentWord?.length ?? 0,
       wordCategory: wordCategoryName,
     })
+  }
+
+  /**
+   * 重发待选词给指定玩家，用于兜底客户端导航延迟导致的事件丢失。
+   * 返回 true 表示有待选词并已重发，false 表示无待选词。
+   */
+  resendWordSelection(roomId: string, playerId: string): boolean {
+    const pending = this.pendingWordSelection.get(roomId)
+    if (!pending) return false
+
+    const io = this.getIO()
+    if (!io) return false
+
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.state !== 'playing') return false
+
+    const drawer = room.players.find((p) => p.id === pending.drawerId)
+    if (!drawer) return false
+
+    const drawerData = {
+      id: drawer.id,
+      nickname: drawer.nickname,
+      isOwner: drawer.isOwner,
+      score: drawer.score,
+      hasGuessedCorrectly: drawer.hasGuessedCorrectly,
+    }
+
+    const guesserData = room.players
+      .filter((p) => p.id !== drawer.id)
+      .map((p) => ({
+        id: p.id,
+        nickname: p.nickname,
+        isOwner: p.isOwner,
+        score: p.score,
+        hasGuessedCorrectly: p.hasGuessedCorrectly,
+      }))
+
+    if (playerId === pending.drawerId) {
+      io.to(playerId).emit(SERVER_EVENTS.WORD_SELECTION, {
+        options: pending.options.map((o) => ({ word: o.word, category: o.category })),
+        round: room.currentRound,
+        totalRounds: room.totalRounds,
+        drawer: drawerData,
+        guessers: guesserData,
+      })
+    } else {
+      io.to(playerId).emit(SERVER_EVENTS.WORD_SELECTING, {
+        round: room.currentRound,
+        totalRounds: room.totalRounds,
+        drawer: drawerData,
+        guessers: guesserData,
+      })
+    }
+    return true
   }
 
   restorePlayerState(roomId: string, playerId: string): void {

@@ -44,6 +44,18 @@
           </button>
         </div>
 
+        <div v-else-if="gameStore.state === 'choosing'" class="playing">
+          <WordSelectModal
+            v-if="gameStore.myRole === 'drawer'"
+            :options="gameStore.wordOptions"
+            @select="handleWordSelect"
+          />
+          <div v-else class="waiting">
+            <div class="waiting-icon">🎨</div>
+            <p>{{ gameStore.drawerNickname }} 正在选词...</p>
+          </div>
+        </div>
+
         <div v-else-if="gameStore.state === 'playing'" class="playing">
           <Transition name="fade">
             <div v-if="showSpectatorNotice" class="spectator-notice">👀 你已加入观战，下一题开始自动参与</div>
@@ -58,37 +70,32 @@
               </div>
             </div>
           </Transition>
-          <div class="role-word-row">
-            <div class="role-info">
-              <span v-if="gameStore.myRole === 'drawer'" class="role-badge drawer-badge">
-                <span class="role-icon">🖌️</span> <span class="role-text">你在画画</span>
-              </span>
-              <span v-else-if="gameStore.myRole === 'guesser'" class="role-badge guesser-badge">
-                <span class="role-icon">💡</span> <span class="role-text">你在猜题</span>
-              </span>
-              <span v-else class="role-badge spectator-badge">
-                <span class="role-icon">👀</span> <span class="role-text">观战中</span>
-              </span>
-            </div>
+          <div class="game-info-row">
+            <span v-if="gameStore.myRole === 'drawer'" class="role-badge drawer-badge">
+              <span class="role-icon">🖌️</span>
+              <span class="role-text">你在画画</span>
+            </span>
+            <span v-else-if="gameStore.myRole === 'guesser'" class="role-badge guesser-badge">
+              <span class="role-icon">💡</span>
+              <span class="role-text">你在猜题</span>
+            </span>
+            <span v-else class="role-badge spectator-badge">
+              <span class="role-icon">👀</span>
+              <span class="role-text">观战中</span>
+            </span>
 
-            <div class="word-card">
-              <template v-if="gameStore.myRole === 'drawer'">
-                <span class="word-label">你要画的词</span>
-                <span class="word-value">{{ gameStore.currentWord }}</span>
-              </template>
-              <template v-else>
-                <span class="word-label">猜词提示</span>
-                <span class="word-hint">{{ gameStore.wordPlaceholders || '未知' }}</span>
-                <span class="drawer-name">画师：{{ gameStore.drawerNickname }}</span>
-              </template>
-            </div>
+            <template v-if="gameStore.myRole === 'drawer'">
+              <span class="info-word">{{ gameStore.currentWord }}</span>
+            </template>
+            <template v-else>
+              <span class="info-hint">{{ gameStore.wordPlaceholders || '?' }}</span>
+              <span class="info-drawer">· 画师：{{ gameStore.drawerNickname }}</span>
+            </template>
+
+            <span v-if="gameStore.showCategoryHint" class="info-category">
+              🏷️{{ gameStore.wordCategory }}
+            </span>
           </div>
-
-          <Transition name="fade">
-            <div v-if="gameStore.showCategoryHint" class="category-hint">
-              💡 分类提示：{{ gameStore.wordCategory }}
-            </div>
-          </Transition>
 
 
           <GameCanvas :readonly="gameStore.myRole !== 'drawer'" />
@@ -222,6 +229,7 @@ import ChatPanel from '@/components/ChatPanel.vue'
 import GameCanvas from '@/components/GameCanvas.vue'
 import Toolbar from '@/components/Toolbar.vue'
 import WordConfigModal from '@/components/WordConfigModal.vue'
+import WordSelectModal from '@/components/WordSelectModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -320,6 +328,10 @@ function handleRestartGame() {
 
 function handleStartGame() {
   roomStore.startGame()
+}
+
+function handleWordSelect(word: string) {
+  gameStore.selectWord(word)
 }
 
 const showWordConfigGameover = ref(false)
@@ -529,10 +541,50 @@ watch(() => roomStore.error, (err) => {
   cursor: not-allowed;
 }
 
-.role-info {
-  display: flex;
+.game-info-row {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
   flex-shrink: 0;
+}
+
+.info-word {
+  font-family: var(--font-title);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.info-hint {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.info-drawer {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.info-category {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--color-accent);
+  background: var(--color-gold-bg);
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .role-badge {
@@ -561,47 +613,6 @@ watch(() => roomStore.error, (err) => {
 .spectator-badge {
   background: var(--color-border-light);
   color: var(--color-text-secondary);
-}
-
-.word-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-  padding: 0.4rem 1.5rem;
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-border-light);
-  flex-shrink: 0;
-}
-
-.role-word-row {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  flex-shrink: 0;
-}
-
-.word-label {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  font-weight: 500;
-}
-
-.word-value {
-  font-family: var(--font-title);
-  font-size: 1.4rem;
-  color: var(--color-primary);
-  letter-spacing: 0.05em;
-  line-height: 1.2;
-}
-
-.word-hint {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
 }
 
 .toolbar-container {
@@ -1108,23 +1119,7 @@ watch(() => roomStore.error, (err) => {
 .pop-enter-active { animation: popIn 0.3s ease-out; }
 .pop-leave-active { animation: popIn 0.3s ease-in reverse; }
 
-.category-hint {
-  padding: 0.3rem 1rem;
-  background: var(--color-gold-bg);
-  border: 1px solid rgba(244, 162, 97, 0.25);
-  border-radius: var(--radius-full);
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--color-accent);
-  flex-shrink: 0;
-  animation: pulse-glow 1.5s ease-in-out infinite;
-}
 
-.drawer-name {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  font-weight: 400;
-}
 
 /* ─── Spectator Notice ─── */
 .spectator-notice {
@@ -1246,25 +1241,6 @@ watch(() => roomStore.error, (err) => {
   }
 
   .sidebar-right.open {
-    transform: translateX(0);
-  }
-
-  .role-word-row {
-    flex-direction: row;
-    width: 100%;
-    justify-content: center;
-  }
-
-  .role-word-row .word-card {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .role-word-row .role-info {
-    flex-shrink: 0;
-  }
-
-  .playing {
     gap: 0;
     flex: 1;
     min-height: 0;
@@ -1357,43 +1333,41 @@ watch(() => roomStore.error, (err) => {
     border-radius: var(--radius-full);
   }
 
-  .word-label {
-    font-size: 0.7rem;
-  }
-
-  .word-value {
-    font-size: 1rem;
-  }
-
-  .word-hint {
-    font-size: 0.8rem;
-  }
-
-  .drawer-name {
-    font-size: 0.7rem;
-  }
-
-  .category-hint {
-    font-size: 0.75rem;
-    padding: 0.15rem 0.8rem;
-  }
-
   .guesser-bubble {
     font-size: 0.7rem;
     padding: 0.1rem 0.5rem;
   }
 
-  .role-info {
-    flex-shrink: 0;
-  }
-
   .role-badge {
-    padding: 0.15rem 0.6rem;
-    font-size: 0.75rem;
+    padding: 0.15rem 0.35rem;
   }
 
-  .role-icon { font-size: 0.85rem; }
-  .role-text { font-size: 0.75rem; }
+  .role-icon { font-size: 0.8rem; }
+  .role-text { font-size: 0.7rem; }
+
+  .game-info-row {
+    gap: 0.3rem;
+    padding: 0.3rem 0.5rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .info-word {
+    font-size: 1rem;
+  }
+
+  .info-hint {
+    font-size: 0.78rem;
+  }
+
+  .info-drawer {
+    font-size: 0.7rem;
+  }
+
+  .info-category {
+    font-size: 0.72rem;
+    padding: 0.15rem 0.55rem;
+  }
 
   .game-over {
     padding: 1rem;
@@ -1413,14 +1387,71 @@ watch(() => roomStore.error, (err) => {
 
   .inline-chat-wrap {
     width: 100%;
-    flex-shrink: 0;
+    flex: 1;
+    min-height: 120px;
     display: flex;
     flex-direction: column;
     border-top: 2px solid var(--color-border-light);
     background: var(--color-surface);
-    flex: 0 0 33vh;
-    min-height: 160px;
-    max-height: 280px;
+    box-shadow: 0 -2px 12px rgba(74, 55, 40, 0.06);
+    position: relative;
+  }
+
+  .inline-chat-wrap::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-accent-pale), var(--color-accent), var(--color-primary));
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .inline-chat-wrap.collapsed {
+    flex: 0 0 auto;
+    max-height: none;
+    border-top: none;
+  }
+
+  .inline-chat-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    min-height: 1.6rem;
+    border-top: 1px solid var(--color-border-light);
+  }
+
+  .inline-chat-title {
+    font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .inline-chat-preview {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .inline-chat-preview-text {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+  }
+
+  .inline-chat-arrow {
+    font-size: 0.55rem;
+    color: var(--color-text-muted);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+
+  .inline-chat-arrow.open {
+    transform: rotate(180deg);
   }
 
   .inline-chat-body {
@@ -1428,6 +1459,7 @@ watch(() => roomStore.error, (err) => {
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   .inline-chat-body :deep(.chat-panel) {

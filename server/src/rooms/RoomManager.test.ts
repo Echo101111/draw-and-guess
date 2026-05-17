@@ -120,7 +120,8 @@ describe('RoomManager', () => {
     })
 
     it('should return NICKNAME_TAKEN for duplicate nickname', async () => {
-      await roomManager.createRoom('Host', 'NickDup', 8, '')
+      const { room, player } = await roomManager.createRoom('Host', 'NickDup', 8, '')
+      roomManager.updatePlayerSession(room.id, player.id, 'session-abc')
       const result = await roomManager.joinRoom('NickDup', '', 'Host')
       expect('error' in result).toBe(true)
       if ('error' in result) {

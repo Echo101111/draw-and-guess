@@ -36,7 +36,7 @@ interface RoundStartToDrawerPayload {
 }
 
 export const useGameStore = defineStore('game', () => {
-  const state = ref<'idle' | 'playing' | 'round_end' | 'game_over'>('idle')
+  const state = ref<'idle' | 'choosing' | 'playing' | 'round_end' | 'game_over'>('idle')
   const currentRound = ref(0)
   const totalRounds = ref(10)
   const timeLeft = ref(0)
@@ -47,20 +47,13 @@ export const useGameStore = defineStore('game', () => {
   const hasGuessedCorrectly = ref(false)
   const currentWord = ref<string | null>(null)
   const currentDrawer = ref<DrawerInfo | null>(null)
+  const wordOptions = ref<Array<{ word: string; category?: string }>>([])
   const strokes = ref<Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }>>([])
   const wordLength = ref(0)
   const wordCategory = ref<string | undefined>(undefined)
   const recentGuessers = ref<Array<{ playerId: string; nickname: string }>>([])
   const strokeVersion = ref(0)
   const pendingFullRedraw = ref(false)
-  const pendingStrokeUpdate = ref<{
-    playerId: string
-    points: Point[]
-    color: string
-    width: number
-    tool: string
-    strokeSeq?: number
-  } | null>(null)
 
   const transitionData = ref<{
     word: string
@@ -118,6 +111,34 @@ export const useGameStore = defineStore('game', () => {
     const roomStore = useRoomStore()
     if (!socket) return
 
+    socket.off(SERVER_EVENTS.WORD_SELECTION)
+    socket.on(SERVER_EVENTS.WORD_SELECTION, (data: { options: Array<{ word: string; category?: string }>; round: number; totalRounds: number; drawer: DrawerInfo; guessers: Array<{ id: string }> }) => {
+      state.value = 'choosing'
+      myRole.value = 'drawer'
+      currentRound.value = data.round
+      totalRounds.value = data.totalRounds
+      currentDrawer.value = data.drawer
+      wordOptions.value = data.options
+      strokes.value = []
+      useCanvasStore().clearCanvas()
+      hasGuessedCorrectly.value = false
+    })
+
+    socket.off(SERVER_EVENTS.WORD_SELECTING)
+    socket.on(SERVER_EVENTS.WORD_SELECTING, (data: { round: number; totalRounds: number; drawer: DrawerInfo; guessers: Array<{ id: string }> }) => {
+      state.value = 'choosing'
+      currentRound.value = data.round
+      totalRounds.value = data.totalRounds
+      currentDrawer.value = data.drawer
+      if (data.drawer.id !== roomStore.currentPlayerId) {
+        myRole.value = 'guesser'
+      }
+      wordOptions.value = []
+      strokes.value = []
+      useCanvasStore().clearCanvas()
+      hasGuessedCorrectly.value = false
+    })
+
     socket.off(SERVER_EVENTS.ROUND_START)
     socket.on(SERVER_EVENTS.ROUND_START, (data: RoundStartPayload) => {
       state.value = 'playing'
@@ -138,7 +159,8 @@ export const useGameStore = defineStore('game', () => {
       if (data.drawer.id === roomStore.currentPlayerId) {
         myRole.value = 'drawer'
       } else {
-        myRole.value = 'guesser'
+        const hasCustomWords = (roomStore.room?.wordConfig.customWords.length ?? 0) > 0
+        myRole.value = hasCustomWords && roomStore.isOwner ? 'spectator' : 'guesser'
       }
     })
 
@@ -178,23 +200,8 @@ export const useGameStore = defineStore('game', () => {
           existing.points = data.points
         } else {
           existing.points.push(...data.points)
-          if (
-            pendingStrokeUpdate.value &&
-            pendingStrokeUpdate.value.playerId === data.playerId &&
-            pendingStrokeUpdate.value.strokeSeq === data.strokeSeq
-          ) {
-            pendingStrokeUpdate.value.points.push(...data.points)
-          } else {
-            pendingStrokeUpdate.value = {
-              playerId: data.playerId,
-              points: [...data.points],
-              color: data.color,
-              width: data.width,
-              tool: data.tool,
-              strokeSeq: data.strokeSeq,
-            }
-          }
         }
+        pendingFullRedraw.value = true
         strokes.value = [...strokes.value]
       } else {
         strokes.value.push(data)
@@ -414,10 +421,18 @@ export const useGameStore = defineStore('game', () => {
     })
   }
 
+  function selectWord(word: string) {
+    const socket = getSocket()
+    if (socket?.connected) {
+      socket.emit(CLIENT_EVENTS.SELECT_WORD, { word })
+    }
+  }
+
   function teardownSocketListeners(): void {
     const socket = getSocket()
     if (!socket) return
     ;[
+      SERVER_EVENTS.WORD_SELECTION, SERVER_EVENTS.WORD_SELECTING,
       SERVER_EVENTS.ROUND_START, SERVER_EVENTS.ROUND_START_TO_DRAWER,
       SERVER_EVENTS.DRAW_STROKE, SERVER_EVENTS.CANVAS_CLEARED,
       SERVER_EVENTS.STROKE_UNDONE,
@@ -442,12 +457,12 @@ export const useGameStore = defineStore('game', () => {
     strokes.value = []
     chatMessages.value = []
     transitionData.value = null
+    wordOptions.value = []
     wordLength.value = 0
     wordCategory.value = undefined
     recentGuessers.value = []
     strokeVersion.value = 0
     pendingFullRedraw.value = false
-    pendingStrokeUpdate.value = null
   }
 
   return {
@@ -462,6 +477,7 @@ export const useGameStore = defineStore('game', () => {
     hasGuessedCorrectly,
     currentWord,
     currentDrawer,
+    wordOptions,
     strokes,
     transitionData,
     isMyTurn,
@@ -474,7 +490,6 @@ export const useGameStore = defineStore('game', () => {
     recentGuessers,
     strokeVersion,
     pendingFullRedraw,
-    pendingStrokeUpdate,
     setupSocketListeners,
     teardownSocketListeners,
     submitAnswer,
@@ -483,6 +498,7 @@ export const useGameStore = defineStore('game', () => {
     clearCanvas,
     undoStroke,
     addCompletedStroke,
+    selectWord,
     resetGame,
   }
 })

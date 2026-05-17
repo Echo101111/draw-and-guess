@@ -16,6 +16,7 @@ export const CLIENT_EVENTS = {
   REQUEST_GAME_STATE: 'c_request_game_state',
   RESYNC_STROKES: 'c_resync_strokes',
   UNDO_STROKE: 'c_undo_stroke',
+  SELECT_WORD: 'c_select_word',
 } as const
 
 // Server → Client events
@@ -25,6 +26,8 @@ export const SERVER_EVENTS = {
   ROOM_ERROR: 's_room_error',
   ROOM_UPDATED: 's_room_updated',
   KICKED: 's_kicked',
+  WORD_SELECTION: 's_word_selection',
+  WORD_SELECTING: 's_word_selecting',
   ROUND_START: 's_round_start',
   ROUND_START_TO_DRAWER: 's_round_start_to_drawer',
   DRAW_STROKE: 's_draw_stroke',

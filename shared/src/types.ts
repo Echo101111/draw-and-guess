@@ -16,7 +16,7 @@ export type RoomState = 'lobby' | 'playing' | 'gameover'
 
 export type WordDifficulty = 'easy' | 'medium' | 'hard'
 
-export type WordCategory = 'animals' | 'food' | 'daily' | 'nature' | 'vehicles' | 'sports' | 'characters'
+export type WordCategory = 'animals' | 'food' | 'daily' | 'nature' | 'vehicles' | 'sports' | 'celebrities' | 'professions'
 
 export interface CustomWord {
   word: string

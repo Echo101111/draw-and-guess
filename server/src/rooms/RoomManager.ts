@@ -114,7 +114,9 @@ export class RoomManager {
       return { error: { code: ErrorCode.ROOM_PASSWORD_WRONG, message: '密码错误' } }
     }
 
-    const nicknameTaken = room.players.some((p) => p.nickname.toLowerCase() === nickname.toLowerCase())
+    const nicknameTaken = room.players.some(
+      (p) => p.nickname.toLowerCase() === nickname.toLowerCase() && p.sessionId,
+    )
     if (nicknameTaken) {
       return { error: { code: ErrorCode.NICKNAME_TAKEN, message: '该昵称已被使用，请换一个名字' } }
     }

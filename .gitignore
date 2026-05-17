@@ -14,3 +14,4 @@ coverage/
 
 # 部署临时包
 .deploy-package.tar.gz
+diff_output.txt

@@ -10,12 +10,12 @@ describe('words', () => {
   })
 
   describe('WORD_CATEGORIES', () => {
-    it('should have 7 categories', () => {
-      expect(WORD_CATEGORIES).toHaveLength(7)
+    it('should have 8 categories', () => {
+      expect(WORD_CATEGORIES).toHaveLength(8)
     })
 
     it('should contain expected categories', () => {
-      const expected = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'characters']
+      const expected = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'celebrities', 'professions']
       for (const cat of expected) {
         expect(WORD_CATEGORIES).toContain(cat)
       }
@@ -26,7 +26,7 @@ describe('words', () => {
     it('should return category for known word', () => {
       expect(getWordCategory('猫')).toBe('animals')
       expect(getWordCategory('苹果')).toBe('food')
-      expect(getWordCategory('医生')).toBe('characters')
+      expect(getWordCategory('医生')).toBe('professions')
     })
 
     it('should return null for unknown word', () => {

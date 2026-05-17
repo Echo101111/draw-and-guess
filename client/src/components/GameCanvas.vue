@@ -76,9 +76,26 @@ function handleTouchMove(e: TouchEvent) {
 function handleTouchEnd(e: TouchEvent) {
   e.preventDefault()
   if (props.readonly || !gameStore.isMyTurn) return
+  
+  // 保存当前笔画数据（在 finalizeStroke 清空之前）
+  const strokeData = canvasStore.currentStroke.length > 0 && fabricCanvas ? {
+    playerId: '',
+    points: canvasStore.currentStroke.map((p) => ({ x: p.x / (fabricCanvas!.width ?? 1), y: p.y / (fabricCanvas!.height ?? 1) })),
+    color: canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
+    width: canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
+    tool: canvasStore.tool,
+    strokeSeq,
+  } : null
+  
   if (canvasStore.currentStroke.length > 0) emitStroke()
   finalizeStroke()
-  renderCompletedStrokes()
+  
+  // 清除临时路径对象
+  currentPathObject = null
+  
+  // 触发完整重绘（包含刚完成的笔画）
+  renderCompletedStrokes(strokeData ? [strokeData] : undefined)
+  
   if (pendingResize) { pendingResize = false; resizeCanvas() }
 }
 
@@ -107,9 +124,26 @@ function handleMouseMove(e: { e: MouseEvent }) {
 
 function handleMouseUp() {
   if (props.readonly || !gameStore.isMyTurn) return
+  
+  // 保存当前笔画数据（在 finalizeStroke 清空之前）
+  const strokeData = canvasStore.currentStroke.length > 0 && fabricCanvas ? {
+    playerId: '',
+    points: canvasStore.currentStroke.map((p) => ({ x: p.x / (fabricCanvas!.width ?? 1), y: p.y / (fabricCanvas!.height ?? 1) })),
+    color: canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
+    width: canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
+    tool: canvasStore.tool,
+    strokeSeq,
+  } : null
+  
   if (canvasStore.currentStroke.length > 0) emitStroke()
   finalizeStroke()
-  renderCompletedStrokes()
+  
+  // 清除临时路径对象
+  currentPathObject = null
+  
+  // 触发完整重绘（包含刚完成的笔画）
+  renderCompletedStrokes(strokeData ? [strokeData] : undefined)
+  
   if (pendingResize) { pendingResize = false; resizeCanvas() }
 }
 
@@ -171,7 +205,8 @@ function finalizeStroke() {
   canvasStore.isDrawing = false
 }
 
-function renderCompletedStrokes() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderCompletedStrokes(extraStrokes?: any[]) {
   if (!fabricCanvas) return
   const cw = fabricCanvas.width ?? 1
   const ch = fabricCanvas.height ?? 1
@@ -180,7 +215,10 @@ function renderCompletedStrokes() {
   fabricCanvas.backgroundColor = '#ffffff'
   strokePathMap.clear()
 
-  for (const stroke of gameStore.strokes) {
+  // 合并 gameStore.strokes 和额外传入的笔画
+  const allStrokes = [...gameStore.strokes, ...(extraStrokes ?? [])]
+
+  for (const stroke of allStrokes) {
     if (stroke.points.length === 0) continue
     if (stroke.points.length === 1) {
       const p = stroke.points[0]
@@ -210,7 +248,7 @@ function renderCompletedStrokes() {
       evented: false,
     })
     fabricCanvas.add(path)
-    if (stroke.strokeSeq !== undefined) {
+    if (stroke.strokeSeq !== undefined && stroke.playerId) {
       strokePathMap.set(`${stroke.playerId}:${stroke.strokeSeq}`, path)
     }
   }
@@ -222,36 +260,67 @@ function renderCompletedStrokes() {
 function renderCurrentStroke() {
   if (!fabricCanvas) return
 
+  const points = canvasStore.currentStroke
+  if (points.length === 0) return
+
+  const currentColor = canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color
+  const currentWidth = canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width
+
+  // 获取 Fabric.js 的上层 canvas（用户看到的层）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const upperCanvas = (fabricCanvas as any).upperCanvasEl as HTMLCanvasElement | undefined
+  if (!upperCanvas) return
+  const ctx = upperCanvas.getContext('2d')
+  if (!ctx) return
+
+  // 清除上层 canvas（直接清除整个画布，因为这只是临时绘制层）
+  ctx.clearRect(0, 0, upperCanvas.width, upperCanvas.height)
+
+  if (points.length === 1) {
+    // 单点用圆形
+    const p = points[0]
+    const radius = currentWidth / 2
+    ctx.fillStyle = currentColor
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
+    ctx.fill()
+  } else if (points.length >= 2) {
+    // 多点用线条
+    ctx.strokeStyle = currentColor
+    ctx.lineWidth = currentWidth
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+    ctx.moveTo(points[0].x, points[0].y)
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y)
+    }
+    ctx.stroke()
+  }
+
+  // 创建 Fabric.js 对象用于后续管理（添加到对象列表但不立即渲染）
   if (currentPathObject) {
     fabricCanvas.remove(currentPathObject)
     currentPathObject = null
   }
 
-  if (canvasStore.currentStroke.length === 1) {
-    const p = canvasStore.currentStroke[0]
-    const circleColor = canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color
-    const circleRadius = (canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width) / 2
+  if (points.length === 1) {
+    const p = points[0]
+    const radius = currentWidth / 2
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     currentPathObject = new (fabric as any).Circle({
-      left: p.x - circleRadius,
-      top: p.y - circleRadius,
-      radius: circleRadius,
-      fill: circleColor,
+      left: p.x - radius,
+      top: p.y - radius,
+      radius,
+      fill: currentColor,
       selectable: false,
       evented: false,
     })
-    fabricCanvas.add(currentPathObject!)
-    fabricCanvas.renderAll()
-    return
-  }
-
-  if (canvasStore.currentStroke.length >= 2) {
-    const currentPathData = canvasStore.currentStroke
+  } else {
+    const pathData = points
       .map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
       .join(' ')
-    const currentColor = canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color
-    const currentWidth = canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width
-    currentPathObject = new fabric.Path(currentPathData, {
+    currentPathObject = new fabric.Path(pathData, {
       stroke: currentColor,
       strokeWidth: currentWidth,
       fill: null,
@@ -260,28 +329,11 @@ function renderCurrentStroke() {
       selectable: false,
       evented: false,
     })
-    fabricCanvas.add(currentPathObject)
   }
 
-  fabricCanvas.renderAll()
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applyIncrementalStroke(data: any) {
-  if (!fabricCanvas) return
-  const cw = fabricCanvas.width ?? 1
-  const ch = fabricCanvas.height ?? 1
-  const key = data.strokeSeq !== undefined ? `${data.playerId}:${data.strokeSeq}` : undefined
-  const existing = key ? strokePathMap.get(key) : undefined
-  if (!existing) return // 路径尚未渲染，全量重绘兜底
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const currentPath = existing.get('path') as any
-  if (!currentPath) return
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const newPoints = data.points.map((p: any) => ['L', p.x * cw, p.y * ch])
-  existing.set('path', [...currentPath, ...newPoints])
-  existing.setCoords()
-  fabricCanvas.renderAll()
+  if (currentPathObject) {
+    fabricCanvas.add(currentPathObject)
+  }
 }
 
 function resizeCanvas() {
@@ -295,12 +347,19 @@ function resizeCanvas() {
   const ratio = 4 / 3
   let w: number, h: number
 
-  if (containerWidth / containerHeight > ratio) {
-    h = Math.floor(containerHeight)
-    w = Math.floor(h * ratio)
-  } else {
+  // 移动端（<768px）：宽度占满屏幕，高度按4:3比例计算
+  if (window.innerWidth < 768) {
     w = Math.floor(containerWidth)
     h = Math.floor(w / ratio)
+  } else {
+    // 桌面端：保持 4:3 比例，适应容器
+    if (containerWidth / containerHeight > ratio) {
+      h = Math.floor(containerHeight)
+      w = Math.floor(h * ratio)
+    } else {
+      w = Math.floor(containerWidth)
+      h = Math.floor(w / ratio)
+    }
   }
 
   if (fabricCanvas.width === w && fabricCanvas.height === h) return
@@ -312,13 +371,6 @@ function resizeCanvas() {
 
 watch(() => gameStore.strokeVersion, () => {
   if (!fabricCanvas) return
-  // 增量渲染（快路径）
-  if (gameStore.pendingStrokeUpdate) {
-    const update = gameStore.pendingStrokeUpdate
-    gameStore.pendingStrokeUpdate = null
-    applyIncrementalStroke(update)
-  }
-  // 全量重绘（可靠兜底）
   if (gameStore.pendingFullRedraw) {
     strokePathMap.clear()
     renderCompletedStrokes()
@@ -437,12 +489,14 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
   .game-canvas {
-    min-height: 0;
+    flex: none;
+    width: 100%;
   }
 
   .game-canvas canvas {
     border-radius: 0;
     border-width: 1px 0;
+    max-width: none;
   }
 }
 </style>
