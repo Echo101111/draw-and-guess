@@ -1,6 +1,7 @@
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
 import { gameManager } from '../game/index.js'
 import { roomManager } from '../rooms/index.js'
+import { matchAnswer } from '../data/wordIndex.js'
 
 const lastChatTime = new Map<string, number>()
 const CHAT_COOLDOWN = 1000
@@ -65,17 +66,33 @@ export function registerGameHandlers(io: any, socket: any): void {
     if (!text || !text.trim()) return
 
     try {
-      const now = Date.now()
-      const lastTime = lastChatTime.get(playerId) ?? 0
-      if (now - lastTime < CHAT_COOLDOWN) {
-        return
-      }
-      lastChatTime.set(playerId, now)
-
       const room = roomManager.getRoomById(roomId)
       if (!room) return
 
       const player = room.players.find((p) => p.id === playerId)
+      const now = Date.now()
+      let isWrongGuess = false
+
+      // 游戏进行中且发送者是猜题者 → 检查是否为答案
+      if (room.state === 'playing' && player && !socket.data.isSpectator && !player.isSpectator) {
+        const drawerId = gameManager.getCurrentDrawerId(roomId)
+        // 画师禁言
+        if (playerId === drawerId) return
+        // 已猜对者输入答案词 → 静默丢弃（防止泄露）
+        if (player.hasGuessedCorrectly) {
+          if (matchAnswer(text, room.currentWord ?? '', room.wordConfig.looseMatching)) return
+        } else {
+          const result = gameManager.submitAnswer(roomId, playerId, text)
+          if (result.correct) return
+          isWrongGuess = true
+        }
+      }
+
+      // chat 频率限制
+      const lastTime = lastChatTime.get(playerId) ?? 0
+      if (now - lastTime < CHAT_COOLDOWN) return
+      lastChatTime.set(playerId, now)
+
       const nickname = player?.nickname ?? '玩家'
 
       io.to(room.code).emit(SERVER_EVENTS.CHAT_MESSAGE, {
@@ -83,6 +100,7 @@ export function registerGameHandlers(io: any, socket: any): void {
         nickname,
         text: text.trim().slice(0, 200),
         isSystem: false,
+        isWrongGuess,
         timestamp: now,
       })
     } catch (err) {

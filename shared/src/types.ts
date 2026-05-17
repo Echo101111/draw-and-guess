@@ -6,6 +6,7 @@ export interface Player {
   isOwner: boolean
   score: number
   hasGuessedCorrectly: boolean
+  isSpectator?: boolean
   joinedAt: number
   lastActiveAt: number
 }
@@ -70,6 +71,7 @@ export interface ChatMessage {
   nickname: string | null
   text: string
   isSystem: boolean
+  isWrongGuess?: boolean
   timestamp: number
 }
 

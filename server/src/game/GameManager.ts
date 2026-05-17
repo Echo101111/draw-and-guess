@@ -119,6 +119,15 @@ export class GameManager {
 
     room.players.forEach((p) => {
       p.hasGuessedCorrectly = false
+      p.isSpectator = false
+      // 重置 socket 上的观战者标记
+      const socketId = roomManager.getPlayerSocketId(p.id)
+      if (socketId) {
+        const socket = io.sockets.sockets.get(socketId)
+        if (socket) {
+          delete socket.data.isSpectator
+        }
+      }
     })
 
     this.strokeHistory.set(roomId, [])
@@ -623,6 +632,7 @@ export class GameManager {
     io.to(playerId).emit(SERVER_EVENTS.GAME_STATE_SNAPSHOT, {
       currentRound: room.currentRound,
       totalRounds: room.totalRounds,
+      totalTime: room.roundDuration,
       timeLeft,
       drawer: drawerPlayer ? { id: drawerPlayer.id, nickname: drawerPlayer.nickname } : null,
       strokes: this.strokeHistory.get(roomId) ?? [],

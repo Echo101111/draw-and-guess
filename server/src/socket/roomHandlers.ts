@@ -151,6 +151,8 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
     // 游戏进行中：新玩家以观战者加入，可看画板和聊天，下一轮自动参与
     if (room.state === 'playing') {
+      player.isSpectator = true
+      socket.data.isSpectator = true
       gameManager.sendSpectatorSnapshot(room.id, player.id)
     }
   })
@@ -336,7 +338,12 @@ export function registerRoomHandlers(io: any, socket: any): void {
         isOwner: player.isOwner,
       })
 
-      gameManager.restorePlayerState(room.id, player.id)
+      if (player.isSpectator) {
+        socket.data.isSpectator = true
+        gameManager.sendSpectatorSnapshot(room.id, player.id)
+      } else {
+        gameManager.restorePlayerState(room.id, player.id)
+      }
 
       io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
     } catch (err) {

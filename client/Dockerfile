@@ -15,7 +15,7 @@ COPY CHANGELOG.md ./
 RUN pnpm --filter @draw-and-guess/shared build
 
 ARG VITE_SERVER_URL
-ENV VITE_SERVER_URL=${VITE_SERVER_URL:-http://localhost:3000}
+ENV VITE_SERVER_URL=${VITE_SERVER_URL}
 RUN pnpm --filter @draw-and-guess/client build
 
 FROM nginx:alpine

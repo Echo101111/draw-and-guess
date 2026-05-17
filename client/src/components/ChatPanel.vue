@@ -9,10 +9,18 @@
       <div
         v-for="msg in gameStore.chatMessages"
         :key="msg.id"
-        :class="['message', { 'is-system': msg.isSystem }]"
+        :class="['message', {
+          'is-system': msg.isSystem,
+          'is-wrong-guess': msg.isWrongGuess,
+        }]"
       >
         <template v-if="msg.isSystem">
           <span class="sys-text">{{ msg.text }}</span>
+        </template>
+        <template v-else-if="msg.isWrongGuess">
+          <span class="msg-icon">🔍</span>
+          <span class="msg-nickname">{{ msg.nickname }}</span>
+          <span class="msg-text">{{ msg.text }}</span>
         </template>
         <template v-else>
           <span class="msg-nickname">{{ msg.nickname }}</span>
@@ -27,18 +35,19 @@
         <input
           v-model="inputText"
           type="text"
-          placeholder="发送消息..."
+          :placeholder="inputPlaceholder"
+          :disabled="inputDisabled"
           maxlength="200"
           @keyup.enter="handleSend"
         />
       </div>
-      <button @click="handleSend">发送</button>
+      <button @click="handleSend" :disabled="inputDisabled">发送</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 
 const gameStore = useGameStore()
@@ -46,8 +55,19 @@ const inputText = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
 let intersectionObserver: IntersectionObserver | null = null
 
+const inputPlaceholder = computed(() => {
+  if (gameStore.myRole === 'drawer') return '🎨 画师专注创作中...'
+  if (gameStore.myRole === 'spectator') return '👀 观战中...'
+  if (gameStore.myRole === 'guesser' && !gameStore.hasGuessedCorrectly) return '输入答案或发送消息...'
+  return '发送消息...'
+})
+
+const inputDisabled = computed(() => {
+  return gameStore.myRole === 'drawer' || gameStore.myRole === 'spectator' || gameStore.hasGuessedCorrectly
+})
+
 function handleSend() {
-  if (!inputText.value.trim()) return
+  if (!inputText.value.trim() || inputDisabled.value) return
   gameStore.sendChat(inputText.value.trim())
   inputText.value = ''
 }
@@ -157,6 +177,11 @@ watch(() => gameStore.chatMessages.length, () => {
   padding: 0.3rem 0.5rem;
 }
 
+.message.is-wrong-guess {
+  background: var(--color-bg-warm, #f8f2ec);
+  border-left: 3px solid var(--color-text-muted);
+}
+
 .sys-text {
   color: var(--color-text-muted);
   font-size: 0.8rem;
@@ -165,6 +190,11 @@ watch(() => gameStore.chatMessages.length, () => {
 
 .sys-text::before {
   content: '📢 ';
+}
+
+.msg-icon {
+  margin-right: 0.25rem;
+  font-size: 0.8rem;
 }
 
 .msg-nickname {
@@ -219,6 +249,12 @@ watch(() => gameStore.chatMessages.length, () => {
   color: var(--color-text-muted);
 }
 
+.input-row input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--color-border-light);
+}
+
 .input-row button {
   padding: 0.5rem 1rem;
   background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
@@ -232,9 +268,14 @@ watch(() => gameStore.chatMessages.length, () => {
   white-space: nowrap;
 }
 
-.input-row button:hover {
+.input-row button:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(232, 133, 108, 0.3);
+}
+
+.input-row button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 @media (max-width: 767px) {

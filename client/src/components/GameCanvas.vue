@@ -273,20 +273,15 @@ function applyIncrementalStroke(data: any) {
   const ch = fabricCanvas.height ?? 1
   const key = data.strokeSeq !== undefined ? `${data.playerId}:${data.strokeSeq}` : undefined
   const existing = key ? strokePathMap.get(key) : undefined
-  if (existing) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const currentPath = existing.get('path') as any
-    if (currentPath) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const newPoints = data.points.map((p: any) => ['L', p.x * cw, p.y * ch])
-      existing.set('path', [...currentPath, ...newPoints])
-      existing.setCoords()
-      fabricCanvas.renderAll()
-      return
-    }
-  }
-  gameStore.pendingFullRedraw = false
-  renderCompletedStrokes()
+  if (!existing) return // 路径尚未渲染，全量重绘兜底
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const currentPath = existing.get('path') as any
+  if (!currentPath) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const newPoints = data.points.map((p: any) => ['L', p.x * cw, p.y * ch])
+  existing.set('path', [...currentPath, ...newPoints])
+  existing.setCoords()
+  fabricCanvas.renderAll()
 }
 
 function resizeCanvas() {
@@ -317,10 +312,13 @@ function resizeCanvas() {
 
 watch(() => gameStore.strokeVersion, () => {
   if (!fabricCanvas) return
+  // 增量渲染（快路径）
   if (gameStore.pendingStrokeUpdate) {
-    applyIncrementalStroke(gameStore.pendingStrokeUpdate)
+    const update = gameStore.pendingStrokeUpdate
     gameStore.pendingStrokeUpdate = null
+    applyIncrementalStroke(update)
   }
+  // 全量重绘（可靠兜底）
   if (gameStore.pendingFullRedraw) {
     strokePathMap.clear()
     renderCompletedStrokes()

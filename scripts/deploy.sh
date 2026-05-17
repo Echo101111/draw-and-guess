@@ -29,7 +29,8 @@ ARCHIVE=".deploy-package.tar.gz"
 echo "🚀 部署到 ${SSH_DEST}"
 
 echo "📦 打包项目..."
-tar --exclude=node_modules \
+tar --no-xattrs \
+    --exclude=node_modules \
     --exclude=.git \
     --exclude=.claude \
     --exclude=.opencode \

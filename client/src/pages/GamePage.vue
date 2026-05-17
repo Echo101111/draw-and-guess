@@ -97,19 +97,8 @@
             <Toolbar />
           </div>
 
-          <div v-if="gameStore.myRole === 'guesser'" class="answer-container">
-            <AnswerInput :disabled="gameStore.hasGuessedCorrectly" />
-          </div>
-
-          <div class="inline-chat-wrap" :class="{ collapsed: !chatExpanded }">
-            <div class="inline-chat-header" @click="chatExpanded = !chatExpanded">
-              <span class="inline-chat-title">💬 聊天</span>
-              <div class="inline-chat-preview" v-if="!chatExpanded && gameStore.chatMessages.length > 0">
-                <span class="inline-chat-preview-text">{{ gameStore.chatMessages[gameStore.chatMessages.length - 1].text }}</span>
-              </div>
-              <span class="inline-chat-arrow" :class="{ open: chatExpanded }">▲</span>
-            </div>
-            <div class="inline-chat-body" v-show="chatExpanded">
+          <div class="inline-chat-wrap">
+            <div class="inline-chat-body">
               <ChatPanel />
             </div>
           </div>
@@ -232,7 +221,6 @@ import Scoreboard from '@/components/Scoreboard.vue'
 import ChatPanel from '@/components/ChatPanel.vue'
 import GameCanvas from '@/components/GameCanvas.vue'
 import Toolbar from '@/components/Toolbar.vue'
-import AnswerInput from '@/components/AnswerInput.vue'
 import WordConfigModal from '@/components/WordConfigModal.vue'
 
 const route = useRoute()
@@ -241,7 +229,6 @@ const roomStore = useRoomStore()
 const gameStore = useGameStore()
 
 const roomName = computed(() => route.params.roomName as string)
-const chatExpanded = ref(true)
 const showScoreboard = ref(false)
 const showLeaveConfirm = ref(false)
 const showDrawerAlert = ref(false)
@@ -296,10 +283,15 @@ onMounted(() => {
   // 兜底：请求当前游戏状态（ROUND_START 在注册前到达时恢复）
   getSocket()?.emit(CLIENT_EVENTS.REQUEST_GAME_STATE)
 
-  // 中途加入提示：房间已开始游戏且为观战者
-  if (roomStore.room?.state === 'playing' && roomStore.isSpectator) {
-    showSpectatorNotice.value = true
-    setTimeout(() => { showSpectatorNotice.value = false }, 4000)
+  // 房间已开始游戏，立即显示游戏界面，不等 GAME_STATE_SNAPSHOT
+  if (roomStore.room?.state === 'playing') {
+    gameStore.state = 'playing'
+    if (roomStore.isSpectator) {
+      gameStore.myRole = 'spectator'
+      showSpectatorNotice.value = true
+      setTimeout(() => { showSpectatorNotice.value = false }, 4000)
+    }
+    // 非观战者不设置 myRole，由 GAME_STATE_SNAPSHOT 决定
   }
 })
 
@@ -612,8 +604,7 @@ watch(() => roomStore.error, (err) => {
   color: var(--color-text);
 }
 
-.toolbar-container,
-.answer-container {
+.toolbar-container {
   width: 100%;
   display: flex;
   justify-content: center;
@@ -1353,8 +1344,7 @@ watch(() => roomStore.error, (err) => {
     font-size: 0.7rem;
   }
 
-  .toolbar-container,
-  .answer-container {
+  .toolbar-container {
     max-width: 100%;
     flex-shrink: 0;
   }
@@ -1426,58 +1416,11 @@ watch(() => roomStore.error, (err) => {
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    border-top: 1px solid var(--color-border-light);
+    border-top: 2px solid var(--color-border-light);
     background: var(--color-surface);
-    max-height: 35vh;
-  }
-
-  .inline-chat-wrap.collapsed {
-    max-height: none;
-  }
-
-  .inline-chat-header {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.35rem 0.6rem;
-    cursor: pointer;
-    flex-shrink: 0;
-    min-height: 2rem;
-  }
-
-  .inline-chat-title {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--color-text);
-    white-space: nowrap;
-  }
-
-  .inline-chat-preview {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .inline-chat-preview-text {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-  }
-
-  .inline-chat-preview-text::before {
-    content: '· ';
-    color: var(--color-text-muted);
-  }
-
-  .inline-chat-arrow {
-    font-size: 0.6rem;
-    color: var(--color-text-muted);
-    transition: transform 0.2s;
-    flex-shrink: 0;
-  }
-
-  .inline-chat-arrow.open {
-    transform: rotate(180deg);
+    flex: 0 0 33vh;
+    min-height: 160px;
+    max-height: 280px;
   }
 
   .inline-chat-body {

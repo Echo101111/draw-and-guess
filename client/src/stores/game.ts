@@ -85,6 +85,7 @@ export const useGameStore = defineStore('game', () => {
   interface GameStateSnapshot {
     currentRound: number
     totalRounds: number
+    totalTime: number
     timeLeft: number
     drawer: DrawerInfo
     strokes: Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }>
@@ -175,16 +176,23 @@ export const useGameStore = defineStore('game', () => {
       if (existing) {
         if (data.full) {
           existing.points = data.points
-          pendingFullRedraw.value = true
         } else {
           existing.points.push(...data.points)
-          pendingStrokeUpdate.value = {
-            playerId: data.playerId,
-            points: data.points,
-            color: data.color,
-            width: data.width,
-            tool: data.tool,
-            strokeSeq: data.strokeSeq,
+          if (
+            pendingStrokeUpdate.value &&
+            pendingStrokeUpdate.value.playerId === data.playerId &&
+            pendingStrokeUpdate.value.strokeSeq === data.strokeSeq
+          ) {
+            pendingStrokeUpdate.value.points.push(...data.points)
+          } else {
+            pendingStrokeUpdate.value = {
+              playerId: data.playerId,
+              points: [...data.points],
+              color: data.color,
+              width: data.width,
+              tool: data.tool,
+              strokeSeq: data.strokeSeq,
+            }
           }
         }
         strokes.value = [...strokes.value]
@@ -272,13 +280,14 @@ export const useGameStore = defineStore('game', () => {
     })
 
     socket.off(SERVER_EVENTS.CHAT_MESSAGE)
-    socket.on(SERVER_EVENTS.CHAT_MESSAGE, (data: { playerId: string; nickname: string; text: string; isSystem: boolean; timestamp: number }) => {
+    socket.on(SERVER_EVENTS.CHAT_MESSAGE, (data: { playerId: string; nickname: string; text: string; isSystem: boolean; isWrongGuess?: boolean; timestamp: number }) => {
       chatMessages.value.push({
         id: `${data.timestamp}-${data.playerId}`,
         playerId: data.playerId,
         nickname: data.nickname,
         text: data.text,
         isSystem: data.isSystem,
+        isWrongGuess: data.isWrongGuess ?? false,
         timestamp: data.timestamp,
       })
     })
@@ -286,23 +295,26 @@ export const useGameStore = defineStore('game', () => {
     // GAME_STATE_SNAPSHOT: 接收完整游戏快照（兜底 ROUND_START 丢失）
     socket.off(SERVER_EVENTS.GAME_STATE_SNAPSHOT)
     socket.on(SERVER_EVENTS.GAME_STATE_SNAPSHOT, (data: GameStateSnapshot) => {
-      const wasNotPlaying = state.value !== 'playing'
+      const roomStore = useRoomStore()
+
       state.value = 'playing'
       currentRound.value = data.currentRound
       totalRounds.value = data.totalRounds
-      totalTime.value = data.timeLeft
+      totalTime.value = data.totalTime
       currentDrawer.value = data.drawer
-      myRole.value = data.drawer.id === useRoomStore().currentPlayerId ? 'drawer' : 'guesser'
       scores.value = data.scores
       strokes.value = data.strokes
       timeLeft.value = data.timeLeft
       if (data.currentWord) currentWord.value = data.currentWord
       if (data.wordLength !== undefined) wordLength.value = data.wordLength
       if (data.wordCategory !== undefined) wordCategory.value = data.wordCategory
-      if (wasNotPlaying) {
-        stopLocalTimer()
-        startLocalTimer()
-      }
+      stopLocalTimer()
+      startLocalTimer()
+
+      // 观战者保留 spectator 角色，等待下一轮 ROUND_START
+      if (roomStore.isSpectator) return
+
+      myRole.value = data.drawer.id === roomStore.currentPlayerId ? 'drawer' : 'guesser'
     })
   }
 
@@ -344,6 +356,9 @@ export const useGameStore = defineStore('game', () => {
   function clearCanvas() {
     if (!isMyTurn.value) return
     strokes.value = []
+    pendingFullRedraw.value = true
+    strokeVersion.value++
+    useCanvasStore().clearCanvas()
     const socket = getSocket()
     if (socket?.connected) {
       socket.emit(CLIENT_EVENTS.CLEAR_CANVAS)
