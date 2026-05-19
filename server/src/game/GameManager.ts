@@ -2,6 +2,7 @@ import { SERVER_EVENTS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { getWordCategory, CATEGORY_DISPLAY_NAMES, WORD_CATEGORIES, WORDS } from '../data/words.js'
 import { matchAnswer } from '../data/wordIndex.js'
+import { getAllCustomWordEntries } from '../data/customWordBank.js'
 import type { Room, Player, Point, Stroke, CustomWord } from '@draw-and-guess/shared'
 import type { WordCategory } from '../data/words.js'
 
@@ -267,22 +268,20 @@ export class GameManager {
   private selectWordOptions(room: Room): WordOption[] {
     const used = this.getUsedWords(room.id)
 
-    // 根据配置决定启用哪些内置分类
     const enabledCategories = room.wordConfig.enabledCategories?.length
       ? room.wordConfig.enabledCategories
       : WORD_CATEGORIES
 
-    // 自定义词（仅限启用的自定义分类）
     const enabledCustomCats = room.wordConfig.enabledCustomCategories ?? []
-    const filteredCustomWords = enabledCustomCats.length > 0
+
+    // Phase 1: 房主自定义词汇（仅限启用的自定义分类）
+    const perRoomCustom = enabledCustomCats.length > 0
       ? room.wordConfig.customWords.filter(w => enabledCustomCats.includes(w.category))
-      : []
+      : room.wordConfig.customWords
 
-    const hasCustomWords = filteredCustomWords.length > 0
-
-    if (hasCustomWords) {
+    if (perRoomCustom.length > 0) {
       if (!this.customWordOrder.has(room.id)) {
-        const shuffled = [...filteredCustomWords]
+        const shuffled = [...perRoomCustom]
         for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
@@ -300,10 +299,9 @@ export class GameManager {
         }
       }
       if (options.length > 0) return options
-      // 自定义词已用完，回退到内置词库
     }
 
-    // 内置词库：从启用的分类选词
+    // Phase 2: 内置词库 + 全局贡献词（按启用的分类）
     const categories = [...enabledCategories]
     for (let i = categories.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -311,6 +309,12 @@ export class GameManager {
     }
 
     const options: WordOption[] = []
+
+    // 收集全局贡献词（按启用的自定义分类过滤）
+    const allGlobalCustomWords = getAllCustomWordEntries()
+    const globalCustomPool = enabledCustomCats.length > 0
+      ? allGlobalCustomWords.filter(e => enabledCustomCats.includes(e.category))
+      : []
 
     let attempts = 0
     while (options.length < 5 && attempts < 50) {
@@ -328,9 +332,21 @@ export class GameManager {
           used.add(entry.word)
         }
       }
+      // 每轮内置分类选词后，也加入一个全局贡献词候选
+      if (globalCustomPool.length > 0 && options.length < 5) {
+        const availCustom = globalCustomPool.filter(e => !used.has(e.word))
+        if (availCustom.length > 0) {
+          const idx = Math.floor(Math.random() * availCustom.length)
+          const entry = availCustom[idx]
+          if (!options.some((o) => o.word === entry.word)) {
+            options.push({ word: entry.word, category: entry.category })
+            used.add(entry.word)
+          }
+        }
+      }
     }
 
-    // 保底：从已启用的分类里随便选
+    // 保底：从已启用的内置分类里选
     while (options.length < 5) {
       const allEnabled = enabledCategories.flatMap(c => WORDS[c] ?? [])
       const available = allEnabled.filter(e => !used.has(e.word))
@@ -340,6 +356,17 @@ export class GameManager {
       if (!options.some((o) => o.word === entry.word)) {
         const cat = getWordCategory(entry.word)
         options.push({ word: entry.word, category: cat ? CATEGORY_DISPLAY_NAMES[cat] : undefined })
+        used.add(entry.word)
+      }
+    }
+    // 保底：从全局贡献词里选
+    while (options.length < 5 && globalCustomPool.length > 0) {
+      const available = globalCustomPool.filter(e => !used.has(e.word))
+      if (available.length === 0) break
+      const idx = Math.floor(Math.random() * available.length)
+      const entry = available[idx]
+      if (!options.some((o) => o.word === entry.word)) {
+        options.push({ word: entry.word, category: entry.category })
         used.add(entry.word)
       }
     }
