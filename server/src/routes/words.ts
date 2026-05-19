@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import type { WordDifficulty } from '@draw-and-guess/shared'
 import { validateGlobalWord } from '../data/wordValidator.js'
-import { addCustomWord } from '../data/customWordBank.js'
+import { addCustomWord, loadCustomWords } from '../data/customWordBank.js'
 import { invalidateIndex } from '../data/wordIndex.js'
 
 export const wordsRouter: Router = Router()
@@ -25,6 +25,18 @@ interface WordSubmitBody {
   category: string
   difficulty: WordDifficulty
 }
+
+wordsRouter.get('/', (_req: Request, res: Response) => {
+  const entries = loadCustomWords()
+  const items = entries.map(e => ({
+    word: e.word,
+    category: e.category,
+    difficulty: e.difficulty,
+    addedAt: e.addedAt,
+  }))
+  items.reverse()
+  res.json({ words: items, total: items.length })
+})
 
 wordsRouter.post('/', (req: Request, res: Response) => {
   const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
