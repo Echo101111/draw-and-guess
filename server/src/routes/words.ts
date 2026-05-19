@@ -60,7 +60,8 @@ wordsRouter.post('/', (req: Request, res: Response) => {
     return
   }
 
-  const failedWords: string[] = []
+  interface FailEntry { word: string; reason: string }
+  const failedWords: FailEntry[] = []
   const addedWords: string[] = []
 
   for (const rawWord of words) {
@@ -69,15 +70,15 @@ wordsRouter.post('/', (req: Request, res: Response) => {
 
     const validation = validateGlobalWord(word, normalizedCategory)
     if (!validation.valid) {
-      failedWords.push(word)
+      failedWords.push({ word, reason: validation.error! })
       continue
     }
 
-    const added = addCustomWord(word, normalizedCategory)
-    if (added) {
+    const result = addCustomWord(word, normalizedCategory)
+    if (result.added) {
       addedWords.push(word)
     } else {
-      failedWords.push(word)
+      failedWords.push({ word, reason: result.reason ?? '未知错误' })
     }
   }
 
@@ -86,18 +87,18 @@ wordsRouter.post('/', (req: Request, res: Response) => {
   }
 
   if (addedWords.length === 0) {
-    const msg = failedWords.length > 0
-      ? `提交失败：${failedWords.join('、')}`
-      : '没有有效的词语可提交'
-    res.status(400).json({ success: false, message: msg, failed: failedWords })
+    const details = failedWords.map(f => `${f.word}（${f.reason}）`).join('；')
+    res.status(400).json({ success: false, message: details })
     return
   }
 
-  const msg = failedWords.length > 0
-    ? `成功提交 ${addedWords.length} 个词，${failedWords.length} 个词失败`
-    : `🎉 成功提交 ${addedWords.length} 个词语，感谢你的贡献！`
+  if (failedWords.length > 0) {
+    const details = failedWords.map(f => `${f.word}（${f.reason}）`).join('；')
+    res.json({ success: true, message: `🎉 成功提交 ${addedWords.length} 个词语`, details })
+    return
+  }
 
-  res.json({ success: true, message: msg, count: addedWords.length, failed: failedWords.length > 0 ? failedWords : undefined })
+  res.json({ success: true, message: `🎉 成功提交 ${addedWords.length} 个词语，感谢你的贡献！` })
 })
 
 wordsRouter.delete('/', (req: Request, res: Response) => {

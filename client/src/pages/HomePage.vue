@@ -304,7 +304,9 @@ async function handleContributeSubmit() {
 
     const data = await res.json()
     contributeSuccess.value = data.success
-    contributeMessage.value = data.message
+    let msg = data.message
+    if (data.details) msg += `\n${data.details}`
+    contributeMessage.value = msg
 
     if (data.success) {
       contributeWords.value = ''

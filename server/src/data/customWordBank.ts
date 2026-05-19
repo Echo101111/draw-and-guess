@@ -73,11 +73,11 @@ export function getCustomWordEntries(): WordEntry[] {
 export function addCustomWord(
   word: string,
   category: string,
-): boolean {
+): { added: boolean; reason?: string } {
   const entries = loadCustomWords()
 
-  const exists = entries.some(e => e.word === word && e.category === category)
-  if (exists) return false
+  const exists = entries.some(e => e.word === word)
+  if (exists) return { added: false, reason: `"${word}" 已被其他用户贡献过` }
 
   entries.push({
     word,
@@ -87,7 +87,7 @@ export function addCustomWord(
   })
 
   saveRaw(entries)
-  return true
+  return { added: true }
 }
 
 export function getCustomWordSet(): Set<string> {
