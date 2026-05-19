@@ -1201,6 +1201,7 @@ onMounted(() => {
   }
 }
 
+@media (max-width: 480px) {
   .hero-icon {
     font-size: 2.2rem;
   }

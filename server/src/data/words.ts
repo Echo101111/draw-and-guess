@@ -1,13 +1,13 @@
 export interface WordEntry {
-  word: string
-  difficulty: 'easy' | 'medium' | 'hard'
-  drawability: 1 | 2 | 3 | 4 | 5
-  synonyms?: string[]
+  word: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  drawability: 1 | 2 | 3 | 4 | 5;
+  synonyms?: string[];
 }
 
-import type { WordCategory } from '@draw-and-guess/shared'
+import type { WordCategory } from '@draw-and-guess/shared';
 
-export { type WordCategory } from '@draw-and-guess/shared'
+export { type WordCategory } from '@draw-and-guess/shared';
 
 export const CATEGORY_DISPLAY_NAMES: Record<WordCategory, string> = {
   animals: '动物',
@@ -18,9 +18,18 @@ export const CATEGORY_DISPLAY_NAMES: Record<WordCategory, string> = {
   sports: '体育运动',
   celebrities: '角色',
   professions: '职业',
-}
+};
 
-export const WORD_CATEGORIES: WordCategory[] = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'celebrities', 'professions']
+export const WORD_CATEGORIES: WordCategory[] = [
+  'animals',
+  'food',
+  'daily',
+  'nature',
+  'vehicles',
+  'sports',
+  'celebrities',
+  'professions',
+];
 
 export const WORDS: Record<WordCategory, WordEntry[]> = {
   // === 动物 (85) ===
@@ -377,7 +386,7 @@ export const WORDS: Record<WordCategory, WordEntry[]> = {
     { word: '温泉', difficulty: 'hard', drawability: 3 },
   ],
 
-  // === 交通工具 (65) ===
+  // === 交通工具 (64) ===
   vehicles: [
     // easy (30)
     { word: '汽车', difficulty: 'easy', drawability: 4 },
@@ -440,7 +449,6 @@ export const WORDS: Record<WordCategory, WordEntry[]> = {
     { word: '飞艇', difficulty: 'hard', drawability: 3 },
     { word: '滑翔机', difficulty: 'hard', drawability: 3 },
     { word: '水上飞机', difficulty: 'hard', drawability: 3 },
-    { word: '磁悬浮列车', difficulty: 'hard', drawability: 3 },
     { word: '小轿车', difficulty: 'hard', drawability: 4 },
     { word: '面包车', difficulty: 'hard', drawability: 4 },
     { word: '大货车', difficulty: 'hard', drawability: 4 },
@@ -578,17 +586,20 @@ export const WORDS: Record<WordCategory, WordEntry[]> = {
     { word: '科学家', difficulty: 'medium', drawability: 3 },
     { word: '考古学家', difficulty: 'medium', drawability: 3 },
   ],
-}
+};
 
-export const TOTAL_WORD_COUNT = Object.values(WORDS).reduce((sum, entries) => sum + entries.length, 0)
+export const TOTAL_WORD_COUNT = Object.values(WORDS).reduce(
+  (sum, entries) => sum + entries.length,
+  0
+);
 
-const wordToCategoryMap: Record<string, WordCategory> = {}
+const wordToCategoryMap: Record<string, WordCategory> = {};
 for (const [category, entries] of Object.entries(WORDS)) {
   for (const entry of entries) {
-    wordToCategoryMap[entry.word] = category as WordCategory
+    wordToCategoryMap[entry.word] = category as WordCategory;
   }
 }
 
 export function getWordCategory(word: string): WordCategory | null {
-  return wordToCategoryMap[word] ?? null
+  return wordToCategoryMap[word] ?? null;
 }
