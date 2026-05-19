@@ -1,5 +1,5 @@
-import type { CustomWord, WordCategory, WordDifficulty } from '@draw-and-guess/shared'
-import { WORD_CATEGORIES, getWordCategory } from './words.js'
+import type { CustomWord, WordDifficulty } from '@draw-and-guess/shared'
+import { getWordCategory } from './words.js'
 import { getCustomWordSet } from './customWordBank.js'
 import { containsSensitiveContent } from './sensitiveWords.js'
 
@@ -36,8 +36,8 @@ export function validateGlobalWord(
   if (!trimmed) return { valid: false, error: '词语不能为空' }
   if (trimmed.length > 20) return { valid: false, error: `"${trimmed.slice(0, 10)}..."过长（最多20字）` }
 
-  if (!WORD_CATEGORIES.includes(category as WordCategory)) {
-    return { valid: false, error: '请选择有效的分类' }
+  if (!category?.trim()) {
+    return { valid: false, error: '请填写分类' }
   }
 
   if (containsSensitiveContent(trimmed)) {

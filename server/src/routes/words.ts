@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express'
-import type { WordCategory, WordDifficulty } from '@draw-and-guess/shared'
+import type { WordDifficulty } from '@draw-and-guess/shared'
 import { validateGlobalWord } from '../data/wordValidator.js'
 import { addCustomWord } from '../data/customWordBank.js'
 import { invalidateIndex } from '../data/wordIndex.js'
@@ -22,7 +22,7 @@ function checkRateLimit(ip: string): boolean {
 
 interface WordSubmitBody {
   words: string[]
-  category: WordCategory
+  category: string
   difficulty: WordDifficulty
 }
 
@@ -51,10 +51,9 @@ wordsRouter.post('/', (req: Request, res: Response) => {
     return
   }
 
-  const normalizedCategory = category as WordCategory
-  const validCategories: WordCategory[] = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'celebrities', 'professions']
-  if (!validCategories.includes(normalizedCategory)) {
-    res.status(400).json({ success: false, message: '请选择有效的分类' })
+  const normalizedCategory = category?.trim()
+  if (!normalizedCategory) {
+    res.status(400).json({ success: false, message: '请填写分类' })
     return
   }
 

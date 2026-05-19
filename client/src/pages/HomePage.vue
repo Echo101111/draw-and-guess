@@ -56,16 +56,24 @@
               <div class="field field-half">
                 <label for="contribute-category">分类</label>
                 <div class="input-wrap">
-                  <select id="contribute-category" v-model="contributeCategory">
-                    <option value="animals">动物</option>
-                    <option value="food">食物</option>
-                    <option value="daily">日常物品</option>
-                    <option value="nature">自然</option>
-                    <option value="vehicles">交通工具</option>
-                    <option value="sports">体育运动</option>
-                    <option value="celebrities">角色</option>
-                    <option value="professions">职业</option>
-                  </select>
+                  <input
+                    id="contribute-category"
+                    v-model="contributeCategory"
+                    type="text"
+                    placeholder="如：动物、食物、自定义…"
+                    maxlength="20"
+                    list="category-suggestions"
+                  />
+                  <datalist id="category-suggestions">
+                    <option value="动物" />
+                    <option value="食物" />
+                    <option value="日常物品" />
+                    <option value="自然" />
+                    <option value="交通工具" />
+                    <option value="体育运动" />
+                    <option value="角色" />
+                    <option value="职业" />
+                  </datalist>
                 </div>
               </div>
               <div class="field field-half">
@@ -258,7 +266,7 @@ const changelogLoading = ref(false)
 
 const showContribute = ref(false)
 const contributeWords = ref('')
-const contributeCategory = ref<string>('animals')
+const contributeCategory = ref<string>('')
 const contributeDifficulty = ref<string>('medium')
 const contributeLoading = ref(false)
 const contributeMessage = ref<string | null>(null)
@@ -271,7 +279,7 @@ const wordCount = computed(() => {
 
 function resetContributeForm() {
   contributeWords.value = ''
-  contributeCategory.value = 'animals'
+  contributeCategory.value = ''
   contributeDifficulty.value = 'medium'
   contributeLoading.value = false
   contributeMessage.value = null
@@ -282,6 +290,12 @@ async function handleContributeSubmit() {
   const words = contributeWords.value.split('\n').map(s => s.trim()).filter(Boolean)
   if (words.length === 0) {
     contributeMessage.value = '请至少输入一个词语'
+    contributeSuccess.value = false
+    return
+  }
+
+  if (!contributeCategory.value.trim()) {
+    contributeMessage.value = '请填写分类'
     contributeSuccess.value = false
     return
   }
