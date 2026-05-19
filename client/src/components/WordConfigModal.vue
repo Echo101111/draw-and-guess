@@ -26,7 +26,7 @@
             </div>
           </div>
           <div class="word-config-field">
-            <label>出现词汇类型（选中即为启用）</label>
+            <label>出现词汇类型</label>
             <div class="category-toggles">
               <button
                 v-for="opt in CATEGORY_OPTIONS"
@@ -35,6 +35,22 @@
                 @click="toggleCategory(opt.value as string)"
               >
                 {{ opt.label }}
+              </button>
+            </div>
+          </div>
+          <div v-if="customCategories.length > 0" class="word-config-field">
+            <button class="collapsible-header" @click="showCustomCats = !showCustomCats">
+              <span>{{ showCustomCats ? '▼' : '▶' }} 用户贡献词库</span>
+              <span class="collapsible-sub">（{{ customCategories.length }} 个分类）</span>
+            </button>
+            <div v-if="showCustomCats" class="category-toggles" style="margin-top:0.3rem">
+              <button
+                v-for="cat in customCategories"
+                :key="cat"
+                :class="['cat-toggle cat-toggle-custom', { active: enabledCustomCats.includes(cat) }]"
+                @click="toggleCustomCat(cat)"
+              >
+                {{ cat }}
               </button>
             </div>
           </div>
@@ -54,10 +70,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { CATEGORY_OPTIONS } from '@/constants/categories'
-import { ALL_CATEGORIES } from '@draw-and-guess/shared'
 import type { RoomWordConfig, CustomWord, WordCategory } from '@draw-and-guess/shared'
-
-const ALL_CATEGORY_VALUES = ALL_CATEGORIES.map(c => c as string)
 
 const props = defineProps<{
   show: boolean
@@ -73,9 +86,27 @@ const words = ref<{ word: string; category: string; customText: string }[]>([
   { word: '', category: 'animals', customText: '' },
 ])
 const looseMatching = ref(false)
-const enabledCategories = ref<string[]>(ALL_CATEGORY_VALUES)
+const enabledCategories = ref<string[]>([])
+const enabledCustomCats = ref<string[]>([])
+const customCategories = ref<string[]>([])
+const showCustomCats = ref(false)
 
-watch(() => props.show, (val) => {
+watch(() => props.show, async (val) => {
+  if (val) {
+    // 加载用户贡献的分类
+    try {
+      const res = await fetch('/api/words')
+      const data = await res.json()
+      const cats = new Set<string>()
+      for (const w of (data.words ?? [])) {
+        if (w.category) cats.add(w.category)
+      }
+      customCategories.value = [...cats].sort()
+    } catch {
+      customCategories.value = []
+    }
+  }
+
   if (val && props.initialConfig) {
     const wc = props.initialConfig
     if (wc.customWords && wc.customWords.length > 0) {
@@ -90,7 +121,10 @@ watch(() => props.show, (val) => {
     looseMatching.value = wc.looseMatching ?? false
     enabledCategories.value = wc.enabledCategories?.length
       ? wc.enabledCategories.map(c => c as string)
-      : ALL_CATEGORY_VALUES
+      : []
+    enabledCustomCats.value = wc.enabledCustomCategories?.length
+      ? [...wc.enabledCustomCategories]
+      : []
   }
 })
 
@@ -113,6 +147,15 @@ function toggleCategory(value: string) {
   }
 }
 
+function toggleCustomCat(value: string) {
+  const i = enabledCustomCats.value.indexOf(value)
+  if (i >= 0) {
+    enabledCustomCats.value.splice(i, 1)
+  } else {
+    enabledCustomCats.value.push(value)
+  }
+}
+
 function saveConfig() {
   const customWords = words.value
     .filter(w => w.word.trim())
@@ -121,10 +164,12 @@ function saveConfig() {
       category: w.category === '__custom__' ? w.customText.trim() : w.category,
     }))
     .filter((w): w is CustomWord => w.word !== '' && w.category !== '')
-  const cats = enabledCategories.value.length > 0
-    ? enabledCategories.value
-    : ALL_CATEGORY_VALUES
-  emit('save', { customWords, looseMatching: looseMatching.value, enabledCategories: cats as WordCategory[] })
+  emit('save', {
+    customWords,
+    looseMatching: looseMatching.value,
+    enabledCategories: enabledCategories.value as WordCategory[],
+    enabledCustomCategories: enabledCustomCats.value,
+  })
 }
 </script>
 
@@ -328,6 +373,35 @@ function saveConfig() {
 .cat-toggle:hover:not(.active) {
   border-color: var(--color-accent-light);
   color: var(--color-text);
+}
+
+.cat-toggle-custom.active {
+  background: var(--color-success-bg);
+  border-color: var(--color-success);
+  color: #5a9a56;
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0;
+  background: none;
+  border: none;
+  font-size: 0.74rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.collapsible-header:hover {
+  color: var(--color-text);
+}
+
+.collapsible-sub {
+  font-weight: 400;
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
 }
 </style>
 <｜end▁of▁thinking｜>Now Step 1 — roomStore `updateWordConfig` returns Promise:

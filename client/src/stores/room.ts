@@ -60,7 +60,8 @@ export const useRoomStore = defineStore('room', () => {
           wordConfig: {
             customWords: [],
             looseMatching: false,
-            enabledCategories: ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'celebrities', 'professions', 'instruments', 'tools', 'furniture', 'treasures'],
+            enabledCategories: [],
+            enabledCustomCategories: [],
           },
         }
       }

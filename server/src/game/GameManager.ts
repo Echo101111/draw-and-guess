@@ -1,7 +1,7 @@
 import { SERVER_EVENTS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { getWordCategory, CATEGORY_DISPLAY_NAMES, WORD_CATEGORIES, WORDS } from '../data/words.js'
-import { selectWord, matchAnswer } from '../data/wordIndex.js'
+import { matchAnswer } from '../data/wordIndex.js'
 import type { Room, Player, Point, Stroke, CustomWord } from '@draw-and-guess/shared'
 import type { WordCategory } from '../data/words.js'
 
@@ -267,9 +267,22 @@ export class GameManager {
   private selectWordOptions(room: Room): WordOption[] {
     const used = this.getUsedWords(room.id)
 
-    if (room.wordConfig.customWords.length > 0) {
+    // 根据配置决定启用哪些内置分类
+    const enabledCategories = room.wordConfig.enabledCategories?.length
+      ? room.wordConfig.enabledCategories
+      : WORD_CATEGORIES
+
+    // 自定义词（仅限启用的自定义分类）
+    const enabledCustomCats = room.wordConfig.enabledCustomCategories ?? []
+    const filteredCustomWords = enabledCustomCats.length > 0
+      ? room.wordConfig.customWords.filter(w => enabledCustomCats.includes(w.category))
+      : []
+
+    const hasCustomWords = filteredCustomWords.length > 0
+
+    if (hasCustomWords) {
       if (!this.customWordOrder.has(room.id)) {
-        const shuffled = [...room.wordConfig.customWords]
+        const shuffled = [...filteredCustomWords]
         for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
@@ -286,24 +299,11 @@ export class GameManager {
           used.add(entry.word)
         }
       }
-      if (options.length === 0) {
-        // 自定义词已用完，回退到默认词库
-        for (let i = 0; i < 5; i++) {
-          const w = selectWord(used)
-          if (!w) break
-          options.push({ word: w, category: CATEGORY_DISPLAY_NAMES[getWordCategory(w) as WordCategory] })
-          used.add(w)
-        }
-      }
-      return options
+      if (options.length > 0) return options
+      // 自定义词已用完，回退到内置词库
     }
 
-    // 根据启用分类过滤
-    const enabledCategories = room.wordConfig.enabledCategories?.length
-      ? room.wordConfig.enabledCategories
-      : WORD_CATEGORIES
-
-    // 默认词库：从不同分类选词，尽量覆盖多种类别
+    // 内置词库：从启用的分类选词
     const categories = [...enabledCategories]
     for (let i = categories.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -311,8 +311,6 @@ export class GameManager {
     }
 
     const options: WordOption[] = []
-    const catIdx: Record<string, number> = {}
-    for (const cat of categories) catIdx[cat] = 0
 
     let attempts = 0
     while (options.length < 5 && attempts < 50) {
@@ -332,7 +330,7 @@ export class GameManager {
       }
     }
 
-    // 保底：如果还没凑够 5 个，从已启用的分类里随便选
+    // 保底：从已启用的分类里随便选
     while (options.length < 5) {
       const allEnabled = enabledCategories.flatMap(c => WORDS[c] ?? [])
       const available = allEnabled.filter(e => !used.has(e.word))

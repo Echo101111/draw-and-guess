@@ -25,6 +25,7 @@ export interface RoomWordConfig {
   customWords: CustomWord[]
   looseMatching: boolean
   enabledCategories: WordCategory[]
+  enabledCustomCategories: string[]
 }
 
 export const ALL_CATEGORIES: WordCategory[] = [
@@ -35,7 +36,8 @@ export const ALL_CATEGORIES: WordCategory[] = [
 export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
   customWords: [],
   looseMatching: false,
-  enabledCategories: [...ALL_CATEGORIES],
+  enabledCategories: [],
+  enabledCustomCategories: [],
 }
 
 export interface Room {

@@ -276,6 +276,9 @@ export function registerRoomHandlers(io: any, socket: any): void {
       if (wordConfig.enabledCategories !== undefined) {
         room.wordConfig.enabledCategories = wordConfig.enabledCategories
       }
+      if (wordConfig.enabledCustomCategories !== undefined) {
+        room.wordConfig.enabledCustomCategories = wordConfig.enabledCustomCategories
+      }
     }
 
     io.to(room.code).emit(SERVER_EVENTS.WORD_CONFIG_UPDATED, { wordConfig: room.wordConfig })
