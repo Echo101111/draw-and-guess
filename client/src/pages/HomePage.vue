@@ -304,8 +304,7 @@ async function handleContributeSubmit() {
   contributeMessage.value = null
 
   try {
-    const serverUrl = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:3000'
-    const res = await fetch(`${serverUrl}/api/words`, {
+    const res = await fetch('/api/words', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
