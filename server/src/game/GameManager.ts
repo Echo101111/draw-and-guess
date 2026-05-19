@@ -268,9 +268,13 @@ export class GameManager {
   private selectWordOptions(room: Room): WordOption[] {
     const used = this.getUsedWords(room.id)
 
-    const enabledCategories = room.wordConfig.enabledCategories?.length
+    const hasEnabledBuiltin = room.wordConfig.enabledCategories && room.wordConfig.enabledCategories.length > 0
+    const hasEnabledCustom = (room.wordConfig.enabledCustomCategories?.length ?? 0) > 0
+
+    // 如果两种都没有选，回退到全部 12 类内置
+    const enabledCategories = hasEnabledBuiltin
       ? room.wordConfig.enabledCategories
-      : WORD_CATEGORIES
+      : hasEnabledCustom ? [] : WORD_CATEGORIES
 
     const enabledCustomCats = room.wordConfig.enabledCustomCategories ?? []
 
