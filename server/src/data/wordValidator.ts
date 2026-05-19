@@ -1,4 +1,4 @@
-import type { CustomWord, WordDifficulty } from '@draw-and-guess/shared'
+import type { CustomWord } from '@draw-and-guess/shared'
 import { getWordCategory } from './words.js'
 import { getCustomWordSet } from './customWordBank.js'
 import { containsSensitiveContent } from './sensitiveWords.js'
@@ -58,15 +58,9 @@ export function validateGlobalWord(
 export function validateGlobalWords(
   words: string[],
   category: string,
-  difficulty: string,
 ): { valid: boolean; error?: string; failed?: string[] } {
   if (words.length === 0) return { valid: false, error: '至少输入一个词语' }
   if (words.length > 20) return { valid: false, error: '单次最多提交20个词语' }
-
-  const validDifficulties: WordDifficulty[] = ['easy', 'medium', 'hard']
-  if (!validDifficulties.includes(difficulty as WordDifficulty)) {
-    return { valid: false, error: '难度选择无效' }
-  }
 
   const failed: string[] = []
   for (const w of words) {

@@ -11,13 +11,12 @@ adminRouter.get('/words', (_req: Request, res: Response) => {
       <td><input type="checkbox" class="word-cb" value="${escapeHtml(e.word)}"></td>
       <td>${escapeHtml(e.word)}</td>
       <td>${escapeHtml(e.category)}</td>
-      <td>${difficultyLabel(e.difficulty)}</td>
       <td>${new Date(e.addedAt).toLocaleString('zh-CN')}</td>
       <td><button class="btn-del" data-word="${escapeHtml(e.word)}">删除</button></td>
     </tr>
   `).join('\n')
 
-  const totalBuiltin = 501
+  const totalBuiltin = 790
 
   res.send(`<!DOCTYPE html>
 <html lang="zh-CN">
@@ -97,7 +96,7 @@ ${hasRows ? `
   <button class="btn-batch-del" id="btn-batch-del" disabled>🗑 批量删除</button>
 </div>
 <table>
-<thead><tr><th class="col-cb"></th><th>词语</th><th>分类</th><th>难度</th><th>提交时间</th><th>操作</th></tr></thead>
+<thead><tr><th class="col-cb"></th><th>词语</th><th>分类</th><th>提交时间</th><th>操作</th></tr></thead>
 <tbody>${rows}</tbody>
 </table>` : '<div class="empty">暂无自定义词语</div>'}
 <div id="toast" class="toast"></div>
@@ -164,8 +163,4 @@ function showToast(msg, type) {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-function difficultyLabel(d: string): string {
-  return d === 'easy' ? '简单' : d === 'hard' ? '困难' : '中等'
 }

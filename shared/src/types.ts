@@ -14,9 +14,7 @@ export interface Player {
 // === Room ===
 export type RoomState = 'lobby' | 'playing' | 'gameover'
 
-export type WordDifficulty = 'easy' | 'medium' | 'hard'
-
-export type WordCategory = 'animals' | 'food' | 'daily' | 'nature' | 'vehicles' | 'sports' | 'celebrities' | 'professions'
+export type WordCategory = 'animals' | 'food' | 'daily' | 'nature' | 'vehicles' | 'sports' | 'celebrities' | 'professions' | 'instruments' | 'tools' | 'furniture'
 
 export interface CustomWord {
   word: string

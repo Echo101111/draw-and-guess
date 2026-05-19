@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import type { WordEntry } from './words.js'
-import type { WordDifficulty } from '@draw-and-guess/shared'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -14,7 +13,6 @@ const CUSTOM_WORDS_FILE = path.join(DATA_DIR, 'custom-words.json')
 export interface CustomWordEntry {
   word: string
   category: string
-  difficulty: WordDifficulty
   drawability: number
   addedAt: number
 }
@@ -68,7 +66,6 @@ export function getAllCustomWordEntries(): CustomWordEntry[] {
 export function getCustomWordEntries(): WordEntry[] {
   return loadCustomWords().map(e => ({
     word: e.word,
-    difficulty: e.difficulty,
     drawability: e.drawability as WordEntry['drawability'],
   }))
 }
@@ -76,7 +73,6 @@ export function getCustomWordEntries(): WordEntry[] {
 export function addCustomWord(
   word: string,
   category: string,
-  difficulty: WordDifficulty,
 ): boolean {
   const entries = loadCustomWords()
 
@@ -86,7 +82,6 @@ export function addCustomWord(
   entries.push({
     word,
     category,
-    difficulty,
     drawability: 3,
     addedAt: Date.now(),
   })

@@ -1,5 +1,4 @@
 import { Router, type Request, type Response } from 'express'
-import type { WordDifficulty } from '@draw-and-guess/shared'
 import { validateGlobalWord } from '../data/wordValidator.js'
 import { addCustomWord, loadCustomWords, removeCustomWord, removeCustomWords } from '../data/customWordBank.js'
 import { invalidateIndex } from '../data/wordIndex.js'
@@ -23,7 +22,6 @@ function checkRateLimit(ip: string): boolean {
 interface WordSubmitBody {
   words: string[]
   category: string
-  difficulty: WordDifficulty
 }
 
 wordsRouter.get('/', (_req: Request, res: Response) => {
@@ -31,7 +29,6 @@ wordsRouter.get('/', (_req: Request, res: Response) => {
   const items = entries.map(e => ({
     word: e.word,
     category: e.category,
-    difficulty: e.difficulty,
     addedAt: e.addedAt,
   }))
   items.reverse()
@@ -45,7 +42,7 @@ wordsRouter.post('/', (req: Request, res: Response) => {
     return
   }
 
-  const { words, category, difficulty } = req.body as WordSubmitBody
+  const { words, category } = req.body as WordSubmitBody
 
   if (!Array.isArray(words) || words.length === 0) {
     res.status(400).json({ success: false, message: '请至少输入一个词语' })
@@ -54,12 +51,6 @@ wordsRouter.post('/', (req: Request, res: Response) => {
 
   if (words.length > 20) {
     res.status(400).json({ success: false, message: '单次最多提交20个词语' })
-    return
-  }
-
-  const validDifficulties: WordDifficulty[] = ['easy', 'medium', 'hard']
-  if (!difficulty || !validDifficulties.includes(difficulty)) {
-    res.status(400).json({ success: false, message: '请选择有效的难度' })
     return
   }
 
@@ -82,7 +73,7 @@ wordsRouter.post('/', (req: Request, res: Response) => {
       continue
     }
 
-    const added = addCustomWord(word, normalizedCategory, difficulty)
+    const added = addCustomWord(word, normalizedCategory)
     if (added) {
       addedWords.push(word)
     } else {

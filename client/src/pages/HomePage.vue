@@ -76,16 +76,6 @@
                   </datalist>
                 </div>
               </div>
-              <div class="field field-half">
-                <label for="contribute-difficulty">难度</label>
-                <div class="input-wrap">
-                  <select id="contribute-difficulty" v-model="contributeDifficulty">
-                    <option value="easy">简单</option>
-                    <option value="medium" selected>中等</option>
-                    <option value="hard">困难</option>
-                  </select>
-                </div>
-              </div>
             </div>
 
             <div class="contribute-actions">
@@ -268,7 +258,6 @@ const changelogLoading = ref(false)
 const showContribute = ref(false)
 const contributeWords = ref('')
 const contributeCategory = ref<string>('')
-const contributeDifficulty = ref<string>('medium')
 const contributeLoading = ref(false)
 const contributeMessage = ref<string | null>(null)
 const contributeSuccess = ref(false)
@@ -281,7 +270,6 @@ const wordCount = computed(() => {
 function resetContributeForm() {
   contributeWords.value = ''
   contributeCategory.value = ''
-  contributeDifficulty.value = 'medium'
   contributeLoading.value = false
   contributeMessage.value = null
   contributeSuccess.value = false
@@ -311,7 +299,6 @@ async function handleContributeSubmit() {
       body: JSON.stringify({
         words,
         category: contributeCategory.value,
-        difficulty: contributeDifficulty.value,
       }),
     })
 
