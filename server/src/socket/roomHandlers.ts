@@ -263,12 +263,16 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
     if (wordConfig) {
       if (wordConfig.customWords) {
-        const result = validateCustomWords(wordConfig.customWords)
-        if (!result.valid) {
-          socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.INVALID_WORD_CONFIG, message: result.error! })
-          return
+        if (wordConfig.customWords.length === 0) {
+          room.wordConfig.customWords = []
+        } else {
+          const result = validateCustomWords(wordConfig.customWords)
+          if (!result.valid) {
+            socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.INVALID_WORD_CONFIG, message: result.error! })
+            return
+          }
+          room.wordConfig.customWords = result.words!
         }
-        room.wordConfig.customWords = result.words!
       }
       if (wordConfig.looseMatching !== undefined) {
         room.wordConfig.looseMatching = wordConfig.looseMatching
