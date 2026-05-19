@@ -20,6 +20,7 @@ export const CATEGORY_DISPLAY_NAMES: Record<WordCategory, string> = {
   instruments: '乐器',
   tools: '工具',
   furniture: '家具',
+  treasures: '宝物',
 };
 
 export const WORD_CATEGORIES: WordCategory[] = [
@@ -34,6 +35,7 @@ export const WORD_CATEGORIES: WordCategory[] = [
   'instruments',
   'tools',
   'furniture',
+  'treasures',
 ];
 
 export const WORDS: Record<WordCategory, WordEntry[]> = {
@@ -737,13 +739,6 @@ export const WORDS: Record<WordCategory, WordEntry[]> = {
     { word: '钟馗', drawability: 4 },
     { word: '福星', drawability: 4 },
     { word: '寿星', drawability: 4 },
-    { word: '太极图', drawability: 4 },
-    { word: '青铜鼎', drawability: 4 },
-    { word: '金箍棒', drawability: 4 },
-    { word: '乾坤袋', drawability: 4 },
-    { word: '风火轮', drawability: 4 },
-    { word: '芭蕉扇', drawability: 4 },
-    { word: '月光宝盒', drawability: 4 },
   ],
 
   // === 职业 (21) ===
@@ -884,9 +879,18 @@ export const WORDS: Record<WordCategory, WordEntry[]> = {
     { word: '枕头', drawability: 5 },
     { word: '被子', drawability: 5 },
     { word: '屏风', drawability: 4 },
-    { word: '衣架', drawability: 4 },
     { word: '鞋架', drawability: 4 },
     { word: '书架', drawability: 4 },
+  ],
+  // === 宝物 (7) ===
+  treasures: [
+    { word: '太极图', drawability: 4 },
+    { word: '青铜鼎', drawability: 4 },
+    { word: '金箍棒', drawability: 4 },
+    { word: '乾坤袋', drawability: 4 },
+    { word: '风火轮', drawability: 4 },
+    { word: '芭蕉扇', drawability: 4 },
+    { word: '月光宝盒', drawability: 4 },
   ],
 };
 

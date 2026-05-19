@@ -4,18 +4,18 @@ import { WORD_CATEGORIES, TOTAL_WORD_COUNT, getWordCategory, WORDS } from './wor
 
 describe('words', () => {
   describe('TOTAL_WORD_COUNT', () => {
-    it('should be 790', () => {
-      expect(TOTAL_WORD_COUNT).toBe(790)
+    it('should be 789', () => {
+      expect(TOTAL_WORD_COUNT).toBe(789)
     })
   })
 
   describe('WORD_CATEGORIES', () => {
-    it('should have 11 categories', () => {
-      expect(WORD_CATEGORIES).toHaveLength(11)
+    it('should have 12 categories', () => {
+      expect(WORD_CATEGORIES).toHaveLength(12)
     })
 
     it('should contain expected categories', () => {
-      const expected = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'celebrities', 'professions', 'instruments', 'tools', 'furniture']
+      const expected = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'celebrities', 'professions', 'instruments', 'tools', 'furniture', 'treasures']
       for (const cat of expected) {
         expect(WORD_CATEGORIES).toContain(cat)
       }

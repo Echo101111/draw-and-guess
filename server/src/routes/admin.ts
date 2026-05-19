@@ -16,7 +16,7 @@ adminRouter.get('/words', (_req: Request, res: Response) => {
     </tr>
   `).join('\n')
 
-  const totalBuiltin = 790
+  const totalBuiltin = 789
 
   res.send(`<!DOCTYPE html>
 <html lang="zh-CN">
