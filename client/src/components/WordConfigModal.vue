@@ -26,6 +26,19 @@
             </div>
           </div>
           <div class="word-config-field">
+            <label>出现词汇类型（选中即为启用）</label>
+            <div class="category-toggles">
+              <button
+                v-for="opt in CATEGORY_OPTIONS"
+                :key="opt.value"
+                :class="['cat-toggle', { active: enabledCategories.includes(opt.value as string) }]"
+                @click="toggleCategory(opt.value as string)"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+          </div>
+          <div class="word-config-field">
             <label class="checkbox-label">
               <input type="checkbox" v-model="looseMatching" />
               宽松匹配（接受同义词/近似答案）
@@ -41,7 +54,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { CATEGORY_OPTIONS } from '@/constants/categories'
-import type { RoomWordConfig, CustomWord } from '@draw-and-guess/shared'
+import { ALL_CATEGORIES } from '@draw-and-guess/shared'
+import type { RoomWordConfig, CustomWord, WordCategory } from '@draw-and-guess/shared'
+
+const ALL_CATEGORY_VALUES = ALL_CATEGORIES.map(c => c as string)
 
 const props = defineProps<{
   show: boolean
@@ -57,6 +73,7 @@ const words = ref<{ word: string; category: string; customText: string }[]>([
   { word: '', category: 'animals', customText: '' },
 ])
 const looseMatching = ref(false)
+const enabledCategories = ref<string[]>(ALL_CATEGORY_VALUES)
 
 watch(() => props.show, (val) => {
   if (val && props.initialConfig) {
@@ -71,6 +88,9 @@ watch(() => props.show, (val) => {
       words.value = [{ word: '', category: 'animals', customText: '' }]
     }
     looseMatching.value = wc.looseMatching ?? false
+    enabledCategories.value = wc.enabledCategories?.length
+      ? wc.enabledCategories.map(c => c as string)
+      : ALL_CATEGORY_VALUES
   }
 })
 
@@ -84,6 +104,15 @@ function removeWord(index: number) {
   words.value.splice(index, 1)
 }
 
+function toggleCategory(value: string) {
+  const i = enabledCategories.value.indexOf(value)
+  if (i >= 0) {
+    enabledCategories.value.splice(i, 1)
+  } else {
+    enabledCategories.value.push(value)
+  }
+}
+
 function saveConfig() {
   const customWords = words.value
     .filter(w => w.word.trim())
@@ -92,7 +121,10 @@ function saveConfig() {
       category: w.category === '__custom__' ? w.customText.trim() : w.category,
     }))
     .filter((w): w is CustomWord => w.word !== '' && w.category !== '')
-  emit('save', { customWords, looseMatching: looseMatching.value })
+  const cats = enabledCategories.value.length > 0
+    ? enabledCategories.value
+    : ALL_CATEGORY_VALUES
+  emit('save', { customWords, looseMatching: looseMatching.value, enabledCategories: cats as WordCategory[] })
 }
 </script>
 
@@ -267,6 +299,35 @@ function saveConfig() {
   width: auto;
   margin: 0;
   accent-color: var(--color-accent);
+}
+
+.category-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.cat-toggle {
+  padding: 0.3rem 0.5rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.cat-toggle.active {
+  background: var(--color-accent-pale);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.cat-toggle:hover:not(.active) {
+  border-color: var(--color-accent-light);
+  color: var(--color-text);
 }
 </style>
 <｜end▁of▁thinking｜>Now Step 1 — roomStore `updateWordConfig` returns Promise:

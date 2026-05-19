@@ -273,6 +273,9 @@ export function registerRoomHandlers(io: any, socket: any): void {
       if (wordConfig.looseMatching !== undefined) {
         room.wordConfig.looseMatching = wordConfig.looseMatching
       }
+      if (wordConfig.enabledCategories !== undefined) {
+        room.wordConfig.enabledCategories = wordConfig.enabledCategories
+      }
     }
 
     io.to(room.code).emit(SERVER_EVENTS.WORD_CONFIG_UPDATED, { wordConfig: room.wordConfig })

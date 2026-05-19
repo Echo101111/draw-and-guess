@@ -24,11 +24,18 @@ export interface CustomWord {
 export interface RoomWordConfig {
   customWords: CustomWord[]
   looseMatching: boolean
+  enabledCategories: WordCategory[]
 }
+
+export const ALL_CATEGORIES: WordCategory[] = [
+  'animals', 'food', 'daily', 'nature', 'vehicles', 'sports',
+  'celebrities', 'professions', 'instruments', 'tools', 'furniture', 'treasures',
+]
 
 export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
   customWords: [],
   looseMatching: false,
+  enabledCategories: [...ALL_CATEGORIES],
 }
 
 export interface Room {

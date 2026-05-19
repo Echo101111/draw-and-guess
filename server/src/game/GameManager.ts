@@ -298,8 +298,13 @@ export class GameManager {
       return options
     }
 
+    // 根据启用分类过滤
+    const enabledCategories = room.wordConfig.enabledCategories?.length
+      ? room.wordConfig.enabledCategories
+      : WORD_CATEGORIES
+
     // 默认词库：从不同分类选词，尽量覆盖多种类别
-    const categories = [...WORD_CATEGORIES]
+    const categories = [...enabledCategories]
     for (let i = categories.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [categories[i], categories[j]] = [categories[j], categories[i]]
@@ -327,13 +332,17 @@ export class GameManager {
       }
     }
 
-    // 保底：如果还没凑够 5 个，从所有词里随便选
+    // 保底：如果还没凑够 5 个，从已启用的分类里随便选
     while (options.length < 5) {
-      const w = selectWord(used)
-      if (!w) break
-      if (!options.some((o) => o.word === w)) {
-        options.push({ word: w, category: CATEGORY_DISPLAY_NAMES[getWordCategory(w) as WordCategory] ?? undefined })
-        used.add(w)
+      const allEnabled = enabledCategories.flatMap(c => WORDS[c] ?? [])
+      const available = allEnabled.filter(e => !used.has(e.word))
+      if (available.length === 0) break
+      const idx = Math.floor(Math.random() * available.length)
+      const entry = available[idx]
+      if (!options.some((o) => o.word === entry.word)) {
+        const cat = getWordCategory(entry.word)
+        options.push({ word: entry.word, category: cat ? CATEGORY_DISPLAY_NAMES[cat] : undefined })
+        used.add(entry.word)
       }
     }
 
