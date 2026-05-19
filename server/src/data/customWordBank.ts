@@ -107,3 +107,18 @@ export function removeCustomWord(word: string): boolean {
   saveRaw(entries)
   return true
 }
+
+export function removeCustomWords(words: string[]): string[] {
+  const entries = loadCustomWords()
+  const removed: string[] = []
+  const remaining: CustomWordEntry[] = []
+  for (const e of entries) {
+    if (words.includes(e.word)) {
+      removed.push(e.word)
+    } else {
+      remaining.push(e)
+    }
+  }
+  if (removed.length > 0) saveRaw(remaining)
+  return removed
+}

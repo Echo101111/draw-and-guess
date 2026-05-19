@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import type { WordDifficulty } from '@draw-and-guess/shared'
 import { validateGlobalWord } from '../data/wordValidator.js'
-import { addCustomWord, loadCustomWords, removeCustomWord } from '../data/customWordBank.js'
+import { addCustomWord, loadCustomWords, removeCustomWord, removeCustomWords } from '../data/customWordBank.js'
 import { invalidateIndex } from '../data/wordIndex.js'
 
 export const wordsRouter: Router = Router()
@@ -107,6 +107,23 @@ wordsRouter.post('/', (req: Request, res: Response) => {
     : `🎉 成功提交 ${addedWords.length} 个词语，感谢你的贡献！`
 
   res.json({ success: true, message: msg, count: addedWords.length, failed: failedWords.length > 0 ? failedWords : undefined })
+})
+
+wordsRouter.delete('/', (req: Request, res: Response) => {
+  const { words } = req.body as { words?: string[] }
+  if (!Array.isArray(words) || words.length === 0) {
+    res.status(400).json({ success: false, message: '请指定要删除的词语列表' })
+    return
+  }
+
+  const removed = removeCustomWords(words)
+  if (removed.length === 0) {
+    res.status(404).json({ success: false, message: '未找到任何匹配的词语' })
+    return
+  }
+
+  invalidateIndex()
+  res.json({ success: true, message: `已删除 ${removed.length} 个词语`, removed })
 })
 
 wordsRouter.delete('/:word', (req: Request, res: Response) => {
