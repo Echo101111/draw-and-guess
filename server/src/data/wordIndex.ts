@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto'
 import { WORDS } from './words.js'
+import { getCustomWordEntries } from './customWordBank.js'
 import type { WordEntry } from './words.js'
 
 interface WordIndex {
@@ -25,6 +26,11 @@ function buildIndex(): WordIndex {
       allWords.push(entry)
       wordToEntry.set(entry.word, entry)
     }
+  }
+
+  for (const entry of getCustomWordEntries()) {
+    allWords.push(entry)
+    wordToEntry.set(entry.word, entry)
   }
 
   return { allWords, wordToEntry }
@@ -67,4 +73,8 @@ export function matchAnswer(input: string, target: string, looseMatching: boolea
 
 export function getWordEntry(word: string): WordEntry | undefined {
   return getIndex().wordToEntry.get(word)
+}
+
+export function invalidateIndex(): void {
+  index = null
 }

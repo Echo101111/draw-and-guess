@@ -43,6 +43,19 @@ test.describe('Draw & Guess E2E', () => {
     await expect(hostPage.locator('.playing')).toBeVisible({ timeout: 15000 })
     await expect(guestPage.locator('.playing')).toBeVisible({ timeout: 15000 })
 
+    // Select word (Host is drawer)
+    await expect(hostPage.locator('.word-select-overlay')).toBeVisible({ timeout: 10000 })
+    await hostPage.locator('.word-option-btn').first().click()
+    await expect(hostPage.locator('.game-info-row')).toBeVisible({ timeout: 10000 })
+    await expect(guestPage.locator('.game-info-row')).toBeVisible({ timeout: 10000 })
+
+    // Dismiss drawer alert
+    const drawerAlert = hostPage.locator('.drawer-alert-close')
+    if (await drawerAlert.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await drawerAlert.click()
+      await hostPage.waitForTimeout(300)
+    }
+
     // Host is drawer, Guest is guesser
     await expect(hostPage.locator('.drawer-badge')).toBeVisible({ timeout: 5000 })
     await expect(guestPage.locator('.guesser-badge')).toBeVisible({ timeout: 5000 })

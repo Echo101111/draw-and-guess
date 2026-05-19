@@ -1,9 +1,15 @@
 <template>
   <div class="home-page">
-    <button class="btn-changelog" @click="loadChangelog(); showChangelog = true" title="更新日志">
-      <span class="changelog-icon">📋</span>
-      <span class="changelog-label">更新日志</span>
-    </button>
+    <div class="top-actions">
+      <button class="btn-contribute" @click="showContribute = true" title="贡献词库">
+        <span>✏️</span>
+        <span class="action-label">贡献词库</span>
+      </button>
+      <button class="btn-changelog" @click="loadChangelog(); showChangelog = true" title="更新日志">
+        <span class="changelog-icon">📋</span>
+        <span class="changelog-label">更新日志</span>
+      </button>
+    </div>
 
     <Transition name="changelog">
       <div v-if="showChangelog" class="changelog-overlay" @click.self="showChangelog = false">
@@ -16,6 +22,81 @@
             <button class="changelog-close" @click="showChangelog = false" title="关闭">✕</button>
           </div>
           <div class="changelog-body" v-html="renderedChangelog" />
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="contribute">
+      <div v-if="showContribute" class="contribute-overlay" @click.self="showContribute = false">
+        <div class="contribute-modal">
+          <div class="contribute-header">
+            <div class="contribute-header-left">
+              <span class="contribute-header-icon">✏️</span>
+              <span>贡献词库</span>
+            </div>
+            <button class="contribute-close" @click="showContribute = false" title="关闭">✕</button>
+          </div>
+          <div class="contribute-body">
+            <div class="contribute-desc">将你想在游戏中看到的词语永久加入词库</div>
+
+            <div class="field">
+              <label for="contribute-words">词语（每行一个，最多 20 个）</label>
+              <div class="input-wrap">
+                <textarea
+                  id="contribute-words"
+                  v-model="contributeWords"
+                  class="contribute-textarea"
+                  placeholder="长颈鹿&#10;电饭煲&#10;过山车"
+                  rows="5"
+                />
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field field-half">
+                <label for="contribute-category">分类</label>
+                <div class="input-wrap">
+                  <select id="contribute-category" v-model="contributeCategory">
+                    <option value="animals">动物</option>
+                    <option value="food">食物</option>
+                    <option value="daily">日常物品</option>
+                    <option value="nature">自然</option>
+                    <option value="vehicles">交通工具</option>
+                    <option value="sports">体育运动</option>
+                    <option value="celebrities">角色</option>
+                    <option value="professions">职业</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field field-half">
+                <label for="contribute-difficulty">难度</label>
+                <div class="input-wrap">
+                  <select id="contribute-difficulty" v-model="contributeDifficulty">
+                    <option value="easy">简单</option>
+                    <option value="medium" selected>中等</option>
+                    <option value="hard">困难</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="contribute-actions">
+              <button
+                class="btn-contribute-submit"
+                :disabled="contributeLoading"
+                @click="handleContributeSubmit"
+              >
+                <span v-if="contributeLoading" class="btn-loading" />
+                <span v-else>📤 提交（{{ wordCount }} 个词）</span>
+              </button>
+            </div>
+
+            <Transition name="fade">
+              <div v-if="contributeMessage" :class="['contribute-feedback', contributeSuccess ? 'feedback-success' : 'feedback-error']">
+                {{ contributeMessage }}
+              </div>
+            </Transition>
+          </div>
         </div>
       </div>
     </Transition>
@@ -175,6 +256,70 @@ const showChangelog = ref(false)
 const changelogMd = ref('')
 const changelogLoading = ref(false)
 
+const showContribute = ref(false)
+const contributeWords = ref('')
+const contributeCategory = ref<string>('animals')
+const contributeDifficulty = ref<string>('medium')
+const contributeLoading = ref(false)
+const contributeMessage = ref<string | null>(null)
+const contributeSuccess = ref(false)
+let contributeTimer: ReturnType<typeof setTimeout> | null = null
+
+const wordCount = computed(() => {
+  return contributeWords.value.split('\n').map(s => s.trim()).filter(Boolean).length
+})
+
+function resetContributeForm() {
+  contributeWords.value = ''
+  contributeCategory.value = 'animals'
+  contributeDifficulty.value = 'medium'
+  contributeLoading.value = false
+  contributeMessage.value = null
+  contributeSuccess.value = false
+}
+
+async function handleContributeSubmit() {
+  const words = contributeWords.value.split('\n').map(s => s.trim()).filter(Boolean)
+  if (words.length === 0) {
+    contributeMessage.value = '请至少输入一个词语'
+    contributeSuccess.value = false
+    return
+  }
+
+  contributeLoading.value = true
+  contributeMessage.value = null
+
+  try {
+    const serverUrl = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:3000'
+    const res = await fetch(`${serverUrl}/api/words`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        words,
+        category: contributeCategory.value,
+        difficulty: contributeDifficulty.value,
+      }),
+    })
+
+    const data = await res.json()
+    contributeSuccess.value = data.success
+    contributeMessage.value = data.message
+
+    if (data.success) {
+      if (contributeTimer) clearTimeout(contributeTimer)
+      contributeTimer = setTimeout(() => {
+        showContribute.value = false
+        resetContributeForm()
+      }, 2500)
+    }
+  } catch {
+    contributeSuccess.value = false
+    contributeMessage.value = '提交失败，请检查网络连接'
+  } finally {
+    contributeLoading.value = false
+  }
+}
+
 let errorTimer: ReturnType<typeof setTimeout> | null = null
 
 function renderMarkdown(md: string): string {
@@ -276,6 +421,7 @@ async function handleJoin() {
 
 onUnmounted(() => {
   if (errorTimer) clearTimeout(errorTimer)
+  if (contributeTimer) clearTimeout(contributeTimer)
 })
 
 onMounted(() => {
@@ -520,12 +666,19 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
-/* ─── Changelog ─── */
-.btn-changelog {
+/* ─── Top Actions ─── */
+.top-actions {
   position: fixed;
   top: 0.75rem;
   right: 0.75rem;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-changelog,
+.btn-contribute {
   display: flex;
   align-items: center;
   gap: 0.3rem;
@@ -548,12 +701,21 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
-.btn-changelog:active {
+.btn-contribute:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: 0 4px 16px rgba(232, 133, 108, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-changelog:active,
+.btn-contribute:active {
   transform: translateY(0);
 }
 
 .changelog-icon { font-size: 0.85rem; }
-.changelog-label { font-size: 0.78rem; }
+.changelog-label,
+.action-label { font-size: 0.78rem; }
 
 .changelog-overlay {
   position: fixed;
@@ -768,6 +930,220 @@ onMounted(() => {
   to { opacity: 0; transform: scale(0.9) translateY(10px); }
 }
 
+/* ─── Contribute ─── */
+.contribute-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(74, 55, 40, 0.4);
+  backdrop-filter: blur(5px);
+}
+
+.contribute-modal {
+  width: 90%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #FFFDF8 0%, #FFF8F0 100%);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 12px 48px rgba(74, 55, 40, 0.2);
+  border: 1px solid rgba(244, 162, 97, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+.contribute-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent), var(--color-primary-light));
+  z-index: 1;
+}
+
+.contribute-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 0.7rem;
+  flex-shrink: 0;
+}
+
+.contribute-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  letter-spacing: 0.03em;
+}
+
+.contribute-header-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.contribute-close {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  border-radius: 50%;
+  transition: all 0.25s;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.contribute-close:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+  transform: rotate(90deg);
+}
+
+.contribute-body {
+  padding: 0.25rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.contribute-desc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin-bottom: 0.25rem;
+}
+
+.contribute-textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  transition: var(--transition);
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
+}
+
+.contribute-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-glow);
+}
+
+.contribute-textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.field-row {
+  display: flex;
+  gap: 0.65rem;
+}
+
+.field-half {
+  flex: 1;
+}
+
+.btn-contribute-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.65rem;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  letter-spacing: 0.03em;
+}
+
+.btn-contribute-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(232, 133, 108, 0.35);
+}
+
+.btn-contribute-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-contribute-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.contribute-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.contribute-feedback {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-align: center;
+  transition: var(--transition);
+}
+
+.feedback-success {
+  background: var(--color-success-bg);
+  color: #5a9a56;
+  border: 1px solid rgba(126, 184, 122, 0.2);
+}
+
+.feedback-error {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border: 1px solid rgba(217, 117, 107, 0.2);
+}
+
+/* Contribute overlay animation */
+.contribute-enter-active {
+  transition: opacity 0.3s ease;
+}
+
+.contribute-enter-active .contribute-modal {
+  animation: modalEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.contribute-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.contribute-leave-active .contribute-modal {
+  animation: modalExit 0.2s ease-in;
+}
+
+.contribute-enter-from,
+.contribute-leave-to {
+  opacity: 0;
+}
+
 /* ─── Error toast (keep original transition) ─── */
 .fade-enter-active,
 .fade-leave-active {
@@ -783,8 +1159,47 @@ onMounted(() => {
 /* ─── Mobile ─── */
 @media (max-width: 480px) {
   .home-page {
-    padding: 1rem 0.75rem;
+    padding: 1.5rem 1rem;
   }
+
+  .hero-icon {
+    font-size: 2.8rem;
+  }
+
+  .hero-title {
+    font-size: 2.5rem;
+  }
+
+  .top-actions {
+    top: 0.5rem;
+    right: 0.5rem;
+    gap: 0.35rem;
+  }
+
+  .btn-changelog,
+  .btn-contribute {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+  }
+
+  .contribute-modal {
+    max-width: 100%;
+    margin: 0 0.5rem;
+  }
+
+  .contribute-body {
+    padding: 0.25rem 1rem 1rem;
+  }
+
+  .field-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .contribute-textarea {
+    font-size: 0.84rem;
+  }
+}
 
   .hero-icon {
     font-size: 2.2rem;
