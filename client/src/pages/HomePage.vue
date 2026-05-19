@@ -105,17 +105,6 @@
               </div>
             </Transition>
 
-            <div v-if="submittedWords.length > 0" class="submitted-words-section">
-              <div class="submitted-words-header">
-                <span>📖 已贡献的词语（{{ submittedWords.length }} 个）</span>
-              </div>
-              <div class="submitted-words-list">
-                <div v-for="item in submittedWords" :key="item.word" class="submitted-word-item">
-                  <span class="submitted-word-text">{{ item.word }}</span>
-                  <span class="submitted-word-meta">{{ item.category }} · {{ difficultyLabel(item.difficulty) }}</span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -276,12 +265,6 @@ const showChangelog = ref(false)
 const changelogMd = ref('')
 const changelogLoading = ref(false)
 
-interface SubmittedWord {
-  word: string
-  category: string
-  difficulty: string
-}
-
 const showContribute = ref(false)
 const contributeWords = ref('')
 const contributeCategory = ref<string>('')
@@ -289,26 +272,11 @@ const contributeDifficulty = ref<string>('medium')
 const contributeLoading = ref(false)
 const contributeMessage = ref<string | null>(null)
 const contributeSuccess = ref(false)
-const submittedWords = ref<SubmittedWord[]>([])
 let contributeTimer: ReturnType<typeof setTimeout> | null = null
 
 const wordCount = computed(() => {
   return contributeWords.value.split('\n').map(s => s.trim()).filter(Boolean).length
 })
-
-function difficultyLabel(d: string): string {
-  return d === 'easy' ? '简单' : d === 'hard' ? '困难' : '中等'
-}
-
-async function loadSubmittedWords() {
-  try {
-    const res = await fetch('/api/words')
-    const data = await res.json()
-    submittedWords.value = data.words ?? []
-  } catch {
-    // silently fail
-  }
-}
 
 function resetContributeForm() {
   contributeWords.value = ''
@@ -318,11 +286,6 @@ function resetContributeForm() {
   contributeMessage.value = null
   contributeSuccess.value = false
 }
-
-// Watch modal open/close
-watch(showContribute, (v) => {
-  if (v) loadSubmittedWords()
-})
 
 async function handleContributeSubmit() {
   const words = contributeWords.value.split('\n').map(s => s.trim()).filter(Boolean)
@@ -357,7 +320,6 @@ async function handleContributeSubmit() {
     contributeMessage.value = data.message
 
     if (data.success) {
-      await loadSubmittedWords()
       contributeWords.value = ''
       if (contributeTimer) clearTimeout(contributeTimer)
       contributeTimer = setTimeout(() => {
@@ -1173,48 +1135,6 @@ onMounted(() => {
   background: var(--color-danger-light);
   color: var(--color-danger);
   border: 1px solid rgba(217, 117, 107, 0.2);
-}
-
-/* ─── Submitted words list ─── */
-.submitted-words-section {
-  border-top: 1px solid var(--color-border);
-  padding-top: 0.65rem;
-  margin-top: 0.25rem;
-}
-
-.submitted-words-header {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  margin-bottom: 0.4rem;
-}
-
-.submitted-words-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  max-height: 140px;
-  overflow-y: auto;
-}
-
-.submitted-word-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.3rem 0.5rem;
-  background: var(--color-bg);
-  border-radius: var(--radius-sm);
-  font-size: 0.82rem;
-}
-
-.submitted-word-text {
-  font-weight: 500;
-  color: var(--color-text);
-}
-
-.submitted-word-meta {
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
 }
 
 /* Contribute overlay animation */

@@ -4,6 +4,7 @@ import { Server as SocketIOServer } from 'socket.io'
 import { config, APP_VERSION } from './config.js'
 import { healthRouter } from './routes/health.js'
 import { wordsRouter } from './routes/words.js'
+import { adminRouter } from './routes/admin.js'
 import { registerRoomHandlers } from './socket/index.js'
 import { registerGameHandlers } from './socket/gameHandlers.js'
 import { gameManager } from './game/index.js'
@@ -70,6 +71,7 @@ roomManager.onPlayerRemoved((playerId, roomId) => {
 app.use(express.json())
 app.use('/health', healthRouter)
 app.use('/api/words', wordsRouter)
+app.use('/admin', adminRouter)
 
 io.on('connection', (socket) => {
   metrics.connections++

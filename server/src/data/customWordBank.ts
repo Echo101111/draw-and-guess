@@ -98,3 +98,12 @@ export function addCustomWord(
 export function getCustomWordSet(): Set<string> {
   return new Set(loadCustomWords().map(e => e.word))
 }
+
+export function removeCustomWord(word: string): boolean {
+  const entries = loadCustomWords()
+  const index = entries.findIndex(e => e.word === word)
+  if (index === -1) return false
+  entries.splice(index, 1)
+  saveRaw(entries)
+  return true
+}
