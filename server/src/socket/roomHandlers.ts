@@ -1,10 +1,11 @@
 import { CLIENT_EVENTS, SERVER_EVENTS, ErrorCode } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
-import { gameManager } from '../game/index.js'
-import { lastChatTime } from './gameHandlers.js'
+import { drawGameManager } from '../game/index.js'
+import { spyGameManager } from '../game/SpyGameManager.js'
+import { lastChatTime } from './drawGameHandlers.js'
 import { validateCustomWords } from '../data/wordValidator.js'
 import bcrypt from 'bcrypt'
-import type { Room, RoomWordConfig } from '@draw-and-guess/shared'
+import type { Room, RoomWordConfig, GameType } from '@draw-and-guess/shared'
 
 function getPlayerRoomData(room: Room) {
   return {
@@ -28,7 +29,7 @@ function getPlayerRoomData(room: Room) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function registerRoomHandlers(io: any, socket: any): void {
-  socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password, wordConfig }: { nickname: string; roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig }) => {
+  socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password, wordConfig, gameType }: { nickname: string; roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig; gameType?: GameType }) => {
     const trimmedNickname = nickname.trim()
     if (!trimmedNickname || trimmedNickname.length > 10) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
@@ -53,7 +54,8 @@ export function registerRoomHandlers(io: any, socket: any): void {
         trimmedName,
         maxPlayers ?? 50,
         password ?? '',
-        wordConfig
+        wordConfig,
+        gameType ?? 'draw'
       )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(global as any).metrics.roomsCreated++
@@ -153,7 +155,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
     if (room.state === 'playing') {
       player.isSpectator = true
       socket.data.isSpectator = true
-      gameManager.sendSpectatorSnapshot(room.id, player.id)
+      drawGameManager.sendSpectatorSnapshot(room.id, player.id)
     }
   })
 
@@ -210,7 +212,32 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
 
     try {
-      gameManager.resetGame(roomId)
+      const room = roomManager.getRoomById(roomId)
+      if (!room) {
+        socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+          code: ErrorCode.ROOM_NOT_FOUND,
+          message: '房间不存在',
+        })
+        return
+      }
+
+      if (room.gameType === 'spy') {
+        spyGameManager.resetGame(roomId)
+        const result = roomManager.startGame(roomId, playerId)
+        console.log(`[Room] SPY_START_GAME result: success=${result.success}, error=${result.error}`)
+        if (!result.success) {
+          socket.emit(SERVER_EVENTS.ROOM_ERROR, result.error!)
+          return
+        }
+        const currentRoom = roomManager.getRoomById(roomId)
+        if (currentRoom) {
+          io.to(currentRoom.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(currentRoom) })
+          spyGameManager.startRound(roomId)
+        }
+        return
+      }
+
+      drawGameManager.resetGame(roomId)
 
       const result = roomManager.startGame(roomId, playerId)
       console.log(`[Room] START_GAME result: success=${result.success}, error=${result.error}`)
@@ -223,7 +250,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
       const currentRoom = roomManager.getRoomById(roomId)
       if (currentRoom) {
         io.to(currentRoom.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(currentRoom) })
-        gameManager.startRound(roomId)
+        drawGameManager.startRound(roomId)
       }
     } catch (err) {
       console.error('[StartGame] Error:', err)
@@ -350,9 +377,9 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
       if (player.isSpectator) {
         socket.data.isSpectator = true
-        gameManager.sendSpectatorSnapshot(room.id, player.id)
+        drawGameManager.sendSpectatorSnapshot(room.id, player.id)
       } else {
-        gameManager.restorePlayerState(room.id, player.id)
+        drawGameManager.restorePlayerState(room.id, player.id)
       }
 
       io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })

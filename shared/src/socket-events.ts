@@ -17,6 +17,18 @@ export const CLIENT_EVENTS = {
   RESYNC_STROKES: 'c_resync_strokes',
   UNDO_STROKE: 'c_undo_stroke',
   SELECT_WORD: 'c_select_word',
+  // WebRTC
+  WEBRTC_JOIN_VOICE: 'c_webrtc_join_voice',
+  WEBRTC_LEAVE_VOICE: 'c_webrtc_leave_voice',
+  WEBRTC_OFFER: 'c_webrtc_offer',
+  WEBRTC_ANSWER: 'c_webrtc_answer',
+  WEBRTC_ICE_CANDIDATE: 'c_webrtc_ice_candidate',
+  // Spy
+  SPY_START_GAME: 'c_spy_start_game',
+  SPY_SUBMIT_DESCRIPTION: 'c_spy_submit_description',
+  SPY_VOTE: 'c_spy_vote',
+  SPY_READY_NEXT_ROUND: 'c_spy_ready_next_round',
+  SPY_UPDATE_CONFIG: 'c_spy_update_config',
 } as const
 
 // Server → Client events
@@ -44,6 +56,23 @@ export const SERVER_EVENTS = {
   GAME_STATE_SNAPSHOT: 's_game_state_snapshot',
   ACK_STROKE: 's_ack_stroke',
   STROKE_UNDONE: 's_stroke_undone',
+  // WebRTC
+  WEBRTC_PEER_JOINED: 's_webrtc_peer_joined',
+  WEBRTC_PEER_LEFT: 's_webrtc_peer_left',
+  WEBRTC_OFFER: 's_webrtc_offer',
+  WEBRTC_ANSWER: 's_webrtc_answer',
+  WEBRTC_ICE_CANDIDATE: 's_webrtc_ice_candidate',
+  // Spy
+  SPY_WORD_ASSIGNED: 's_spy_word_assigned',
+  SPY_PHASE_CHANGE: 's_spy_phase_change',
+  SPY_SPEAKER_TURN: 's_spy_speaker_turn',
+  SPY_DESCRIPTION: 's_spy_description',
+  SPY_VOTE_RESULT: 's_spy_vote_result',
+  SPY_ROUND_RESULT: 's_spy_round_result',
+  SPY_GAME_OVER: 's_spy_game_over',
+  SPY_GAME_CONFIG_UPDATED: 's_spy_game_config_updated',
+  SPY_GAME_STATE_SNAPSHOT: 's_spy_game_state_snapshot',
+  SPY_TIMER_SYNC: 's_spy_timer_sync',
 } as const
 
 export type ClientToServerEvents = typeof CLIENT_EVENTS

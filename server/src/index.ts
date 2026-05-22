@@ -5,12 +5,12 @@ import { config, APP_VERSION } from './config.js'
 import { healthRouter } from './routes/health.js'
 import { wordsRouter } from './routes/words.js'
 import { adminRouter } from './routes/admin.js'
-import { registerRoomHandlers } from './socket/index.js'
-import { registerGameHandlers } from './socket/gameHandlers.js'
-import { gameManager } from './game/index.js'
+import { registerRoomHandlers, registerDrawGameHandlers, registerSpyGameHandlers, registerWebRTCHandlers } from './socket/index.js'
+import { drawGameManager } from './game/index.js'
+import { spyGameManager } from './game/SpyGameManager.js'
 import { roomManager } from './rooms/index.js'
 import { setupRedis } from './redis.js'
-import { clearChatCooldown } from './socket/gameHandlers.js'
+import { clearChatCooldown } from './socket/drawGameHandlers.js'
 
 const app = express()
 const httpServer = createServer(app)
@@ -55,16 +55,17 @@ setupRedis(io).catch((err) => {
 
 // 房间解散时清理游戏数据
 roomManager.onDismissed((roomId) => {
-  gameManager.resetGame(roomId)
+  drawGameManager.resetGame(roomId)
+  spyGameManager.resetGame(roomId)
 })
 
 // 玩家被移除时清理 per-player 状态；若移除的是画师则结束当前轮
 roomManager.onPlayerRemoved((playerId, roomId) => {
-  gameManager.removePlayerTimestamps(playerId)
+  drawGameManager.removePlayerTimestamps(playerId)
   clearChatCooldown(playerId)
-  const drawerId = gameManager.getCurrentDrawerId(roomId)
+  const drawerId = drawGameManager.getCurrentDrawerId(roomId)
   if (drawerId === playerId) {
-    gameManager.endRound(roomId, 'timeout')
+    drawGameManager.endRound(roomId, 'timeout')
   }
 })
 
@@ -78,7 +79,9 @@ io.on('connection', (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`)
 
   registerRoomHandlers(io, socket)
-  registerGameHandlers(io, socket)
+  registerDrawGameHandlers(io, socket)
+  registerSpyGameHandlers(io, socket)
+  registerWebRTCHandlers(io, socket)
 
   socket.on('disconnect', () => {
     metrics.disconnections++

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useGameStore } from './game'
+import { useDrawGameStore } from './drawGame'
 import { SERVER_EVENTS, CLIENT_EVENTS } from '@draw-and-guess/shared'
 
 const listeners = new Map<string, (...args: unknown[]) => void>()
@@ -42,7 +42,7 @@ describe('game store', () => {
 
   describe('setupSocketListeners', () => {
     it('should handle ROUND_START for guesser', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       triggerEvent(SERVER_EVENTS.ROUND_START, {
@@ -63,7 +63,7 @@ describe('game store', () => {
     })
 
     it('should handle ROUND_START_TO_DRAWER', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       triggerEvent(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
@@ -81,7 +81,7 @@ describe('game store', () => {
     })
 
     it('should handle DRAW_STROKE new stroke', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       triggerEvent(SERVER_EVENTS.DRAW_STROKE, {
@@ -99,7 +99,7 @@ describe('game store', () => {
     })
 
     it('should handle DRAW_STROKE allStrokes', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       const batchStrokes = [
@@ -116,7 +116,7 @@ describe('game store', () => {
     })
 
     it('should handle CANVAS_CLEARED', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
       // Add some strokes first
       triggerEvent(SERVER_EVENTS.DRAW_STROKE, {
@@ -131,7 +131,7 @@ describe('game store', () => {
     })
 
     it('should handle ANSWER_RESULT for self', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       triggerEvent(SERVER_EVENTS.ANSWER_RESULT, {
@@ -144,7 +144,7 @@ describe('game store', () => {
     })
 
     it('should handle SCOREBOARD_UPDATE', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       const scores = [
@@ -157,7 +157,7 @@ describe('game store', () => {
     })
 
     it('should handle TIMER_SYNC', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       triggerEvent(SERVER_EVENTS.TIMER_SYNC, { timeLeft: 42 })
@@ -166,7 +166,7 @@ describe('game store', () => {
     })
 
     it('should handle ROUND_END and set transitionData', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       triggerEvent(SERVER_EVENTS.ROUND_END, {
@@ -183,7 +183,7 @@ describe('game store', () => {
     })
 
     it('should handle GAME_OVER', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       triggerEvent(SERVER_EVENTS.GAME_OVER, {
@@ -197,7 +197,7 @@ describe('game store', () => {
     })
 
     it('should handle CHAT_MESSAGE', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       triggerEvent(SERVER_EVENTS.CHAT_MESSAGE, {
@@ -213,7 +213,7 @@ describe('game store', () => {
     })
 
     it('should handle GAME_STATE_SNAPSHOT', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
 
       triggerEvent(SERVER_EVENTS.GAME_STATE_SNAPSHOT, {
@@ -236,7 +236,7 @@ describe('game store', () => {
 
   describe('submitAnswer', () => {
     it('should emit SUBMIT_ANSWER event', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
       // Manually set state so canSubmitAnswer is true
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -254,7 +254,7 @@ describe('game store', () => {
 
   describe('sendChat', () => {
     it('should emit CHAT_MESSAGE event', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
       store.sendChat('hello world')
       expect(mockEmit).toHaveBeenCalledWith(
@@ -266,7 +266,7 @@ describe('game store', () => {
 
   describe('resetGame', () => {
     it('should reset all state to defaults', () => {
-      const store = useGameStore()
+      const store = useDrawGameStore()
       store.setupSocketListeners()
       // Set some state
       triggerEvent(SERVER_EVENTS.ROUND_START_TO_DRAWER, {

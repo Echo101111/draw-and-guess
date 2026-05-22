@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getSocket, connectSocket, saveSession, clearSession, waitForConnection } from '@/composables/useSocket'
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
-import type { RoomWordConfig } from '@draw-and-guess/shared'
+import type { RoomWordConfig, GameType } from '@draw-and-guess/shared'
 
 interface RoomPlayer {
   id: string
@@ -22,6 +22,7 @@ interface RoomData {
   currentRound: number
   totalRounds: number
   wordConfig: RoomWordConfig
+  gameType: GameType
 }
 
 export const useRoomStore = defineStore('room', () => {
@@ -63,6 +64,7 @@ export const useRoomStore = defineStore('room', () => {
             enabledCategories: [],
             enabledCustomCategories: [],
           },
+          gameType: 'draw',
         }
       }
       currentPlayerId.value = data.playerId
@@ -166,7 +168,7 @@ export const useRoomStore = defineStore('room', () => {
 
   const createRoom = async (
     nickname: string,
-    options?: { roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig }
+    options?: { roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig; gameType?: GameType }
   ) => {
     connectionState.value = 'connecting'
     error.value = null
@@ -192,6 +194,7 @@ export const useRoomStore = defineStore('room', () => {
       maxPlayers: options?.maxPlayers,
       password: options?.password,
       wordConfig: options?.wordConfig,
+      gameType: options?.gameType ?? 'draw',
     })
     await waitForResponse(SERVER_EVENTS.ROOM_CREATED)
   }

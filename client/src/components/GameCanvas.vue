@@ -8,7 +8,7 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { fabric } from 'fabric'
 import { useCanvasStore } from '@/stores/canvas'
-import { useGameStore } from '@/stores/game'
+import { useDrawGameStore } from '@/stores/drawGame'
 import type { Point } from '@draw-and-guess/shared'
 
 type FabricCanvas = InstanceType<typeof fabric.Canvas>
@@ -19,7 +19,7 @@ const props = defineProps<{
 }>()
 
 const canvasStore = useCanvasStore()
-const gameStore = useGameStore()
+const gameStore = useDrawGameStore()
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)

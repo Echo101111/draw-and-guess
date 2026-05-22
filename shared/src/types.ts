@@ -11,6 +11,9 @@ export interface Player {
   lastActiveAt: number
 }
 
+// === Game Type ===
+export type GameType = 'draw' | 'spy'
+
 // === Room ===
 export type RoomState = 'lobby' | 'playing' | 'gameover'
 
@@ -54,6 +57,7 @@ export interface Room {
   roundStartTime: number | null
   roundDuration: number
   wordConfig: RoomWordConfig
+  gameType: GameType
 }
 
 // === Drawing ===
@@ -116,3 +120,60 @@ export interface RoomErrorPayload {
 
 // === Word Sensitivity ===
 // Removed — all words are now 'safe', no sensitivity filtering needed
+
+// === Spy Game ===
+export type SpyPhase =
+  | 'idle'
+  | 'word_distribution'
+  | 'describing'
+  | 'voting'
+  | 'reveal'
+  | 'round_end'
+  | 'game_over'
+
+export interface SpyPlayer {
+  id: string
+  nickname: string
+  isOwner: boolean
+  isAlive: boolean
+  isSpy: boolean
+  word: string
+  description: string
+  voteTarget: string | null
+  voteCount: number
+  score: number
+  sessionId: string
+}
+
+export interface SpyGameConfig {
+  totalRounds: number
+  descriptionTime: number
+  voteTime: number
+}
+
+export interface SpyDescription {
+  playerId: string
+  nickname: string
+  text: string
+  round: number
+  timestamp: number
+}
+
+export interface SpyVoteResult {
+  round: number
+  votes: Array<{ voterId: string; targetId: string | null }>
+  eliminated: string | null
+}
+
+export interface SpyGameState {
+  phase: SpyPhase
+  round: number
+  totalRounds: number
+  currentSpeakerIndex: number
+  players: SpyPlayer[]
+  civilianWord: string
+  spyWord: string
+  descriptionTimeLeft: number
+  voteTimeLeft: number
+  winner: 'civilian' | 'spy' | null
+}

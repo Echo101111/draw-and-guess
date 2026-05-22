@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { GameManager } from './GameManager.js'
+import { GameManager } from './DrawGameManager.js'
 import { roomManager } from '../rooms/index.js'
 import { SERVER_EVENTS } from '@draw-and-guess/shared'
 

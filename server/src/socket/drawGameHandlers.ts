@@ -1,5 +1,5 @@
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
-import { gameManager } from '../game/index.js'
+import { drawGameManager } from '../game/index.js'
 import { roomManager } from '../rooms/index.js'
 import { matchAnswer } from '../data/wordIndex.js'
 
@@ -7,7 +7,7 @@ const lastChatTime = new Map<string, number>()
 const CHAT_COOLDOWN = 1000
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function registerGameHandlers(io: any, socket: any): void {
+export function registerDrawGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.SUBMIT_ANSWER, ({ answer }: { answer: string }) => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
@@ -15,7 +15,7 @@ export function registerGameHandlers(io: any, socket: any): void {
     if (!answer || !answer.trim()) return
 
     try {
-      const result = gameManager.submitAnswer(roomId, playerId, answer)
+      const result = drawGameManager.submitAnswer(roomId, playerId, answer)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(global as any).metrics.answersSubmitted++
       if (result.correct) {
@@ -37,7 +37,7 @@ export function registerGameHandlers(io: any, socket: any): void {
 
     try {
       const start = Date.now()
-      gameManager.handleDrawStroke(roomId, playerId, socket.id, points, color, width, tool, strokeSeq)
+      drawGameManager.handleDrawStroke(roomId, playerId, socket.id, points, color, width, tool, strokeSeq)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const m = (global as any).metrics
       m.strokesReceived++
@@ -53,7 +53,7 @@ export function registerGameHandlers(io: any, socket: any): void {
     if (!roomId || !playerId) return
 
     try {
-      gameManager.clearCanvas(roomId, playerId, socket.id)
+      drawGameManager.clearCanvas(roomId, playerId, socket.id)
     } catch (err) {
       console.error('[ClearCanvas] Error:', err)
     }
@@ -76,7 +76,7 @@ export function registerGameHandlers(io: any, socket: any): void {
 
       // 游戏进行中且发送者是猜题者 → 检查是否为答案
       if (room.state === 'playing' && player && !socket.data.isSpectator && !player.isSpectator) {
-        const drawerId = gameManager.getCurrentDrawerId(roomId)
+        const drawerId = drawGameManager.getCurrentDrawerId(roomId)
         // 画师禁言
         if (playerId === drawerId) return
         // 自定义词库房间：房主只能当画师或观战，不能猜题
@@ -86,7 +86,7 @@ export function registerGameHandlers(io: any, socket: any): void {
           // 已猜对者输入答案词 → 静默丢弃（防止泄露）
           if (matchAnswer(text, room.currentWord ?? '', room.wordConfig.looseMatching)) return
         } else {
-          const result = gameManager.submitAnswer(roomId, playerId, text)
+          const result = drawGameManager.submitAnswer(roomId, playerId, text)
           if (result.correct) return
           isWrongGuess = true
         }
@@ -134,7 +134,7 @@ export function registerGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     try {
-      gameManager.undoStroke(roomId, playerId)
+      drawGameManager.undoStroke(roomId, playerId)
     } catch (err) {
       console.error('[UndoStroke] Error:', err)
     }
@@ -144,7 +144,7 @@ export function registerGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     try {
-      gameManager.sendGameStateSnapshot(roomId, playerId)
+      drawGameManager.sendGameStateSnapshot(roomId, playerId)
     } catch (err) {
       console.error('[RequestGameState] Error:', err)
     }
@@ -154,7 +154,7 @@ export function registerGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     try {
-      gameManager.resyncStrokes(roomId, playerId, strokes)
+      drawGameManager.resyncStrokes(roomId, playerId, strokes)
     } catch (err) {
       console.error('[ResyncStrokes] Error:', err)
     }
@@ -164,7 +164,7 @@ export function registerGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     try {
-      gameManager.handleWordSelection(roomId, playerId, word)
+      drawGameManager.handleWordSelection(roomId, playerId, word)
     } catch (err) {
       console.error('[SelectWord] Error:', err)
     }

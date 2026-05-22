@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcrypt'
-import type { Player, Room, RoomErrorPayload, RoomWordConfig } from '@draw-and-guess/shared'
+import type { Player, Room, RoomErrorPayload, RoomWordConfig, GameType } from '@draw-and-guess/shared'
 import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG } from '@draw-and-guess/shared'
 
 const BCRYPT_ROUNDS = 6
@@ -22,7 +22,7 @@ function createPlayer(nickname: string, isOwner = false): Player {
   }
 }
 
-function createRoom(name: string, maxPlayers: number, password: string, owner: Player, wordConfig: RoomWordConfig): Room {
+function createRoom(name: string, maxPlayers: number, password: string, owner: Player, wordConfig: RoomWordConfig, gameType: GameType): Room {
   return {
     id: randomUUID(),
     code: name,
@@ -37,6 +37,7 @@ function createRoom(name: string, maxPlayers: number, password: string, owner: P
     roundStartTime: null,
     roundDuration: 90,
     wordConfig,
+    gameType,
   }
 }
 
@@ -64,7 +65,8 @@ export class RoomManager {
     roomName: string,
     maxPlayers: number,
     password: string,
-    wordConfig?: RoomWordConfig
+    wordConfig?: RoomWordConfig,
+    gameType: GameType = 'draw'
   ): Promise<{ room: Room; player: Player }> {
     const trimmedName = roomName.trim()
     if (!trimmedName) {
@@ -87,7 +89,7 @@ export class RoomManager {
 
     const owner = createPlayer(nickname, true)
     const hashedPassword = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : ''
-    const room = createRoom(trimmedName, maxPlayers, hashedPassword, owner, wordConfig ?? DEFAULT_WORD_CONFIG)
+    const room = createRoom(trimmedName, maxPlayers, hashedPassword, owner, wordConfig ?? DEFAULT_WORD_CONFIG, gameType)
 
     this.rooms.set(room.id, room)
     this.nameToRoomId.set(normalizedName, room.id)
@@ -325,8 +327,9 @@ export class RoomManager {
     return this.rooms.get(id) ?? null
   }
 
-  getAllRooms(): Room[] {
-    return Array.from(this.rooms.values())
+  getAllRooms(gameType?: GameType): Room[] {
+    const rooms = Array.from(this.rooms.values())
+    return gameType ? rooms.filter(r => r.gameType === gameType) : rooms
   }
 
   updatePlayerState(roomId: string, playerId: string, updates: Partial<Pick<Player, 'score' | 'hasGuessedCorrectly'>>): void {
@@ -402,6 +405,7 @@ export class RoomManager {
       currentRound: room.currentRound,
       totalRounds: room.totalRounds,
       wordConfig: room.wordConfig,
+      gameType: room.gameType,
     }
   }
 

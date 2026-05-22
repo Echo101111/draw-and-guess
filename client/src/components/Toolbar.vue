@@ -87,10 +87,10 @@
 
 <script setup lang="ts">
 import { useCanvasStore } from '@/stores/canvas'
-import { useGameStore } from '@/stores/game'
+import { useDrawGameStore } from '@/stores/drawGame'
 
 const canvasStore = useCanvasStore()
-const gameStore = useGameStore()
+const gameStore = useDrawGameStore()
 
 function selectColor(color: string) {
   canvasStore.setTool('brush')

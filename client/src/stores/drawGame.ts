@@ -35,7 +35,7 @@ interface RoundStartToDrawerPayload {
   wordCategory?: string
 }
 
-export const useGameStore = defineStore('game', () => {
+export const useDrawGameStore = defineStore('drawGame', () => {
   const state = ref<'idle' | 'choosing' | 'playing' | 'round_end' | 'game_over'>('idle')
   const currentRound = ref(0)
   const totalRounds = ref(10)

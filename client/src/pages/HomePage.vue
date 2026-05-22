@@ -101,9 +101,28 @@
     </Transition>
 
     <div class="hero">
-      <div class="hero-icon">🎨</div>
-      <h1 class="hero-title">你画我猜</h1>
-      <p class="hero-subtitle">和朋友一起，画出快乐时光</p>
+      <div class="hero-icon">🎉</div>
+      <h1 class="hero-title">派对游戏</h1>
+      <p class="hero-subtitle">和朋友一起，享受快乐时光</p>
+    </div>
+
+    <div class="game-cards">
+      <button
+        :class="['game-card', { active: selectedGame === 'draw' }]"
+        @click="selectedGame = 'draw'"
+      >
+        <span class="game-card-icon">🎨</span>
+        <span class="game-card-name">你画我猜</span>
+        <span class="game-card-desc">画画猜词，看谁最快！</span>
+      </button>
+      <button
+        :class="['game-card', { active: selectedGame === 'spy' }]"
+        @click="selectedGame = 'spy'"
+      >
+        <span class="game-card-icon">🕵️</span>
+        <span class="game-card-name">谁是卧底</span>
+        <span class="game-card-desc">描述词语，找出卧底！</span>
+      </button>
     </div>
 
     <div class="card-container">
@@ -381,6 +400,7 @@ async function loadChangelog() {
 }
 
 const activeTab = ref<'create' | 'join'>('create')
+const selectedGame = ref<'draw' | 'spy'>('draw')
 const nickname = ref('')
 const createRoomName = ref('')
 const joinRoomName = ref('')
@@ -400,7 +420,8 @@ watch(() => roomStore.error, (newError) => {
 
 watch(() => roomStore.room, (newRoom) => {
   if (newRoom && roomStore.currentPlayerId) {
-    router.push(`/lobby/${newRoom.code}`)
+    const prefix = newRoom.gameType === 'spy' ? '/spy' : '/draw'
+    router.push(`${prefix}/lobby/${newRoom.code}`)
   }
 })
 
@@ -413,6 +434,7 @@ async function handleCreate() {
     roomName: createRoomName.value.trim() || undefined,
     maxPlayers: maxPlayers.value,
     password: password.value || undefined,
+    gameType: selectedGame.value,
   })
 }
 
@@ -475,12 +497,61 @@ onMounted(() => {
   margin-top: 0.3rem;
 }
 
+.game-cards {
+  display: flex;
+  gap: 12px;
+  margin-top: 1rem;
+  flex-shrink: 0;
+  animation: slideUp 0.6s ease-out 0.1s both;
+}
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 24px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: var(--transition);
+  min-width: 140px;
+}
+
+.game-card:hover {
+  border-color: var(--color-primary-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+.game-card.active {
+  border-color: var(--color-primary);
+  background: var(--color-accent-pale);
+  box-shadow: var(--shadow-md);
+}
+
+.game-card-icon {
+  font-size: 28px;
+}
+
+.game-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.game-card-desc {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
 .card-container {
   width: 100%;
   max-width: 360px;
   animation: slideUp 0.6s ease-out 0.2s both;
   flex-shrink: 0;
-  margin-top: 1.25rem;
+  margin-top: 1rem;
 }
 
 .tab-bar {

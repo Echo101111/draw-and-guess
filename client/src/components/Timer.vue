@@ -18,9 +18,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useGameStore } from '@/stores/game'
+import { useDrawGameStore } from '@/stores/drawGame'
 
-const gameStore = useGameStore()
+const gameStore = useDrawGameStore()
 
 const timeLeft = computed(() => gameStore.timeLeft)
 const currentRound = computed(() => gameStore.currentRound)

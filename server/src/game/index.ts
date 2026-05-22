@@ -1,1 +1,1 @@
-export { GameManager, gameManager } from './GameManager.js'
+export { GameManager as DrawGameManager, gameManager as drawGameManager } from './DrawGameManager.js'

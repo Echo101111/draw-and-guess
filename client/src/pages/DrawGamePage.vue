@@ -219,7 +219,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
-import { useGameStore } from '@/stores/game'
+import { useDrawGameStore } from '@/stores/drawGame'
 import { connectSocket, disconnectSocket, getSocket, connectionState, reconnectAttempt } from '@/composables/useSocket'
 import { CLIENT_EVENTS } from '@draw-and-guess/shared'
 import type { RoomWordConfig } from '@draw-and-guess/shared'
@@ -234,7 +234,7 @@ import WordSelectModal from '@/components/WordSelectModal.vue'
 const route = useRoute()
 const router = useRouter()
 const roomStore = useRoomStore()
-const gameStore = useGameStore()
+const gameStore = useDrawGameStore()
 
 const roomName = computed(() => route.params.roomName as string)
 const showScoreboard = ref(false)

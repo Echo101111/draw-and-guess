@@ -48,9 +48,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useGameStore } from '@/stores/game'
+import { useDrawGameStore } from '@/stores/drawGame'
 
-const gameStore = useGameStore()
+const gameStore = useDrawGameStore()
 const inputText = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
 let intersectionObserver: IntersectionObserver | null = null
