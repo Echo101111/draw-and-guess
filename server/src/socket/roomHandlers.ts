@@ -14,6 +14,7 @@ function getPlayerRoomData(room: Room) {
     name: room.name,
     state: room.state,
     maxPlayers: room.maxPlayers,
+    gameType: room.gameType,
     players: room.players.map((p) => ({
       id: p.id,
       nickname: p.nickname,
@@ -313,6 +314,48 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
 
     io.to(room.code).emit(SERVER_EVENTS.WORD_CONFIG_UPDATED, { wordConfig: room.wordConfig })
+  })
+
+  socket.on(CLIENT_EVENTS.LIST_ROOMS, ({ gameType }: { gameType?: GameType } = {}) => {
+    const rooms = roomManager.getAllRooms(gameType)
+    const roomList = rooms.map((r) => ({
+      code: r.code,
+      name: r.name,
+      state: r.state,
+      playerCount: r.players.length,
+      gameType: r.gameType,
+      hasPassword: !!r.password,
+    }))
+    socket.emit(SERVER_EVENTS.ROOM_LIST, { rooms: roomList })
+  })
+
+  socket.on(CLIENT_EVENTS.UPDATE_GAME_TYPE, ({ gameType }: { gameType: GameType }) => {
+    const { roomId, playerId } = socket.data
+    if (!roomId || !playerId) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.ROOM_NOT_FOUND, message: '连接已断开，请刷新页面重新加入房间' })
+      return
+    }
+
+    const room = roomManager.getRoomById(roomId)
+    if (!room) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.ROOM_NOT_FOUND, message: '房间不存在' })
+      return
+    }
+
+    const player = room.players.find((p) => p.id === playerId)
+    if (!player?.isOwner) {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.NOT_ROOM_OWNER, message: '只有房主可以切换游戏类型' })
+      return
+    }
+
+    if (gameType !== 'draw' && gameType !== 'spy') {
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.INVALID_WORD_CONFIG, message: '无效的游戏类型' })
+      return
+    }
+
+    room.gameType = gameType
+    io.to(room.code).emit(SERVER_EVENTS.GAME_TYPE_UPDATED, { gameType })
+    io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
   })
 
   socket.on('disconnect', () => {

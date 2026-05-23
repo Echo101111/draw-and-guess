@@ -77,9 +77,41 @@
             />
           </div>
 
-          <!-- Vote center prompt -->
-          <div v-if="store.phase === 'voting' && !store.hasVoted" class="vote-center-hint">
-            👆 点击上方头像投票
+          <!-- Vote panel -->
+          <div v-if="store.phase === 'voting'" class="vote-panel">
+            <!-- Countdown ring -->
+            <div class="vote-countdown">
+              <svg class="vote-ring" viewBox="0 0 60 60">
+                <circle class="vote-ring-bg" cx="30" cy="30" r="26" />
+                <circle
+                  class="vote-ring-fg"
+                  :class="{ urgent: store.timeLeft <= 5 }"
+                  cx="30" cy="30" r="26"
+                  :style="{ strokeDashoffset: voteRingOffset }"
+                />
+              </svg>
+              <span class="vote-countdown-num">{{ store.timeLeft }}</span>
+            </div>
+
+            <!-- Prompt -->
+            <div v-if="!store.hasVoted" class="vote-prompt">
+              <span class="vote-prompt-icon">👆</span>
+              <span>点击上方头像投票</span>
+            </div>
+
+            <!-- Progress -->
+            <div v-else class="vote-progress">
+              <div class="vote-progress-text">✅ 已投票</div>
+              <div class="vote-progress-bar-wrap">
+                <div
+                  class="vote-progress-bar"
+                  :style="{ width: voteProgressPct + '%' }"
+                />
+              </div>
+              <div class="vote-progress-label">
+                {{ store.votedCount }}/{{ store.totalVoters }} 人已投票
+              </div>
+            </div>
           </div>
         </template>
 
@@ -100,6 +132,26 @@
             <span v-if="store.winner === 'civilian'">🎉 平民获胜</span>
             <span v-else>🕵️ 卧底获胜</span>
           </div>
+
+          <!-- Word reveal -->
+          <div v-if="store.civilianWord && store.spyWord" class="word-reveal">
+            <div class="word-reveal-label">📖 词汇揭晓</div>
+            <div class="word-reveal-cards">
+              <div class="word-card civilian-card">
+                <div class="word-card-header">👤 平民词</div>
+                <div class="word-card-word">{{ store.civilianWord }}</div>
+              </div>
+              <div class="word-card-vs">🆚</div>
+              <div class="word-card spy-card">
+                <div class="word-card-header">
+                  🕵️ 卧底词
+                  <span class="word-card-spy-name">{{ spyPlayerName }}</span>
+                </div>
+                <div class="word-card-word">{{ store.spyWord }}</div>
+              </div>
+            </div>
+          </div>
+
           <div class="score-list">
             <div v-for="s in store.scores" :key="s.playerId" class="score-row">
               <span class="score-rank">#{{ s.rank }}</span>
@@ -298,6 +350,22 @@ function handleRestart() {
 function getPlayerName(id: string): string {
   return store.players.find(p => p.id === id)?.nickname ?? id
 }
+
+const spyPlayerName = computed(() => {
+  return store.players.find(p => p.isSpy)?.nickname ?? ''
+})
+
+const voteRingOffset = computed(() => {
+  const maxTime = store.voteTimeMax || 20
+  const ratio = Math.min(store.timeLeft / maxTime, 1)
+  const circumference = 2 * Math.PI * 26
+  return circumference * (1 - ratio)
+})
+
+const voteProgressPct = computed(() => {
+  if (store.totalVoters === 0) return 0
+  return Math.round((store.votedCount / store.totalVoters) * 100)
+})
 </script>
 
 <style scoped>
@@ -502,17 +570,135 @@ function getPlayerName(id: string): string {
 }
 
 /* ====== VOTE HINT ====== */
-.vote-center-hint {
-  color: var(--color-gold);
-  font-weight: 600;
-  font-size: 0.85rem;
-  animation: pulseHint 1.5s ease-in-out infinite;
-  padding: 8px;
+/* ====== VOTE PANEL ====== */
+.vote-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  width: 100%;
+  max-width: 280px;
+  flex-shrink: 0;
+  animation: votePanelIn 0.3s ease-out;
 }
 
-@keyframes pulseHint {
+@keyframes votePanelIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.vote-countdown {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vote-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.vote-ring-bg {
+  fill: none;
+  stroke: var(--color-border-light);
+  stroke-width: 4;
+}
+
+.vote-ring-fg {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 163.36;
+  transition: stroke-dashoffset 0.5s ease, stroke 0.3s;
+}
+
+.vote-ring-fg.urgent {
+  stroke: var(--color-danger);
+}
+
+.vote-countdown-num {
+  font-family: var(--font-number);
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--color-text);
+  z-index: 1;
+}
+
+.vote-prompt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  animation: votePulse 1.8s ease-in-out infinite;
+}
+
+.vote-prompt-icon {
+  font-size: 1rem;
+  animation: votePoint 1s ease-in-out infinite;
+}
+
+@keyframes votePulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes votePoint {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.vote-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  animation: fadeSlideIn 0.3s ease-out;
+}
+
+.vote-progress-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-success);
+}
+
+.vote-progress-bar-wrap {
+  width: 100%;
+  height: 5px;
+  background: var(--color-border-light);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.vote-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.vote-progress-label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-number);
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ====== RESULTS ====== */
@@ -537,6 +723,84 @@ function getPlayerName(id: string): string {
   font-size: 1.1rem;
   font-weight: 600;
   margin: 8px 0 16px;
+}
+
+/* ====== WORD REVEAL ====== */
+.word-reveal {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  animation: wordRevealIn 0.5s ease-out;
+}
+
+@keyframes wordRevealIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.word-reveal-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.word-reveal-cards {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.word-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  min-width: 100px;
+}
+
+.word-card.civilian-card {
+  background: var(--color-accent-pale);
+  border: 2px solid var(--color-accent-light);
+}
+
+.word-card.spy-card {
+  background: var(--color-danger-light);
+  border: 2px solid var(--color-danger);
+}
+
+.word-card-header {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.word-card-spy-name {
+  font-size: 0.68rem;
+  color: var(--color-danger);
+}
+
+.word-card-word {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--color-text);
+  letter-spacing: 0.05em;
+}
+
+.word-card-vs {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
 .score-list {

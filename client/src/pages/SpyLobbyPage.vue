@@ -14,7 +14,7 @@
       <div class="players-section">
         <div class="players-header">
           <h2>玩家</h2>
-          <span class="player-count">{{ players.length }} / {{ roomStore.room?.maxPlayers }}</span>
+          <span class="player-count">{{ players.length }} 位玩家</span>
         </div>
 
         <div class="player-list">
@@ -53,10 +53,21 @@
           <span class="btn-start-icon">{{ players.length < 2 ? '👥' : '🕵️' }}</span>
           {{ players.length < 2 ? '等待更多玩家...' : '开始游戏' }}
         </button>
-        <button v-if="roomStore.isOwner" class="btn-word-config" @click="showConfig = true">
-          ⚙️ 游戏设置
-        </button>
-        <button class="btn-leave" @click="handleLeave">离开房间</button>
+
+        <div class="lobby-actions-secondary">
+          <button
+            v-if="roomStore.isOwner && roomStore.room?.state !== 'playing'"
+            class="btn-secondary"
+            @click="toggleGameType"
+          >
+            <span>{{ roomStore.room?.gameType === 'spy' ? '🎨' : '🕵️' }}</span>
+            切换{{ roomStore.room?.gameType === 'spy' ? '你画我猜' : '谁是卧底' }}
+          </button>
+          <button v-if="roomStore.isOwner" class="btn-secondary" @click="showConfig = true">
+            ⚙️ 游戏设置
+          </button>
+          <button class="btn-secondary btn-leave" @click="handleLeave">离开房间</button>
+        </div>
       </div>
     </div>
 
@@ -145,6 +156,20 @@ watch(() => roomStore.room?.state, (newState) => {
     router.push(`/spy/game/${roomStore.roomName}`)
   }
 })
+
+// 游戏类型切换 — 切为 draw 时重定向
+watch(() => roomStore.room?.gameType, (gameType) => {
+  if (gameType === 'draw' && roomStore.room) {
+    router.push(`/draw/lobby/${roomStore.roomName}`)
+  }
+})
+
+function toggleGameType() {
+  const socket = getSocket()
+  if (!socket?.connected) return
+  const newType = roomStore.room?.gameType === 'spy' ? 'draw' : 'spy'
+  socket.emit(CLIENT_EVENTS.UPDATE_GAME_TYPE, { gameType: newType })
+}
 
 function handleStart() {
   const socket = getSocket()
@@ -346,74 +371,75 @@ function copyLink() {
 .lobby-actions {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   padding: 0 1.5rem 1.5rem;
 }
 
-.lobby-actions > * {
-  width: 100%;
+.lobby-actions-secondary {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.lobby-actions-secondary .btn-secondary {
+  flex: 1;
 }
 
 .btn-start {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.9rem;
-  border: none;
-  border-radius: var(--radius-full);
+  gap: 0.4rem;
+  padding: 0.75rem;
   background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  color: white;
-  font-size: 1rem;
-  font-weight: 700;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: var(--shadow-md);
   transition: var(--transition);
+  letter-spacing: 0.03em;
 }
 
 .btn-start:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 4px 16px rgba(232, 133, 108, 0.35);
 }
 
 .btn-start:disabled {
-  opacity: 0.35;
+  opacity: 0.5;
   cursor: not-allowed;
-  box-shadow: none;
 }
 
-.btn-start-icon { font-size: 1.1rem; }
+.btn-start-icon {
+  font-size: 1.1rem;
+}
 
-.btn-word-config {
-  border: 1px solid var(--color-border);
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.55rem 0.75rem;
   background: var(--color-surface);
   color: var(--color-text-secondary);
-  padding: 0.7rem;
-  border-radius: var(--radius-full);
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.btn-word-config:hover {
-  background: var(--color-bg-warm);
-  border-color: var(--color-text-muted);
-}
-
-.btn-leave {
-  border: none;
-  background: none;
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-  padding: 0.5rem;
-  cursor: pointer;
+  border: 1.5px solid var(--color-border);
   border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
   transition: var(--transition);
+  white-space: nowrap;
 }
 
-.btn-leave:hover {
+.btn-secondary:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-pale);
+}
+
+.btn-secondary.btn-leave:hover {
+  border-color: var(--color-danger);
   color: var(--color-danger);
   background: var(--color-danger-light);
 }
@@ -550,6 +576,7 @@ function copyLink() {
   .lobby-header { padding: 1.5rem 1rem 1rem; }
   .lobby-header h1 { font-size: 1.4rem; }
   .players-section { padding: 0 1rem; }
-  .lobby-actions { padding: 0 1rem 1.25rem; }
+  .lobby-actions { padding: 0 0.75rem 1rem; }
+  .lobby-actions-secondary { flex-direction: column; }
 }
 </style>

@@ -106,25 +106,6 @@
       <p class="hero-subtitle">你画我猜 · 谁是卧底</p>
     </div>
 
-    <div class="game-cards">
-      <button
-        :class="['game-card', { active: selectedGame === 'draw' }]"
-        @click="selectedGame = 'draw'"
-      >
-        <span class="game-card-icon">🎨</span>
-        <span class="game-card-name">你画我猜</span>
-        <span class="game-card-desc">画画猜词，看谁最快！</span>
-      </button>
-      <button
-        :class="['game-card', { active: selectedGame === 'spy' }]"
-        @click="selectedGame = 'spy'"
-      >
-        <span class="game-card-icon">🕵️</span>
-        <span class="game-card-name">谁是卧底</span>
-        <span class="game-card-desc">描述词语，找出卧底！</span>
-      </button>
-    </div>
-
     <div class="card-container">
       <div class="tab-bar">
         <button
@@ -135,11 +116,11 @@
           创建房间
         </button>
         <button
-          :class="['tab-btn', { active: activeTab === 'join' }]"
-          @click="activeTab = 'join'"
+          :class="['tab-btn', { active: activeTab === 'list' }]"
+          @click="activeTab = 'list'"
         >
-          <span class="tab-icon">🚪</span>
-          加入房间
+          <span class="tab-icon">📋</span>
+          房间列表
         </button>
       </div>
 
@@ -174,16 +155,6 @@
         </div>
 
         <div class="field">
-          <label for="max-players">最大人数</label>
-          <div class="input-wrap">
-            <span class="input-icon">👥</span>
-            <select id="max-players" v-model="maxPlayers">
-              <option v-for="n in 10" :key="n" :value="n * 5">{{ n * 5 }} 人</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="field">
           <label for="password-create">房间密码</label>
           <div class="input-wrap">
             <span class="input-icon">🔒</span>
@@ -203,57 +174,93 @@
         </button>
       </form>
 
-      <form v-else class="form-card" @submit.prevent="handleJoin">
-        <div class="field">
-          <label for="nickname-join">你的昵称</label>
-          <div class="input-wrap">
-            <span class="input-icon">✏️</span>
-            <input
-              id="nickname-join"
-              v-model="nickname"
-              type="text"
-              placeholder="1-10个字符"
-              maxlength="10"
-              required
-            />
-          </div>
+      <div v-else class="room-list-wrap">
+        <div class="room-list-header">
+          <span>共 {{ rooms.length }} 个房间</span>
+          <button class="btn-refresh" @click="fetchRoomList" title="刷新">🔄</button>
         </div>
 
-        <div class="field">
-          <label for="room-name-join">房间名称</label>
-          <div class="input-wrap">
-            <span class="input-icon">🔑</span>
-            <input
-              id="room-name-join"
-              v-model="joinRoomName"
-              type="text"
-              placeholder="输入房间名称"
-              maxlength="20"
-              required
-            />
-          </div>
+        <div v-if="rooms.length === 0" class="empty-rooms">
+          <div class="empty-rooms-icon">🏠</div>
+          <div class="empty-rooms-text">暂无可用房间</div>
+          <div class="empty-rooms-desc">创建一个房间，邀请好友一起玩吧！</div>
         </div>
 
-        <div class="field">
-          <label for="password-join">房间密码</label>
-          <div class="input-wrap">
-            <span class="input-icon">🔒</span>
-            <input
-              id="password-join"
-              v-model="password"
-              type="password"
-              placeholder="无密码"
-              maxlength="20"
-            />
-          </div>
+        <div v-else class="room-list">
+          <button
+            v-for="room in rooms"
+            :key="room.code"
+            class="room-card"
+            @click="openJoinRoom(room)"
+          >
+            <div class="room-card-left">
+              <span class="room-card-icon">{{ room.gameType === 'spy' ? '🕵️' : '🎨' }}</span>
+            </div>
+            <div class="room-card-mid">
+              <div class="room-card-name">{{ room.name }}</div>
+              <div class="room-card-meta">
+                <span :class="['room-card-state', room.state]">
+                  {{ room.state === 'playing' ? '🎮 游戏中' : '🏠 等待中' }}
+                </span>
+              </div>
+            </div>
+            <div class="room-card-right">
+              <span class="room-card-players">👥 {{ room.playerCount }}</span>
+              <span class="room-card-lock">{{ room.hasPassword ? '🔒' : '🔓' }}</span>
+            </div>
+          </button>
         </div>
-
-        <button type="submit" class="btn-primary" :disabled="isLoading">
-          <span v-if="isLoading" class="btn-loading" />
-          <span v-else>🚪 加入房间</span>
-        </button>
-      </form>
+      </div>
     </div>
+
+    <Transition name="fade">
+      <div v-if="showJoinModal" class="join-overlay" @click.self="showJoinModal = false">
+        <div class="join-modal">
+          <div class="join-modal-header">
+            <div class="join-modal-header-left">
+              <span>{{ joinModalRoom?.gameType === 'spy' ? '🕵️' : '🎨' }}</span>
+              <span>加入「{{ joinModalRoom?.name }}」</span>
+            </div>
+            <button class="join-modal-close" @click="showJoinModal = false" title="关闭">✕</button>
+          </div>
+          <form class="join-modal-body" @submit.prevent="confirmJoinRoom">
+            <div class="field">
+              <label for="join-nickname">你的昵称</label>
+              <div class="input-wrap">
+                <span class="input-icon">✏️</span>
+                <input
+                  id="join-nickname"
+                  v-model="joinModalNickname"
+                  type="text"
+                  placeholder="1-10个字符"
+                  maxlength="10"
+                  required
+                />
+              </div>
+            </div>
+
+            <div v-if="joinModalRoom?.hasPassword" class="field">
+              <label for="join-password">房间密码</label>
+              <div class="input-wrap">
+                <span class="input-icon">🔒</span>
+                <input
+                  id="join-password"
+                  v-model="joinModalPassword"
+                  type="password"
+                  placeholder="输入密码"
+                  maxlength="20"
+                />
+              </div>
+            </div>
+
+            <button type="submit" class="btn-primary" :disabled="isLoading">
+              <span v-if="isLoading" class="btn-loading" />
+              <span v-else>🚪 加入房间</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </Transition>
 
     <Transition name="fade">
       <p v-if="errorMessage" class="error-toast">{{ errorMessage }}</p>
@@ -265,7 +272,19 @@
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
-import { connectSocket, clearSession } from '@/composables/useSocket'
+import { connectSocket, clearSession, loadNickname } from '@/composables/useSocket'
+import { getSocket } from '@/composables/useSocket'
+import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
+import type { GameType } from '@draw-and-guess/shared'
+
+interface RoomListItem {
+  code: string
+  name: string
+  state: string
+  playerCount: number
+  gameType: GameType
+  hasPassword: boolean
+}
 
 const router = useRouter()
 const roomStore = useRoomStore()
@@ -399,15 +418,20 @@ async function loadChangelog() {
   }
 }
 
-const activeTab = ref<'create' | 'join'>('create')
-const selectedGame = ref<'draw' | 'spy'>('draw')
+const activeTab = ref<'create' | 'list'>('create')
 const nickname = ref('')
 const createRoomName = ref('')
-const joinRoomName = ref('')
-const maxPlayers = ref(50)
 const password = ref('')
 const isLoading = ref(false)
 const errorMessage = ref<string | null>(null)
+
+// Room list
+const rooms = ref<RoomListItem[]>([])
+const showJoinModal = ref(false)
+const joinModalRoom = ref<RoomListItem | null>(null)
+const joinModalNickname = ref('')
+const joinModalPassword = ref('')
+let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 watch(() => roomStore.error, (newError) => {
   errorMessage.value = newError
@@ -420,10 +444,74 @@ watch(() => roomStore.error, (newError) => {
 
 watch(() => roomStore.room, (newRoom) => {
   if (newRoom && roomStore.currentPlayerId) {
-    const prefix = selectedGame.value === 'spy' ? '/spy' : '/draw'
+    const prefix = newRoom.gameType === 'spy' ? '/spy' : '/draw'
     router.push(`${prefix}/lobby/${newRoom.code}`)
   }
 })
+
+watch(activeTab, (tab) => {
+  if (tab === 'list') {
+    fetchRoomList()
+    startAutoRefresh()
+  } else {
+    stopAutoRefresh()
+  }
+})
+
+function fetchRoomList() {
+  const socket = getSocket()
+  if (socket?.connected) {
+    socket.emit(CLIENT_EVENTS.LIST_ROOMS)
+  }
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh()
+  refreshTimer = setInterval(fetchRoomList, 5000)
+}
+
+function stopAutoRefresh() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+}
+
+function openJoinRoom(room: RoomListItem) {
+  const savedNickname = loadNickname()
+  if (!room.hasPassword && savedNickname) {
+    // 无密码 + 有昵称 → 直接加入
+    doJoinRoom(room.code, savedNickname)
+    return
+  }
+  // 有密码 or 无昵称 → 弹窗
+  joinModalRoom.value = room
+  joinModalNickname.value = savedNickname
+  joinModalPassword.value = ''
+  showJoinModal.value = true
+}
+
+async function confirmJoinRoom() {
+  if (!joinModalRoom.value || !joinModalNickname.value.trim()) return
+  isLoading.value = true
+  errorMessage.value = null
+  await roomStore.joinRoom(
+    joinModalRoom.value.code,
+    joinModalNickname.value.trim(),
+    joinModalPassword.value || undefined,
+  )
+  isLoading.value = false
+  if (!roomStore.error) {
+    showJoinModal.value = false
+  }
+}
+
+function doJoinRoom(roomCode: string, nicknameToUse: string) {
+  isLoading.value = true
+  errorMessage.value = null
+  roomStore.joinRoom(roomCode, nicknameToUse)
+  isLoading.value = false
+}
 
 async function handleCreate() {
   if (!nickname.value.trim()) return
@@ -432,28 +520,27 @@ async function handleCreate() {
 
   await roomStore.createRoom(nickname.value.trim(), {
     roomName: createRoomName.value.trim() || undefined,
-    maxPlayers: maxPlayers.value,
     password: password.value || undefined,
-    gameType: selectedGame.value,
   })
-}
-
-async function handleJoin() {
-  if (!nickname.value.trim() || !joinRoomName.value.trim()) return
-  isLoading.value = true
-  errorMessage.value = null
-  await roomStore.joinRoom(joinRoomName.value.trim(), nickname.value.trim(), password.value || undefined)
 }
 
 onUnmounted(() => {
   if (errorTimer) clearTimeout(errorTimer)
   if (contributeTimer) clearTimeout(contributeTimer)
+  stopAutoRefresh()
 })
 
 onMounted(() => {
   document.title = 'Oiiiii早春 - 派对游戏'
   clearSession()
   connectSocket()
+  nickname.value = loadNickname()
+
+  const socket = getSocket()
+  socket.off(SERVER_EVENTS.ROOM_LIST)
+  socket.on(SERVER_EVENTS.ROOM_LIST, (data: { rooms: RoomListItem[] }) => {
+    rooms.value = data.rooms
+  })
 })
 </script>
 
@@ -496,55 +583,6 @@ onMounted(() => {
   color: var(--color-text-secondary);
   font-size: 0.95rem;
   margin-top: 0.3rem;
-}
-
-.game-cards {
-  display: flex;
-  gap: 12px;
-  margin-top: 1rem;
-  flex-shrink: 0;
-  animation: slideUp 0.6s ease-out 0.1s both;
-}
-
-.game-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 14px 24px;
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  cursor: pointer;
-  transition: var(--transition);
-  min-width: 140px;
-}
-
-.game-card:hover {
-  border-color: var(--color-primary-light);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-2px);
-}
-
-.game-card.active {
-  border-color: var(--color-primary);
-  background: var(--color-accent-pale);
-  box-shadow: var(--shadow-md);
-}
-
-.game-card-icon {
-  font-size: 28px;
-}
-
-.game-card-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.game-card-desc {
-  font-size: 11px;
-  color: var(--color-text-secondary);
 }
 
 .card-container {
@@ -721,6 +759,243 @@ onMounted(() => {
   box-shadow: var(--shadow-md);
   border: 1px solid rgba(217, 117, 107, 0.2);
   z-index: 100;
+}
+
+/* ─── Room List ─── */
+.room-list-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 380px;
+}
+
+.room-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  padding: 0 0.2rem;
+}
+
+.btn-refresh {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  transition: var(--transition);
+  padding: 0.2rem;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.btn-refresh:hover {
+  color: var(--color-primary);
+  transform: rotate(180deg);
+}
+
+.empty-rooms {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 2.5rem 1rem;
+  color: var(--color-text-muted);
+}
+
+.empty-rooms-icon {
+  font-size: 2.5rem;
+  opacity: 0.6;
+}
+
+.empty-rooms-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.empty-rooms-desc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.room-card {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+  width: 100%;
+  text-align: left;
+}
+
+.room-card:hover {
+  border-color: var(--color-primary-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.room-card:active {
+  transform: translateY(0);
+}
+
+.room-card-left {
+  flex-shrink: 0;
+}
+
+.room-card-icon {
+  font-size: 1.4rem;
+}
+
+.room-card-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+.room-card-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-card-meta {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.room-card-state {
+  font-size: 0.68rem;
+  font-weight: 500;
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--radius-full);
+}
+
+.room-card-state.lobby {
+  background: var(--color-accent-pale);
+  color: var(--color-accent);
+}
+
+.room-card-state.playing {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.room-card-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.room-card-players {
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.room-card-lock {
+  font-size: 0.8rem;
+}
+
+/* ─── Join Modal ─── */
+.join-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(74, 55, 40, 0.4);
+  backdrop-filter: blur(5px);
+}
+
+.join-modal {
+  width: 90%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #FFFDF8 0%, #FFF8F0 100%);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 12px 48px rgba(74, 55, 40, 0.2);
+  border: 1px solid rgba(244, 162, 97, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+.join-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent), var(--color-primary-light));
+  z-index: 1;
+}
+
+.join-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 0.7rem;
+  flex-shrink: 0;
+}
+
+.join-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  letter-spacing: 0.03em;
+}
+
+.join-modal-close {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  border-radius: 50%;
+  transition: all 0.25s;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.join-modal-close:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+  transform: rotate(90deg);
+}
+
+.join-modal-body {
+  padding: 0.25rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
 }
 
 @keyframes heroFadeIn {

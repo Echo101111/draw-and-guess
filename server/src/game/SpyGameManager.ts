@@ -385,6 +385,16 @@ export class SpyGameManager {
 
     const alivePlayers = data.state.players.filter(p => p.isAlive)
     const votedCount = Array.from(data.votes.keys()).length
+
+    // broadcast vote progress
+    const io = this.getIO()
+    if (io) {
+      io.to(room.code).emit(SERVER_EVENTS.SPY_VOTE_PROGRESS, {
+        voted: votedCount,
+        total: alivePlayers.length,
+      })
+    }
+
     if (votedCount >= alivePlayers.length) {
       this.clearTimers(roomId)
       this.resolveVoting(roomId)
@@ -437,6 +447,8 @@ export class SpyGameManager {
       round: room.currentRound,
       votes: voteEntries,
       eliminated,
+      civilianWord: data.state.civilianWord,
+      spyWord: data.state.spyWord,
     }
 
     if (eliminated) {
@@ -483,6 +495,8 @@ export class SpyGameManager {
         io.to(room.code).emit(SERVER_EVENTS.SPY_ROUND_RESULT, {
           eliminated: spy.id,
           reason: '卧底被发现！平民获胜',
+          civilianWord: data.state.civilianWord,
+          spyWord: data.state.spyWord,
         })
       }
       this.endGame(roomId)
@@ -502,6 +516,8 @@ export class SpyGameManager {
         io.to(room.code).emit(SERVER_EVENTS.SPY_ROUND_RESULT, {
           eliminated: null,
           reason: '卧底存活到最后！卧底获胜',
+          civilianWord: data.state.civilianWord,
+          spyWord: data.state.spyWord,
         })
       }
       this.endGame(roomId)
@@ -515,6 +531,8 @@ export class SpyGameManager {
         io.to(room.code).emit(SERVER_EVENTS.SPY_ROUND_RESULT, {
           eliminated: null,
           reason: '达到最大轮数！卧底获胜',
+          civilianWord: data.state.civilianWord,
+          spyWord: data.state.spyWord,
         })
       }
       this.endGame(roomId)
@@ -524,10 +542,12 @@ export class SpyGameManager {
     spy.score += SCORE_SPY_SURVIVE_ROUND
 
     if (io) {
-      io.to(room.code).emit(SERVER_EVENTS.SPY_ROUND_RESULT, {
-        eliminated: null,
-        reason: '回合结束，进入下一轮',
-      })
+        io.to(room.code).emit(SERVER_EVENTS.SPY_ROUND_RESULT, {
+          eliminated: null,
+          reason: '回合结束，进入下一轮',
+          civilianWord: data.state.civilianWord,
+          spyWord: data.state.spyWord,
+        })
     }
 
     data.state.phase = 'round_end'
@@ -567,6 +587,8 @@ export class SpyGameManager {
         roomId,
         winner: data.state.winner,
         finalScores,
+        civilianWord: data.state.civilianWord,
+        spyWord: data.state.spyWord,
       })
     }
   }

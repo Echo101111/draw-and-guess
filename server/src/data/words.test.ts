@@ -4,18 +4,18 @@ import { WORD_CATEGORIES, TOTAL_WORD_COUNT, getWordCategory, WORDS } from './wor
 
 describe('words', () => {
   describe('TOTAL_WORD_COUNT', () => {
-    it('should be 789', () => {
-      expect(TOTAL_WORD_COUNT).toBe(789)
+    it('should be 1283', () => {
+      expect(TOTAL_WORD_COUNT).toBe(1283)
     })
   })
 
   describe('WORD_CATEGORIES', () => {
-    it('should have 12 categories', () => {
-      expect(WORD_CATEGORIES).toHaveLength(12)
+    it('should have 22 categories', () => {
+      expect(WORD_CATEGORIES).toHaveLength(22)
     })
 
     it('should contain expected categories', () => {
-      const expected = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'celebrities', 'professions', 'instruments', 'tools', 'furniture', 'treasures']
+      const expected = ['animals', 'food', 'daily', 'nature', 'vehicles', 'sports', 'celebrities', 'professions', 'instruments', 'tools', 'furniture', 'treasures', 'clothing', 'buildings', 'appliances', 'tableware', 'plants', 'astronomy', 'mythology', 'body', 'games', 'festivals']
       for (const cat of expected) {
         expect(WORD_CATEGORIES).toContain(cat)
       }
@@ -27,6 +27,9 @@ describe('words', () => {
       expect(getWordCategory('猫')).toBe('animals')
       expect(getWordCategory('苹果')).toBe('food')
       expect(getWordCategory('医生')).toBe('professions')
+      expect(getWordCategory('T恤')).toBe('clothing')
+      expect(getWordCategory('城堡')).toBe('buildings')
+      expect(getWordCategory('龙')).toBe('mythology')
     })
 
     it('should return null for unknown word', () => {

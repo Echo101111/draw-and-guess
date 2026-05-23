@@ -17,7 +17,7 @@ export type GameType = 'draw' | 'spy'
 // === Room ===
 export type RoomState = 'lobby' | 'playing' | 'gameover'
 
-export type WordCategory = 'animals' | 'food' | 'daily' | 'nature' | 'vehicles' | 'sports' | 'celebrities' | 'professions' | 'instruments' | 'tools' | 'furniture' | 'treasures'
+export type WordCategory = 'animals' | 'food' | 'daily' | 'nature' | 'vehicles' | 'sports' | 'celebrities' | 'professions' | 'instruments' | 'tools' | 'furniture' | 'treasures' | 'clothing' | 'buildings' | 'appliances' | 'tableware' | 'plants' | 'astronomy' | 'mythology' | 'body' | 'games' | 'festivals'
 
 export interface CustomWord {
   word: string
@@ -34,6 +34,8 @@ export interface RoomWordConfig {
 export const ALL_CATEGORIES: WordCategory[] = [
   'animals', 'food', 'daily', 'nature', 'vehicles', 'sports',
   'celebrities', 'professions', 'instruments', 'tools', 'furniture', 'treasures',
+  'clothing', 'buildings', 'appliances', 'tableware', 'plants', 'astronomy',
+  'mythology', 'body', 'games', 'festivals',
 ]
 
 export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
@@ -164,6 +166,8 @@ export interface SpyVoteResult {
   round: number
   votes: Array<{ voterId: string; targetId: string | null }>
   eliminated: string | null
+  civilianWord?: string
+  spyWord?: string
 }
 
 export interface SpyGameState {

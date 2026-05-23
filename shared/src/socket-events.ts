@@ -17,6 +17,8 @@ export const CLIENT_EVENTS = {
   RESYNC_STROKES: 'c_resync_strokes',
   UNDO_STROKE: 'c_undo_stroke',
   SELECT_WORD: 'c_select_word',
+  LIST_ROOMS: 'c_list_rooms',
+  UPDATE_GAME_TYPE: 'c_update_game_type',
   // WebRTC
   WEBRTC_JOIN_VOICE: 'c_webrtc_join_voice',
   WEBRTC_LEAVE_VOICE: 'c_webrtc_leave_voice',
@@ -56,6 +58,8 @@ export const SERVER_EVENTS = {
   GAME_STATE_SNAPSHOT: 's_game_state_snapshot',
   ACK_STROKE: 's_ack_stroke',
   STROKE_UNDONE: 's_stroke_undone',
+  ROOM_LIST: 's_room_list',
+  GAME_TYPE_UPDATED: 's_game_type_updated',
   // WebRTC
   WEBRTC_PEER_JOINED: 's_webrtc_peer_joined',
   WEBRTC_PEER_LEFT: 's_webrtc_peer_left',
@@ -74,6 +78,7 @@ export const SERVER_EVENTS = {
   SPY_GAME_CONFIG_UPDATED: 's_spy_game_config_updated',
   SPY_GAME_STATE_SNAPSHOT: 's_spy_game_state_snapshot',
   SPY_TIMER_SYNC: 's_spy_timer_sync',
+  SPY_VOTE_PROGRESS: 's_spy_vote_progress',
 } as const
 
 export type ClientToServerEvents = typeof CLIENT_EVENTS

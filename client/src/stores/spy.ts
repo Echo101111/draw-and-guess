@@ -36,6 +36,11 @@ export const useSpyStore = defineStore('spy', () => {
   const timeLeft = ref(0)
   const chatMessages = ref<ChatMessage[]>([])
   const lastEliminated = ref<string | null>(null)
+  const votedCount = ref(0)
+  const totalVoters = ref(0)
+  const civilianWord = ref('')
+  const spyWord = ref('')
+  const voteTimeMax = ref(0)
 
   const alivePlayers = computed(() => players.value.filter(p => p.isAlive))
   const eliminatedPlayers = computed(() => players.value.filter(p => !p.isAlive))
@@ -103,6 +108,9 @@ export const useSpyStore = defineStore('spy', () => {
           sessionId: '',
         }))
       }
+      if (data.phase === 'voting' && data.timeLeft) {
+        voteTimeMax.value = data.timeLeft
+      }
       if (data.phase === 'describing' || data.phase === 'voting') {
         hasDescribed.value = false
         hasVoted.value = false
@@ -141,21 +149,35 @@ export const useSpyStore = defineStore('spy', () => {
       }
     })
 
+    socket.off(SERVER_EVENTS.SPY_VOTE_PROGRESS)
+    socket.on(SERVER_EVENTS.SPY_VOTE_PROGRESS, (data: {
+      voted: number; total: number
+    }) => {
+      votedCount.value = data.voted
+      totalVoters.value = data.total
+    })
+
     socket.off(SERVER_EVENTS.SPY_ROUND_RESULT)
     socket.on(SERVER_EVENTS.SPY_ROUND_RESULT, (data: {
       eliminated: string | null; reason: string
+      civilianWord?: string; spyWord?: string
     }) => {
       phase.value = 'round_end'
       lastEliminated.value = data.eliminated
+      if (data.civilianWord) civilianWord.value = data.civilianWord
+      if (data.spyWord) spyWord.value = data.spyWord
     })
 
     socket.off(SERVER_EVENTS.SPY_GAME_OVER)
     socket.on(SERVER_EVENTS.SPY_GAME_OVER, (data: {
       roomId: string; winner: 'civilian' | 'spy' | null; finalScores: ScoreEntry[]
+      civilianWord?: string; spyWord?: string
     }) => {
       phase.value = 'game_over'
       winner.value = data.winner
       scores.value = data.finalScores
+      if (data.civilianWord) civilianWord.value = data.civilianWord
+      if (data.spyWord) spyWord.value = data.spyWord
       stopLocalTimer()
     })
 
@@ -207,6 +229,7 @@ export const useSpyStore = defineStore('spy', () => {
       SERVER_EVENTS.SPY_ROUND_RESULT,
       SERVER_EVENTS.SPY_GAME_OVER,
       SERVER_EVENTS.SPY_TIMER_SYNC,
+      SERVER_EVENTS.SPY_VOTE_PROGRESS,
       SERVER_EVENTS.SPY_GAME_STATE_SNAPSHOT,
       SERVER_EVENTS.SPY_GAME_CONFIG_UPDATED,
       SERVER_EVENTS.CHAT_MESSAGE,
@@ -261,12 +284,18 @@ export const useSpyStore = defineStore('spy', () => {
     timeLeft.value = 0
     chatMessages.value = []
     lastEliminated.value = null
+    votedCount.value = 0
+    totalVoters.value = 0
+    civilianWord.value = ''
+    spyWord.value = ''
+    voteTimeMax.value = 0
   }
 
   return {
     phase, round, totalRounds, players, myWord, isSpy,
     currentSpeaker, descriptions, hasDescribed, hasVoted, canDescribe,
     voteResult, winner, scores, timeLeft, chatMessages, lastEliminated,
+    votedCount, totalVoters, civilianWord, spyWord, voteTimeMax,
     alivePlayers, eliminatedPlayers, isMyTurnToSpeak, currentSpeakerNickname,
     setupSocketListeners, teardownSocketListeners,
     submitDescription, vote, readyNextRound, sendChat, resetGame,

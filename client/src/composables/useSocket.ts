@@ -10,6 +10,7 @@ let serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
 let disconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 const SESSION_KEY = 'dag-session'
+const NICKNAME_KEY = 'dag-nickname'
 
 export interface StoredSession {
   roomName: string
@@ -107,6 +108,14 @@ export function getStoredSession(): StoredSession | null {
 
 export function clearSession(): void {
   localStorage.removeItem(SESSION_KEY)
+}
+
+export function saveNickname(nickname: string): void {
+  localStorage.setItem(NICKNAME_KEY, nickname)
+}
+
+export function loadNickname(): string {
+  return localStorage.getItem(NICKNAME_KEY) ?? ''
 }
 
 export function restoreSession(): Promise<boolean> {

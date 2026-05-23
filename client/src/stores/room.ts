@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getSocket, connectSocket, saveSession, clearSession, waitForConnection } from '@/composables/useSocket'
+import { getSocket, connectSocket, saveSession, clearSession, waitForConnection, saveNickname } from '@/composables/useSocket'
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
 import type { RoomWordConfig, GameType } from '@draw-and-guess/shared'
 
@@ -187,6 +187,7 @@ export const useRoomStore = defineStore('room', () => {
     }
     socket.once(SERVER_EVENTS.ROOM_CREATED, (data) => {
       saveSession(data.roomCode, data.playerId, nickname)
+      saveNickname(nickname)
     })
     socket.emit(CLIENT_EVENTS.CREATE_ROOM, {
       nickname,
@@ -217,6 +218,7 @@ export const useRoomStore = defineStore('room', () => {
     }
     socket.once(SERVER_EVENTS.ROOM_JOINED, (data) => {
       saveSession(data.room.code, data.playerId, nickname)
+      saveNickname(nickname)
     })
     socket.emit(CLIENT_EVENTS.JOIN_ROOM, {
       roomName,

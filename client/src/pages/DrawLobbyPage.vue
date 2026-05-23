@@ -14,7 +14,7 @@
       <div class="players-section">
         <div class="players-header">
           <h2>玩家</h2>
-          <span class="player-count">{{ players.length }} / {{ room?.maxPlayers ?? 50 }}</span>
+          <span class="player-count">{{ players.length }} 位玩家</span>
         </div>
 
         <div class="player-list">
@@ -58,13 +58,24 @@
           {{ roomStore.connectionState !== 'connected' ? '连接中...' : (players.length < 2 ? '等待更多玩家...' : '开始游戏') }}
         </button>
 
-        <button v-if="isOwner" class="btn-word-config" @click="showWordConfig = true">
-          ⚙️ 词库设置
-        </button>
+        <div class="lobby-actions-secondary">
+          <button
+            v-if="isOwner && gameState !== 'playing'"
+            class="btn-secondary"
+            @click="toggleGameType"
+          >
+            <span>{{ room?.gameType === 'draw' ? '🕵️' : '🎨' }}</span>
+            切换{{ room?.gameType === 'draw' ? '谁是卧底' : '你画我猜' }}
+          </button>
 
-        <button class="btn-leave" @click="handleLeave">
-          离开房间
-        </button>
+          <button v-if="isOwner" class="btn-secondary" @click="showWordConfig = true">
+            ⚙️ 词库设置
+          </button>
+
+          <button class="btn-secondary btn-leave" @click="handleLeave">
+            离开房间
+          </button>
+        </div>
       </div>
 
       <Transition name="fade">
@@ -83,6 +94,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useDrawGameStore } from '@/stores/drawGame'
+import { getSocket } from '@/composables/useSocket'
+import { CLIENT_EVENTS } from '@draw-and-guess/shared'
 import WordConfigModal from '@/components/WordConfigModal.vue'
 import type { RoomWordConfig } from '@draw-and-guess/shared'
 
@@ -130,6 +143,20 @@ watch(room, (newRoom) => {
     router.push(`/draw/game/${roomName.value}`)
   }
 }, { immediate: true })
+
+// 游戏类型切换 — 切为 spy 时重定向
+watch(() => room.value?.gameType, (gameType) => {
+  if (gameType === 'spy' && room.value) {
+    router.push(`/spy/lobby/${roomName.value}`)
+  }
+})
+
+function toggleGameType() {
+  const socket = getSocket()
+  if (!socket?.connected) return
+  const newType = room.value?.gameType === 'draw' ? 'spy' : 'draw'
+  socket.emit(CLIENT_EVENTS.UPDATE_GAME_TYPE, { gameType: newType })
+}
 
 onMounted(() => {
   document.title = '🎨 你画我猜 - Oiiiii早春'
@@ -383,27 +410,37 @@ function handleLeave() {
 }
 
 .lobby-actions {
-  padding: 1.5rem 2rem;
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
   border-top: 1px solid var(--color-border-light);
 }
 
-.btn-start {
+.lobby-actions-secondary {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.lobby-actions-secondary .btn-secondary {
   flex: 1;
+}
+
+.btn-start {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.85rem;
+  padding: 0.75rem;
   background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   color: #fff;
   border: none;
   border-radius: var(--radius-md);
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: var(--transition);
+  letter-spacing: 0.03em;
 }
 
 .btn-start:hover:not(:disabled) {
@@ -417,25 +454,36 @@ function handleLeave() {
 }
 
 .btn-start-icon {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 
-.btn-leave {
-  padding: 0.85rem 1.5rem;
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.55rem 0.75rem;
   background: var(--color-surface);
   color: var(--color-text-secondary);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: 0.95rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
   font-weight: 500;
+  cursor: pointer;
   transition: var(--transition);
+  white-space: nowrap;
 }
 
-.btn-leave:hover {
-  border-color: var(--color-text-muted);
-  color: var(--color-text);
-  background: var(--color-bg);
+.btn-secondary:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-pale);
+}
+
+.btn-secondary.btn-leave:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background: var(--color-danger-light);
 }
 
 .error-toast {
@@ -485,23 +533,6 @@ function handleLeave() {
   transform: translateX(-50%) translateY(10px);
 }
 
-.btn-word-config {
-  padding: 0.6rem 1rem;
-  background: var(--color-bg-warm);
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: var(--transition);
-  white-space: nowrap;
-}
-
-.btn-word-config:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
 .btn-save-custom {
   margin-top: 0.35rem;
   padding: 0.3rem 0.8rem;
@@ -540,13 +571,11 @@ function handleLeave() {
   }
 
   .lobby-actions {
-    padding: 1rem;
-    flex-direction: column;
+    padding: 0.75rem 1rem 1rem;
   }
 
-  .btn-leave {
-    width: 100%;
-    text-align: center;
+  .lobby-actions-secondary {
+    flex-direction: column;
   }
 }
 </style>
