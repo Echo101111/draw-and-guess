@@ -196,8 +196,9 @@ export class RoomManager {
       return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '游戏已在进行中' } }
     }
 
-    if (room.players.length < 2) {
-      return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '至少需要2名玩家才能开始游戏' } }
+    const minPlayers = room.gameType === 'spy' ? 4 : 2
+    if (room.players.length < minPlayers) {
+      return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: `至少需要${minPlayers}名玩家才能开始游戏` } }
     }
 
     room.totalRounds = room.wordConfig.customWords.length > 0 ? room.wordConfig.customWords.length : 10

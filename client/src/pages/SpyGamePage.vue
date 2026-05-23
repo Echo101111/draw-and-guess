@@ -66,6 +66,7 @@
               :selected-id="selectedVoteTarget"
               :has-voted="store.hasVoted"
               :phase="store.phase"
+              :my-vote-target="store.hasVoted ? selectedVoteTarget : ''"
               @vote="(id: string) => handleVote(id)"
             />
           </div>

@@ -119,7 +119,7 @@ export class SpyGameManager {
     if (!data) return false
 
     const activePlayers = room.players.filter(p => p.sessionId)
-    if (activePlayers.length < 2) {
+    if (activePlayers.length < 4) {
       this.endGame(roomId)
       return false
     }

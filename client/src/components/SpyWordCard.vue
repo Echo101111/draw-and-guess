@@ -3,14 +3,13 @@
     <div v-if="word" class="word-card">
       <div class="card-inner" :class="{ flipped: revealed }">
         <div class="card-front">
-          <span class="card-hint">点击查看</span>
+          <span class="card-icon">🕵️</span>
         </div>
         <div class="card-back" :class="{ spy: isSpy }">
           <span class="card-word">{{ word }}</span>
-          <span v-if="isSpy" class="card-tag">你是卧底！</span>
+          <span v-if="isSpy" class="card-tag">卧底</span>
         </div>
       </div>
-      <button v-if="!revealed" class="card-reveal-btn" @click="reveal">查看词语</button>
     </div>
   </Transition>
 </template>
@@ -23,38 +22,27 @@ defineProps<{
   isSpy: boolean
 }>()
 
-const emit = defineEmits<{
-  revealed: []
-}>()
-
 const revealed = ref(false)
-
-function reveal() {
-  revealed.value = true
-  emit('revealed')
-}
 
 onMounted(() => {
   setTimeout(() => {
-    reveal()
+    revealed.value = true
   }, 800)
 })
 </script>
 
 <style scoped>
 .word-card {
-  perspective: 600px;
+  perspective: 800px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
+  justify-content: center;
 }
 
 .card-inner {
-  width: 180px;
-  height: 100px;
+  width: 220px;
+  height: 130px;
   position: relative;
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform-style: preserve-3d;
 }
 
@@ -66,62 +54,61 @@ onMounted(() => {
 .card-back {
   position: absolute;
   inset: 0;
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   backface-visibility: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 .card-front {
-  background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
+  background: linear-gradient(145deg, var(--color-primary-light), var(--color-primary));
   color: white;
 }
 
+.card-icon {
+  font-size: 40px;
+  animation: cardFloat 1.8s ease-in-out infinite;
+}
+
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 .card-back {
-  background: linear-gradient(135deg, var(--color-accent-pale), var(--color-bg));
+  background: linear-gradient(145deg, var(--color-accent-pale), var(--color-bg));
   color: var(--color-text);
   border: 2px solid var(--color-accent);
   transform: rotateY(180deg);
+  gap: 6px;
 }
 
 .card-back.spy {
   border-color: var(--color-danger);
-  background: linear-gradient(135deg, var(--color-danger-light), #fff);
+  background: linear-gradient(145deg, var(--color-danger-light), #fff);
 }
 
 .card-word {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: 2px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--color-text);
+}
+
+.card-back.spy .card-word {
+  color: var(--color-danger);
 }
 
 .card-tag {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--color-danger);
-  font-weight: 600;
-  margin-top: 2px;
-}
-
-.card-hint {
-  font-size: 14px;
-  opacity: 0.9;
-}
-
-.card-reveal-btn {
-  border: none;
-  background: var(--color-primary);
-  color: white;
-  padding: 6px 20px;
+  font-weight: 700;
+  background: var(--color-danger-light);
+  padding: 2px 14px;
   border-radius: var(--radius-full);
-  cursor: pointer;
-  font-size: 14px;
-  transition: var(--transition);
-}
-
-.card-reveal-btn:hover {
-  background: var(--color-primary-dark);
 }
 
 .card-enter-active,

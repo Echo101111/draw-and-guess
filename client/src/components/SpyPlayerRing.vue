@@ -10,6 +10,7 @@
         'voice-active': speakingPeers?.has(p.id) && p.isAlive,
         self: p.id === localPlayerId,
         'vote-target': p.id === selectedId && !hasVoted,
+        'my-vote': p.id === myVoteTarget,
         clickable: phase === 'voting' && p.isAlive && !hasVoted && p.id !== localPlayerId,
       }"
       @click="handleClick(p.id)"
@@ -23,6 +24,7 @@
         <span v-if="p.isOwner" class="badge-owner">👑</span>
         <span v-if="p.voteCount > 0" class="badge-votes">{{ p.voteCount }}票</span>
       </div>
+      <span v-if="p.id === myVoteTarget" class="my-vote-badge">✅</span>
     </div>
   </div>
 </template>
@@ -39,6 +41,7 @@ const props = defineProps<{
   selectedId?: string
   hasVoted?: boolean
   phase?: SpyPhase
+  myVoteTarget?: string
 }>()
 
 const emit = defineEmits<{
@@ -124,11 +127,31 @@ function handleClick(playerId: string) {
   transform: scale(1.08);
 }
 
+.ring-player.my-vote .ring-avatar {
+  border-color: var(--color-success);
+  box-shadow: 0 0 0 4px rgba(126, 184, 122, 0.25);
+}
+
+.ring-player.my-vote .my-vote-badge {
+  display: flex;
+}
+
 .ring-badges {
   display: flex;
   gap: 4px;
   align-items: center;
   min-height: 14px;
+  position: relative;
+}
+
+.my-vote-badge {
+  display: none;
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  font-size: 14px;
+  z-index: 2;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
 }
 
 .badge-owner { font-size: 12px; }
