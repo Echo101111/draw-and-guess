@@ -323,6 +323,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
 
       // 观战者保留 spectator 角色，等待下一轮 ROUND_START
       if (roomStore.isSpectator) return
+      if (!data.drawer) return
 
       myRole.value = data.drawer.id === roomStore.currentPlayerId ? 'drawer' : 'guesser'
     })

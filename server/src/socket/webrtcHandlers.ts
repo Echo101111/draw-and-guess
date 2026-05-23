@@ -8,7 +8,22 @@ export function registerWebRTCHandlers(io: any, socket: any): void {
     const room = roomManager.getRoomById(roomId)
     if (!room) return
     socket.data.inVoiceChannel = true
+
+    // 通知房间内其他人有新玩家加入
     socket.to(room.code).emit(SERVER_EVENTS.WEBRTC_PEER_JOINED, { playerId })
+
+    // 收集房间内已有的语音成员（排除自己）
+    const voicePeers: string[] = []
+    const sockets = io.sockets.adapter.rooms.get(room.code)
+    if (sockets) {
+      for (const sid of sockets) {
+        const s = io.sockets.sockets.get(sid)
+        if (s && s.data.inVoiceChannel && s.data.playerId !== playerId) {
+          voicePeers.push(s.data.playerId)
+        }
+      }
+    }
+    socket.emit(SERVER_EVENTS.WEBRTC_PEERS_LIST, { peers: voicePeers })
   })
 
   socket.on(CLIENT_EVENTS.WEBRTC_LEAVE_VOICE, () => {

@@ -1,27 +1,42 @@
 <template>
-  <div class="spy-game" @click="handleGlobalClick">
-    <div class="game-header">
+  <div class="spy-game">
+    <!-- ====== HEADER ====== -->
+    <header class="game-header">
       <button class="btn-exit" @click="handleLeave">←</button>
-      <SpyPhaseBanner
-        :phase="store.phase"
-        :speaker-name="store.currentSpeakerNickname"
-        :time-left="store.timeLeft"
-      />
-      <div class="header-right">
-        <span class="round-info">第 {{ store.round }}/{{ store.totalRounds }} 轮</span>
-        <button class="btn-trophy" @click.stop="showScoreboard = !showScoreboard">🏆</button>
-        <VoiceControls />
+      <div class="header-center">
+        <span class="header-game">🕵️ 谁是卧底</span>
+        <span class="header-round">第 {{ store.round }}/{{ store.totalRounds }} 轮</span>
       </div>
+      <div class="header-right">
+        <span v-if="store.timeLeft > 0" class="header-timer">⏱ {{ store.timeLeft }}s</span>
+        <button class="btn-tab" :class="{ active: activeTab }" @click="switchTab">🏆</button>
+      </div>
+    </header>
+
+    <!-- ====== PHASE BANNER ====== -->
+    <div v-if="phaseLabel" class="phase-strip" :class="phaseClass">
+      <span>{{ phaseLabel }}</span>
     </div>
 
-    <div class="game-area">
-      <aside class="sidebar-left">
+    <!-- ====== CONTENT AREA ====== -->
+    <div class="game-body">
+      <!-- Desktop: left sidebar -->
+      <aside class="sidebar-scores">
         <Scoreboard />
       </aside>
 
-      <div class="game-center" :class="centerClass">
-        <!-- 词语展示阶段 -->
-        <div v-if="store.phase === 'word_distribution'" class="word-reveal-area">
+      <!-- Mobile: tab content -->
+      <div v-if="activeTab" class="mobile-tab-content">
+        <div class="tab-panel">
+          <button class="tab-close" @click="activeTab = false">✕</button>
+          <Scoreboard />
+        </div>
+      </div>
+
+      <!-- CENTER: game content -->
+      <div class="game-center">
+        <!-- word_distribution -->
+        <div v-if="store.phase === 'word_distribution'" class="center-card word-stage">
           <SpyWordCard
             :word="store.myWord"
             :is-spy="store.isSpy"
@@ -29,103 +44,134 @@
           />
         </div>
 
-        <!-- 描述/投票 阶段 -->
-        <template v-else-if="store.phase === 'describing' || store.phase === 'voting' || store.phase === 'reveal'">
-          <SpyPlayerRing
-            :players="store.players"
-            :speaker-id="store.currentSpeaker?.playerId"
-            :speaking-peers="webrtcPeers"
-            :local-player-id="roomStore.currentPlayerId ?? ''"
-            :selected-id="selectedVoteTarget"
-            :has-voted="store.hasVoted"
-            :phase="store.phase"
-            @vote="(id: string) => handleVote(id)"
-          />
+        <!-- describing / voting / discussion / reveal  -->
+        <template v-else-if="store.phase === 'describing' || store.phase === 'voting' || store.phase === 'discussion' || store.phase === 'reveal'">
+          <!-- Word badge (persistent) -->
+          <div class="word-badge" :class="{ spy: store.isSpy }">
+            <span class="word-badge-label">你的词语</span>
+            <span class="word-badge-text">{{ store.myWord }}</span>
+            <span v-if="store.isSpy" class="word-badge-tag">🕵️ 卧底</span>
+          </div>
 
-          <div class="desc-list" v-if="store.descriptions.length > 0">
-            <SpyDescriptionBubble
-              v-for="d in store.descriptions"
-              :key="d.playerId + d.round + d.timestamp"
-              :description="d"
-              :is-mine="d.playerId === roomStore.currentPlayerId"
+          <!-- Player ring -->
+          <div class="ring-section">
+            <SpyPlayerRing
+              :players="store.players"
+              :speaker-id="store.currentSpeaker?.playerId"
+              :local-player-id="roomStore.currentPlayerId ?? ''"
+              :selected-id="selectedVoteTarget"
+              :has-voted="store.hasVoted"
+              :phase="store.phase"
+              @vote="(id: string) => handleVote(id)"
             />
           </div>
 
-          <div v-if="store.phase === 'voting' && !store.hasVoted" class="vote-prompt">
-            点击上方玩家头像投票
+          <!-- Descriptions / Chat unified stream -->
+          <div v-if="conversationStream.length > 0" class="desc-section">
+            <SpyDescriptionBubble
+              v-for="item in conversationStream"
+              :key="item.id"
+              :description="{ nickname: item.nickname, text: item.text }"
+              :is-mine="item.isMine"
+              :is-system="item.isSystem"
+            />
+          </div>
+
+          <!-- Vote center prompt -->
+          <div v-if="store.phase === 'voting' && !store.hasVoted" class="vote-center-hint">
+            👆 点击上方头像投票
           </div>
         </template>
 
-        <!-- 回合结束 -->
-        <div v-else-if="store.phase === 'round_end'" class="round-end-area">
-          <div class="end-title">🔄 回合结束</div>
-          <div v-if="store.lastEliminated" class="end-eliminated">
-            {{ getPlayerName(store.lastEliminated) }} 被淘汰了！
+        <!-- round_end -->
+        <div v-else-if="store.phase === 'round_end'" class="center-card result-stage">
+          <div class="result-icon">🔄</div>
+          <div class="result-title">回合结束</div>
+          <div v-if="store.lastEliminated" class="result-eliminated">
+            {{ getPlayerName(store.lastEliminated) }} 被淘汰
           </div>
         </div>
 
-        <!-- 游戏结束 -->
-        <div v-else-if="store.phase === 'game_over'" class="game-over-area">
-          <div class="go-title">🏆 游戏结束</div>
-          <div class="go-winner">
-            <span v-if="store.winner === 'civilian'">🎉 平民获胜！</span>
-            <span v-else>🕵️ 卧底获胜！</span>
+        <!-- game_over -->
+        <div v-else-if="store.phase === 'game_over'" class="center-card result-stage">
+          <div class="result-icon">🏆</div>
+          <div class="result-title">游戏结束</div>
+          <div class="result-winner">
+            <span v-if="store.winner === 'civilian'">🎉 平民获胜</span>
+            <span v-else>🕵️ 卧底获胜</span>
           </div>
-          <div class="go-scores">
-            <div v-for="s in store.scores" :key="s.playerId" class="go-score-row">
-              <span>{{ s.nickname }}</span>
-              <span>{{ s.score }} 分</span>
+          <div class="score-list">
+            <div v-for="s in store.scores" :key="s.playerId" class="score-row">
+              <span class="score-rank">#{{ s.rank }}</span>
+              <span class="score-name">{{ s.nickname }}</span>
+              <span class="score-pts">{{ s.score }}分</span>
             </div>
           </div>
-          <button class="btn-back-lobby" @click="handleLeave">返回大厅</button>
-        </div>
-
-        <!-- 空闲 -->
-        <div v-else class="idle-area">
-          <p>等待游戏开始...</p>
-        </div>
-      </div>
-
-      <div class="sidebar-right">
-        <ChatPanel />
-      </div>
-    </div>
-
-    <!-- 底部操作区 -->
-    <div class="game-footer">
-      <div v-if="store.phase === 'describing' && store.isMyTurnToSpeak && !store.hasDescribed" class="description-input">
-        <input
-          ref="descInput"
-          v-model="descText"
-          placeholder="描述你的词语（不要说原词！）"
-          maxlength="100"
-          @keyup.enter="submitDesc"
-        />
-        <button class="btn-send" @click="submitDesc" :disabled="!descText.trim()">发送</button>
-        <span class="desc-hint">也可以用语音描述</span>
-      </div>
-
-      <div v-else-if="store.phase === 'describing' && !store.isMyTurnToSpeak && !store.hasDescribed" class="waiting-hint">
-        等待 {{ store.currentSpeakerNickname }} 描述...
-      </div>
-
-      <div v-else-if="store.phase === 'voting' && store.hasVoted" class="waiting-hint">
-        ✅ 已投票，等待其他人...
-      </div>
-    </div>
-
-    <!-- 移动端积分榜弹窗 -->
-    <Transition name="fade">
-      <div v-if="showScoreboard" class="scoreboard-overlay" @click.self="showScoreboard = false">
-        <div class="scoreboard-modal">
-          <div class="scoreboard-modal-header">
-            <span>🏆 积分榜</span>
-            <button class="scoreboard-modal-close" @click.stop="showScoreboard = false">✕</button>
+          <div class="go-actions">
+            <button class="btn-primary" @click="handleRestart" v-if="roomStore.isOwner">🔄 再来一局</button>
+            <button class="btn-secondary" @click="handleLeave">返回大厅</button>
           </div>
-          <Scoreboard />
+        </div>
+
+        <!-- idle -->
+        <div v-else class="center-card">
+          <p class="idle-text">等待开始...</p>
         </div>
       </div>
-    </Transition>
+    </div>
+
+    <!-- ====== FOOTER ====== -->
+    <footer class="game-footer">
+      <!-- My turn to describe -->
+      <div v-if="store.phase === 'describing' && store.isMyTurnToSpeak && !store.hasDescribed" class="footer-action">
+        <div class="action-input-wrap">
+          <input
+            ref="descInput"
+            v-model="descText"
+            class="action-input"
+            placeholder="描述你的词..."
+            maxlength="100"
+            @keyup.enter="submitDesc"
+          />
+          <button class="action-send" @click="submitDesc" :disabled="!descText.trim()">发送</button>
+        </div>
+        <span class="action-hint">💡 不要直接说出你的词语</span>
+      </div>
+
+      <!-- Waiting for speaker -->
+      <div v-else-if="store.phase === 'describing' && !store.isMyTurnToSpeak && !store.hasDescribed" class="footer-status">
+        <div class="status-speaker">
+          <span class="status-dot" />
+          <span>{{ store.currentSpeakerNickname }} 正在描述</span>
+        </div>
+      </div>
+
+      <!-- Waiting for others after describing -->
+      <div v-else-if="store.phase === 'describing' && store.hasDescribed" class="footer-status">
+        <span>✅ 已描述，等待其他人...</span>
+      </div>
+
+      <!-- Discussion phase -->
+      <div v-else-if="store.phase === 'discussion'" class="footer-action">
+        <div class="action-input-wrap">
+          <input
+            ref="descInput"
+            v-model="discussText"
+            class="action-input"
+            placeholder="自由讨论..."
+            maxlength="200"
+            @keyup.enter="sendDiscuss"
+          />
+          <button class="action-send" @click="sendDiscuss" :disabled="!discussText.trim()">发送</button>
+        </div>
+        <span class="action-hint">💡 描述词语或质疑其他人</span>
+      </div>
+
+      <!-- Voting done -->
+      <div v-else-if="store.phase === 'voting' && store.hasVoted" class="footer-status">
+        <span>✅ 已投票，等待结果...</span>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -134,36 +180,79 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useSpyStore } from '@/stores/spy'
-import { useWebRTC } from '@/composables/useWebRTC'
 import SpyWordCard from '@/components/SpyWordCard.vue'
 import SpyPlayerRing from '@/components/SpyPlayerRing.vue'
 import SpyDescriptionBubble from '@/components/SpyDescriptionBubble.vue'
-import SpyPhaseBanner from '@/components/SpyPhaseBanner.vue'
 import Scoreboard from '@/components/Scoreboard.vue'
-import ChatPanel from '@/components/ChatPanel.vue'
-import VoiceControls from '@/components/VoiceControls.vue'
 
 const router = useRouter()
 const roomStore = useRoomStore()
 const store = useSpyStore()
-const { speakingPeers: webrtcPeers } = useWebRTC()
 
 const descText = ref('')
+const discussText = ref('')
 const descInput = ref<HTMLInputElement | null>(null)
-const showScoreboard = ref(false)
 const selectedVoteTarget = ref('')
+const activeTab = ref(false)
 
-const centerClass = computed(() => ({
-  'center-desc': store.phase === 'describing',
-  'center-vote': store.phase === 'voting',
-}))
+const PHASE_LABELS: Record<string, string> = {
+  word_distribution: '🔍 查看你的词语',
+  describing: '💬 描述阶段',
+  discussion: '💭 自由讨论',
+  voting: '🗳️ 投票阶段',
+  reveal: '📊 结果揭晓',
+}
+
+const phaseLabel = computed(() => PHASE_LABELS[store.phase] ?? '')
+const phaseClass = computed(() => {
+  if (store.phase === 'voting') return 'phase-vote'
+  if (store.phase === 'describing') return 'phase-desc'
+  if (store.phase === 'discussion') return 'phase-discuss'
+  return ''
+})
+
+const conversationStream = computed(() => {
+  const items: Array<{
+    id: string; nickname: string; text: string; isMine: boolean; isSystem: boolean; time: number
+  }> = []
+
+  for (const d of store.descriptions) {
+    items.push({
+      id: `desc-${d.playerId}-${d.round}-${d.timestamp}`,
+      nickname: d.nickname,
+      text: d.text,
+      isMine: d.playerId === roomStore.currentPlayerId,
+      isSystem: false,
+      time: d.timestamp,
+    })
+  }
+
+  for (const m of store.chatMessages) {
+    items.push({
+      id: `chat-${m.id}`,
+      nickname: m.nickname ?? '系统',
+      text: m.text,
+      isMine: m.playerId === roomStore.currentPlayerId,
+      isSystem: m.isSystem,
+      time: m.timestamp,
+    })
+  }
+
+  return items.sort((a, b) => a.time - b.time)
+})
+
+function switchTab() {
+  activeTab.value = !activeTab.value
+}
 
 onMounted(() => {
+  document.title = '🕵️ 谁是卧底 - Oiiiii早春'
   document.body.style.overflow = 'hidden'
   store.setupSocketListeners()
 })
 
 onUnmounted(() => {
+  document.title = 'Oiiiii早春 - 派对游戏'
   document.body.style.overflow = ''
   store.teardownSocketListeners()
 })
@@ -183,6 +272,13 @@ function submitDesc() {
   descText.value = ''
 }
 
+function sendDiscuss() {
+  const text = discussText.value.trim()
+  if (!text) return
+  store.sendChat(text)
+  discussText.value = ''
+}
+
 function handleVote(playerId: string) {
   if (store.hasVoted) return
   selectedVoteTarget.value = playerId
@@ -194,32 +290,34 @@ function handleLeave() {
   router.push('/')
 }
 
+function handleRestart() {
+  store.resetGame()
+  roomStore.startGame()
+}
+
 function getPlayerName(id: string): string {
   return store.players.find(p => p.id === id)?.nickname ?? id
 }
-
-function handleGlobalClick() {}
 </script>
 
 <style scoped>
 .spy-game {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
-  position: relative;
   background: var(--color-bg);
 }
 
+/* ====== HEADER ====== */
 .game-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
+  padding: 8px 12px;
   flex-shrink: 0;
-  gap: 8px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border-light);
+  gap: 8px;
 }
 
 .btn-exit {
@@ -230,49 +328,92 @@ function handleGlobalClick() {}
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
-  transition: var(--transition);
 }
 
-.btn-exit:hover {
-  background: var(--color-danger-light);
-  color: var(--color-danger);
+.btn-exit:hover { background: var(--color-danger-light); color: var(--color-danger); }
+
+.header-center {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.header-game {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  white-space: nowrap;
+}
+
+.header-round {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-number);
+  white-space: nowrap;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
-.round-info {
+.header-timer {
   font-size: 13px;
-  color: var(--color-text-secondary);
+  font-weight: 600;
+  color: var(--color-text);
   font-family: var(--font-number);
-}
-
-.btn-trophy {
-  border: none;
   background: var(--color-bg-warm);
-  font-size: 18px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  display: none;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
 }
 
-.game-area {
-  display: flex;
+.btn-tab {
+  border: none;
+  background: none;
+  font-size: 16px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: var(--transition);
+}
+
+.btn-tab.active { opacity: 1; background: var(--color-accent-pale); }
+
+/* ====== PHASE BANNER ====== */
+.phase-strip {
+  text-align: center;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  background: var(--color-bg-warm);
+  color: var(--color-text-secondary);
+  transition: var(--transition);
+}
+
+.phase-strip.phase-desc { background: var(--color-accent-pale); color: var(--color-primary-dark); }
+.phase-strip.phase-vote { background: var(--color-danger-light); color: var(--color-danger); }
+.phase-strip.phase-discuss { background: var(--color-primary-light); color: white; }
+
+/* ====== BODY ====== */
+.game-body {
   flex: 1;
+  display: flex;
   min-height: 0;
   overflow: hidden;
 }
 
-.sidebar-left {
-  width: 220px;
+.sidebar-scores {
+  width: 200px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--color-border-light);
   overflow-y: auto;
-  padding: 12px;
 }
 
 .game-center {
@@ -280,248 +421,323 @@ function handleGlobalClick() {}
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 16px;
+  padding: 10px 16px;
   overflow-y: auto;
-  gap: 12px;
+  -webkit-overflow-scrolling: touch;
+  gap: 8px;
 }
 
-.sidebar-right {
-  width: 260px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--color-border-light);
+/* ====== CENTER CARDS ====== */
+.center-card {
+  width: 100%;
   display: flex;
   flex-direction: column;
-}
-
-.game-footer {
-  flex-shrink: 0;
-  padding: 10px 16px;
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-border-light);
-  min-height: 56px;
-  display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.description-input {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  width: 100%;
-  max-width: 500px;
-}
-
-.description-input input {
+  padding: 24px 16px;
   flex: 1;
-  padding: 8px 14px;
-  border: 2px solid var(--color-primary);
-  border-radius: var(--radius-full);
-  font-size: 14px;
-  outline: none;
-  transition: var(--transition);
 }
 
-.description-input input:focus {
-  border-color: var(--color-primary-dark);
-  box-shadow: 0 0 0 3px rgba(232, 133, 108, 0.15);
-}
+.word-stage { gap: 16px; }
 
-.btn-send {
-  border: none;
-  background: var(--color-primary);
-  color: white;
-  padding: 8px 20px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  font-weight: 600;
-  transition: var(--transition);
-}
-
-.btn-send:hover:not(:disabled) {
-  background: var(--color-primary-dark);
-}
-
-.btn-send:disabled {
-  opacity: 0.4;
-}
-
-.desc-hint {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.waiting-hint {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-}
-
-.word-reveal-area {
+/* ====== PLAYER RING ====== */
+.ring-section {
+  width: 100%;
   display: flex;
   justify-content: center;
-  padding: 40px 0;
+  padding: 8px 0;
+  flex-shrink: 0;
 }
 
-.desc-list {
+/* ====== WORD BADGE ====== */
+.word-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--color-accent-pale);
+  border: 1px solid var(--color-accent-light);
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.word-badge.spy {
+  background: var(--color-danger-light);
+  border-color: var(--color-danger);
+}
+
+.word-badge-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.word-badge-text {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: 1px;
+}
+
+.word-badge-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-danger);
+  background: var(--color-surface);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+}
+
+/* ====== DESCRIPTIONS ====== */
+.desc-section {
   width: 100%;
-  max-width: 500px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 200px;
+  flex: 1;
   overflow-y: auto;
+  min-height: 60px;
+  padding: 4px 0;
 }
 
-.vote-prompt {
+/* ====== VOTE HINT ====== */
+.vote-center-hint {
   color: var(--color-gold);
   font-weight: 600;
-  font-size: 14px;
-  margin-top: 8px;
-  animation: pulse 1.5s ease-in-out infinite;
+  font-size: 0.85rem;
+  animation: pulseHint 1.5s ease-in-out infinite;
+  padding: 8px;
 }
 
-@keyframes pulse {
+@keyframes pulseHint {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.4; }
 }
 
-.round-end-area,
-.game-over-area,
-.idle-area {
-  text-align: center;
-}
+/* ====== RESULTS ====== */
+.result-stage { text-align: center; }
 
-.end-title,
-.go-title {
-  font-size: 24px;
+.result-icon { font-size: 3rem; margin-bottom: 4px; }
+
+.result-title {
+  font-size: 1.5rem;
   font-weight: 700;
-  margin-bottom: 8px;
+  color: var(--color-text);
+  margin-bottom: 4px;
 }
 
-.end-eliminated {
-  font-size: 16px;
+.result-eliminated {
+  font-size: 1rem;
   color: var(--color-danger);
-}
-
-.go-winner {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 12px 0;
-}
-
-.go-scores {
-  margin: 16px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.go-score-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 16px;
-  background: var(--color-bg-warm);
-  border-radius: var(--radius-sm);
-  min-width: 200px;
   font-weight: 500;
 }
 
-.btn-back-lobby {
+.result-winner {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 8px 0 16px;
+}
+
+.score-list {
+  width: 100%;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--color-bg-warm);
+  border-radius: var(--radius-sm);
+}
+
+.score-rank {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  width: 24px;
+}
+
+.score-name { flex: 1; font-size: 0.9rem; font-weight: 500; }
+
+.score-pts {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+  font-family: var(--font-number);
+}
+
+.btn-primary {
   border: none;
   background: var(--color-primary);
   color: white;
-  padding: 10px 28px;
+  padding: 10px 32px;
   border-radius: var(--radius-full);
   cursor: pointer;
   font-weight: 600;
-  margin-top: 16px;
+  font-size: 0.95rem;
   transition: var(--transition);
 }
 
-.btn-back-lobby:hover {
-  background: var(--color-primary-dark);
+.btn-primary:hover { background: var(--color-primary-dark); }
+
+.btn-secondary {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  padding: 10px 24px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: var(--transition);
 }
 
-.scoreboard-overlay {
+.btn-secondary:hover { background: var(--color-bg-warm); }
+
+.go-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.idle-text { color: var(--color-text-muted); font-size: 1rem; }
+
+/* ====== MOBILE TAB OVERLAY ====== */
+.mobile-tab-content {
+  display: none;
+}
+
+.tab-panel {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
-  backdrop-filter: blur(4px);
-  z-index: 20;
+  z-index: 30;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tab-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.chat-panel {
+  padding: 0;
+}
+
+/* ====== FOOTER ====== */
+.game-footer {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border-light);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.scoreboard-modal {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  min-width: 260px;
-  max-width: 90vw;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-
-.scoreboard-modal-header {
+.footer-action {
+  width: 100%;
+  max-width: 520px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 12px;
-  font-weight: 600;
+  gap: 4px;
 }
 
-.scoreboard-modal-close {
+.action-input-wrap {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+  align-items: center;
+}
+
+.action-input {
+  flex: 1;
+  padding: 10px 16px;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-full);
+  font-size: 0.95rem;
+  outline: none;
+  background: var(--color-bg);
+  transition: var(--transition);
+}
+
+.action-input:focus {
+  border-color: var(--color-primary-dark);
+  box-shadow: 0 0 0 3px rgba(232, 133, 108, 0.12);
+}
+
+.action-send {
   border: none;
-  background: none;
-  font-size: 18px;
+  background: var(--color-primary);
+  color: white;
+  padding: 10px 22px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  font-size: 0.9rem;
   cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s;
+.action-send:hover:not(:disabled) { background: var(--color-primary-dark); }
+.action-send:disabled { opacity: 0.35; cursor: default; }
+
+.action-hint {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+.footer-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  width: 100%;
+  max-width: 520px;
 }
 
-@media (max-width: 1024px) {
-  .sidebar-left { width: 180px; }
-  .sidebar-right { width: 200px; }
-}
-
+/* ====== RESPONSIVE ====== */
 @media (max-width: 767px) {
-  .sidebar-left {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    z-index: 15;
-    transform: translateX(-110%);
-    transition: transform 0.3s ease;
-    width: 260px;
-    background: var(--color-surface);
-  }
-
-  .sidebar-left.open {
-    transform: translateX(0);
-  }
-
-  .sidebar-right {
+  .sidebar-scores {
     display: none;
   }
 
-  .btn-trophy {
+  .mobile-tab-content {
     display: block;
   }
 
-  .description-input {
-    max-width: 100%;
+  .game-center {
+    padding: 8px 12px;
   }
+
+  .header-game { display: none; }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .sidebar-scores { width: 160px; }
 }
 </style>

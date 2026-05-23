@@ -15,6 +15,7 @@
           <span class="badge-icon">🎮</span>
           <span class="badge-code">{{ roomName }}</span>
         </div>
+        <span class="game-type-label">🎨 你画我猜</span>
       </div>
       <div class="header-center">
         <Timer v-if="gameStore.state === 'playing'" />
@@ -258,13 +259,13 @@ const reasonText = computed(() => {
 
 function closeDrawerAlert() {
   showDrawerAlert.value = false
-  document.title = 'Draw & Guess'
+  document.title = 'Oiiiii早春'
 }
 
 watch(() => gameStore.myRole, (role) => {
   if (role === 'drawer') {
     showDrawerAlert.value = true
-    document.title = '🎨 轮到你了！ - Draw & Guess'
+    document.title = '🎨 轮到你了！ - Oiiiii早春'
   } else {
     closeDrawerAlert()
   }
@@ -274,7 +275,7 @@ watch(() => gameStore.myRole, (role) => {
 watch(() => gameStore.currentRound, () => {
   if (gameStore.myRole === 'drawer' && gameStore.state === 'playing') {
     showDrawerAlert.value = true
-    document.title = '🎨 轮到你了！ - Draw & Guess'
+    document.title = '🎨 轮到你了！ - Oiiiii早春'
   }
 })
 
@@ -438,6 +439,14 @@ watch(() => roomStore.error, (err) => {
   font-weight: 700;
   color: var(--color-primary);
   letter-spacing: 0.1em;
+}
+
+.game-type-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  margin-left: 0.6rem;
+  white-space: nowrap;
 }
 
 .btn-leave {

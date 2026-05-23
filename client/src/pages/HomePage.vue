@@ -102,8 +102,8 @@
 
     <div class="hero">
       <div class="hero-icon">🎉</div>
-      <h1 class="hero-title">派对游戏</h1>
-      <p class="hero-subtitle">和朋友一起，享受快乐时光</p>
+      <h1 class="hero-title">Oiiiii早春</h1>
+      <p class="hero-subtitle">你画我猜 · 谁是卧底</p>
     </div>
 
     <div class="game-cards">
@@ -420,7 +420,7 @@ watch(() => roomStore.error, (newError) => {
 
 watch(() => roomStore.room, (newRoom) => {
   if (newRoom && roomStore.currentPlayerId) {
-    const prefix = newRoom.gameType === 'spy' ? '/spy' : '/draw'
+    const prefix = selectedGame.value === 'spy' ? '/spy' : '/draw'
     router.push(`${prefix}/lobby/${newRoom.code}`)
   }
 })
@@ -451,6 +451,7 @@ onUnmounted(() => {
 })
 
 onMounted(() => {
+  document.title = 'Oiiiii早春 - 派对游戏'
   clearSession()
   connectSocket()
 })

@@ -126,6 +126,7 @@ export type SpyPhase =
   | 'idle'
   | 'word_distribution'
   | 'describing'
+  | 'discussion'
   | 'voting'
   | 'reveal'
   | 'round_end'

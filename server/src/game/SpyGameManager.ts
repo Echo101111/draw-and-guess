@@ -27,36 +27,38 @@ interface GameData {
   descriptions: SpyDescription[]
   votes: Map<string, string | null>
   roundEnding: boolean
+  descRound: number
 }
 
 export class SpyGameManager {
   private games = new Map<string, GameData>()
   private timers = new Map<string, NodeJS.Timeout>()
   private roundData = new Map<string, SpyRoundData>()
+  private gameConfigs = new Map<string, SpyGameConfig>()
 
   getGameSnapshot(roomId: string): SpyGameState | null {
     return this.games.get(roomId)?.state ?? null
   }
 
   getGameConfig(roomId: string): SpyGameConfig {
-    return this.games.get(roomId)?.config ?? { ...DEFAULT_CONFIG }
+    const existing = this.gameConfigs.get(roomId)
+    if (existing) return { ...existing }
+    const data = this.games.get(roomId)
+    if (data) {
+      this.gameConfigs.set(roomId, { ...data.config })
+      return { ...data.config }
+    }
+    return { ...DEFAULT_CONFIG }
   }
 
   updateGameConfig(roomId: string, config: Partial<SpyGameConfig>): void {
+    const current = this.getGameConfig(roomId)
+    const merged = { ...current, ...config }
+    this.gameConfigs.set(roomId, merged)
     const data = this.games.get(roomId)
-    if (!data) {
-      const newData: GameData = {
-        state: this.createEmptyState(roomId),
-        config: { ...DEFAULT_CONFIG, ...config },
-        usedIndices: new Set(),
-        descriptions: [],
-        votes: new Map(),
-        roundEnding: false,
-      }
-      this.games.set(roomId, newData)
-      return
+    if (data) {
+      Object.assign(data.config, merged)
     }
-    Object.assign(data.config, config)
   }
 
   resetGame(roomId: string): void {
@@ -69,8 +71,20 @@ export class SpyGameManager {
     const room = roomManager.getRoomById(roomId)
     if (!room || room.state !== 'playing' || room.gameType !== 'spy') return false
 
-    const data = this.games.get(roomId)
-    if (!data) return false
+    let data = this.games.get(roomId)
+    if (!data) {
+      const config = this.getGameConfig(roomId)
+      data = {
+        state: this.createEmptyState(roomId),
+        config,
+        usedIndices: new Set(),
+        descriptions: [],
+        votes: new Map(),
+        roundEnding: false,
+        descRound: 0,
+      }
+      this.games.set(roomId, data)
+    }
 
     const state = data.state
     state.phase = 'word_distribution'
@@ -81,6 +95,7 @@ export class SpyGameManager {
     data.descriptions = []
     data.votes.clear()
     data.roundEnding = false
+    data.descRound = 0
 
     const pair = getRandomSpyPair(data.usedIndices)
     if (!pair) {
@@ -108,6 +123,8 @@ export class SpyGameManager {
       this.endGame(roomId)
       return false
     }
+
+    data.config.totalRounds = Math.max(1, activePlayers.length - 1)
 
     const spyIndex = Math.floor(Math.random() * activePlayers.length)
     let spyId = activePlayers[spyIndex].id
@@ -148,6 +165,7 @@ export class SpyGameManager {
         phase: 'word_distribution' as SpyPhase,
         round: room.currentRound,
         totalRounds: data.config.totalRounds,
+        players: this.getPublicPlayers(roomId),
       })
     }
 
@@ -182,6 +200,7 @@ export class SpyGameManager {
         phase: 'describing' as SpyPhase,
         round: room.currentRound,
         totalRounds: data.config.totalRounds,
+        players: this.getPublicPlayers(roomId),
       })
     }
 
@@ -197,9 +216,24 @@ export class SpyGameManager {
 
     const alivePlayers = data.state.players.filter(p => p.isAlive)
     const idx = data.state.currentSpeakerIndex
+    const descRoundsPerPlayer = 1
 
     if (idx >= alivePlayers.length) {
-      this.startVoting(roomId)
+      data.descRound++
+      if (data.descRound < descRoundsPerPlayer) {
+        data.state.currentSpeakerIndex = 0
+        const io = this.getIO()
+        if (io) {
+          io.to(room.code).emit(SERVER_EVENTS.SPY_PHASE_CHANGE, {
+            phase: 'describing' as SpyPhase,
+            players: this.getPublicPlayers(roomId),
+            descRound: data.descRound + 1,
+          })
+        }
+        setTimeout(() => this.advanceSpeaker(roomId), 1000)
+        return
+      }
+      this.startDiscussion(roomId)
       return
     }
 
@@ -211,6 +245,8 @@ export class SpyGameManager {
         playerId: speaker.id,
         nickname: speaker.nickname,
         timeLeft: data.config.descriptionTime,
+        descRound: data.descRound + 1,
+        totalDescRounds: descRoundsPerPlayer,
       })
     }
 
@@ -219,6 +255,36 @@ export class SpyGameManager {
       data.state.currentSpeakerIndex++
       this.advanceSpeaker(roomId)
     }, data.config.descriptionTime * 1000)
+    this.timers.set(roomId, timer)
+  }
+
+  private startDiscussion(roomId: string): void {
+    const room = roomManager.getRoomById(roomId)
+    if (!room) return
+
+    const data = this.games.get(roomId)
+    if (!data || data.roundEnding) return
+
+    data.state.phase = 'discussion'
+    data.state.currentSpeakerIndex = 0
+
+    const timeLeft = Math.max(15, data.state.players.filter(p => p.isAlive).length * 10)
+
+    const io = this.getIO()
+    if (io) {
+      io.to(room.code).emit(SERVER_EVENTS.SPY_PHASE_CHANGE, {
+        phase: 'discussion' as SpyPhase,
+        round: room.currentRound,
+        totalRounds: data.config.totalRounds,
+        timeLeft,
+        players: this.getPublicPlayers(roomId),
+      })
+    }
+
+    this.clearTimers(roomId)
+    const timer = setTimeout(() => {
+      this.startVoting(roomId)
+    }, timeLeft * 1000)
     this.timers.set(roomId, timer)
   }
 
@@ -287,6 +353,7 @@ export class SpyGameManager {
         round: room.currentRound,
         totalRounds: data.config.totalRounds,
         timeLeft: data.config.voteTime,
+        players: this.getPublicPlayers(roomId),
       })
     }
 
@@ -383,6 +450,7 @@ export class SpyGameManager {
     if (io) {
       io.to(room.code).emit(SERVER_EVENTS.SPY_VOTE_RESULT, voteResult)
     }
+    this.broadcastPublicPlayers(roomId)
 
     setTimeout(() => {
       this.checkRoundEnd(roomId)
@@ -538,11 +606,37 @@ export class SpyGameManager {
     if (player) {
       player.isAlive = false
     }
+    this.broadcastPublicPlayers(roomId)
 
     const alivePlayers = data.state.players.filter(p => p.isAlive)
     if (alivePlayers.length <= 1 || (player?.isSpy && alivePlayers.length <= 2)) {
       this.endGame(roomId)
     }
+  }
+
+  private getPublicPlayers(roomId: string): Array<{
+    id: string; nickname: string; isOwner: boolean; isAlive: boolean;
+    description: string; voteTarget: string | null; voteCount: number; score: number;
+  }> {
+    const data = this.games.get(roomId)
+    if (!data) return []
+    return data.state.players.map(p => ({
+      id: p.id, nickname: p.nickname, isOwner: p.isOwner, isAlive: p.isAlive,
+      description: p.description, voteTarget: p.voteTarget, voteCount: p.voteCount, score: p.score,
+    }))
+  }
+
+  private broadcastPublicPlayers(roomId: string): void {
+    const players = this.getPublicPlayers(roomId)
+    if (players.length === 0) return
+    const room = roomManager.getRoomById(roomId)
+    if (!room) return
+    const io = this.getIO()
+    if (!io) return
+    io.to(room.code).emit(SERVER_EVENTS.SPY_PHASE_CHANGE, {
+      phase: this.games.get(roomId)?.state.phase ?? 'idle',
+      players,
+    })
   }
 
   private createEmptyState(_roomId: string): SpyGameState {

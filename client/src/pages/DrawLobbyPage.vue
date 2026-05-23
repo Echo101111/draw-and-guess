@@ -3,9 +3,9 @@
     <div class="lobby-card">
       <div class="lobby-header">
         <div class="header-icon">🎮</div>
-        <h1>{{ room?.name ?? '游戏房间' }}</h1>
+        <h1>🎨 你画我猜</h1>
         <div class="room-code-badge">
-          <span class="code-label">房间名称</span>
+          <span class="code-label">房间</span>
           <span class="code-value">{{ roomName }}</span>
           <button class="code-copy" @click="copyRoomName" title="复制房间名称">📋</button>
         </div>
@@ -79,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useDrawGameStore } from '@/stores/drawGame'
@@ -132,9 +132,14 @@ watch(room, (newRoom) => {
 }, { immediate: true })
 
 onMounted(() => {
+  document.title = '🎨 你画我猜 - Oiiiii早春'
   roomStore.setupSocketListeners()
   // 不注册 gameStore 监听器 — 游戏事件在 GamePage 渲染后才绑定
   // 这样避免路由跳转（Lobby → Game）时 socket.off/on 重注册导致事件丢失
+})
+
+onUnmounted(() => {
+  document.title = 'Oiiiii早春 - 派对游戏'
 })
 
 function copyRoomName() {

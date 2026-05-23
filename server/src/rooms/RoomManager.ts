@@ -191,7 +191,7 @@ export class RoomManager {
       return { success: false, error: { code: ErrorCode.NOT_ROOM_OWNER, message: '只有房主可以开始游戏' } }
     }
 
-    if (room.state !== 'lobby') {
+    if (room.state !== 'lobby' && room.state !== 'gameover') {
       return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '游戏已在进行中' } }
     }
 

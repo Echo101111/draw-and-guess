@@ -11,6 +11,8 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.SUBMIT_ANSWER, ({ answer }: { answer: string }) => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.gameType !== 'draw') return
 
     if (!answer || !answer.trim()) return
 
@@ -34,6 +36,8 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.DRAW_STROKE, ({ points, color, width, tool, strokeSeq }: { points: { x: number; y: number }[]; color: string; width: number; tool: string; strokeSeq: number }) => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.gameType !== 'draw') return
 
     try {
       const start = Date.now()
@@ -51,6 +55,8 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.CLEAR_CANVAS, () => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.gameType !== 'draw') return
 
     try {
       drawGameManager.clearCanvas(roomId, playerId, socket.id)
@@ -71,6 +77,27 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
 
       const player = room.players.find((p) => p.id === playerId)
       const now = Date.now()
+
+      // chat 频率限制
+      const lastTime = lastChatTime.get(playerId) ?? 0
+      if (now - lastTime < CHAT_COOLDOWN) return
+      lastChatTime.set(playerId, now)
+
+      const nickname = player?.nickname ?? '玩家'
+
+      // 非 draw 房间：直接广播，不做答案检查
+      if (room.gameType !== 'draw') {
+        io.to(room.code).emit(SERVER_EVENTS.CHAT_MESSAGE, {
+          playerId,
+          nickname,
+          text: text.trim().slice(0, 200),
+          isSystem: false,
+          isWrongGuess: false,
+          timestamp: now,
+        })
+        return
+      }
+
       let isWrongGuess = false
       const isCustomOwner = room.wordConfig.customWords.length > 0 && player?.isOwner
 
@@ -91,13 +118,6 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
           isWrongGuess = true
         }
       }
-
-      // chat 频率限制
-      const lastTime = lastChatTime.get(playerId) ?? 0
-      if (now - lastTime < CHAT_COOLDOWN) return
-      lastChatTime.set(playerId, now)
-
-      const nickname = player?.nickname ?? '玩家'
 
       io.to(room.code).emit(SERVER_EVENTS.CHAT_MESSAGE, {
         playerId,
@@ -133,6 +153,8 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.UNDO_STROKE, () => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.gameType !== 'draw') return
     try {
       drawGameManager.undoStroke(roomId, playerId)
     } catch (err) {
@@ -143,6 +165,8 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.REQUEST_GAME_STATE, () => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.gameType !== 'draw') return
     try {
       drawGameManager.sendGameStateSnapshot(roomId, playerId)
     } catch (err) {
@@ -153,6 +177,8 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.RESYNC_STROKES, ({ strokes }: { strokes: Array<{ strokeSeq?: number; points: Array<{ x: number; y: number }>; color: string; width: number; tool: string }> }) => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.gameType !== 'draw') return
     try {
       drawGameManager.resyncStrokes(roomId, playerId, strokes)
     } catch (err) {
@@ -163,6 +189,8 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.SELECT_WORD, ({ word }: { word: string }) => {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
+    const room = roomManager.getRoomById(roomId)
+    if (!room || room.gameType !== 'draw') return
     try {
       drawGameManager.handleWordSelection(roomId, playerId, word)
     } catch (err) {

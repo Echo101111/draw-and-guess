@@ -1,108 +1,143 @@
 <template>
-  <div class="spy-lobby">
-    <div class="lobby-header">
-      <button class="btn-back" @click="handleLeave">← 返回</button>
-      <div class="lobby-title-area">
-        <h1>🕵️ 谁是卧底</h1>
-        <span class="room-name">房间：{{ roomStore.room?.name }}</span>
-      </div>
-      <div class="header-actions">
-        <button class="btn-copy" @click="copyLink">📋 复制链接</button>
-        <VoiceControls />
-      </div>
-    </div>
-
-    <div class="lobby-body">
-      <div class="player-section">
-        <h2>玩家列表 ({{ players.length }}/{{ roomStore.room?.maxPlayers }})</h2>
-        <TransitionGroup name="list" tag="div" class="player-list">
-          <div v-for="p in players" :key="p.id" class="player-item">
-            <span class="player-avatar">{{ p.nickname[0] }}</span>
-            <span class="player-name">{{ p.nickname }}</span>
-            <span v-if="p.isOwner" class="player-badge">👑</span>
-            <button
-              v-if="roomStore.isOwner && p.id !== roomStore.currentPlayerId"
-              class="btn-kick"
-              @click="kickPlayer(p.id)"
-            >
-              踢出
-            </button>
-          </div>
-        </TransitionGroup>
-      </div>
-
-      <div class="config-section" v-if="roomStore.isOwner">
-        <h2>游戏设置</h2>
-        <div class="config-grid">
-          <div class="config-field">
-            <label>总轮数</label>
-            <select v-model.number="spyConfig.totalRounds">
-              <option v-for="n in [3,4,5,6,8,10]" :key="n" :value="n">{{ n }} 轮</option>
-            </select>
-          </div>
-          <div class="config-field">
-            <label>描述时间</label>
-            <select v-model.number="spyConfig.descriptionTime">
-              <option :value="15">15 秒</option>
-              <option :value="20">20 秒</option>
-              <option :value="30">30 秒</option>
-              <option :value="45">45 秒</option>
-              <option :value="60">60 秒</option>
-            </select>
-          </div>
-          <div class="config-field">
-            <label>投票时间</label>
-            <select v-model.number="spyConfig.voteTime">
-              <option :value="10">10 秒</option>
-              <option :value="15">15 秒</option>
-              <option :value="20">20 秒</option>
-              <option :value="30">30 秒</option>
-            </select>
-          </div>
+  <div class="lobby-page">
+    <div class="lobby-card">
+      <div class="lobby-header">
+        <div class="header-icon">🕵️</div>
+        <h1>谁是卧底</h1>
+        <div class="room-code-badge">
+          <span class="code-label">房间</span>
+          <span class="code-value">{{ roomStore.roomName }}</span>
+          <button class="code-copy" @click="copyLink" title="复制房间名称">📋</button>
         </div>
       </div>
 
-      <div class="info-section">
-        <p><strong>玩法：</strong>每人获得一个词语（卧底的是不同的近义词），轮流描述自己的词语（不能说原词），投票找出卧底！</p>
-        <p class="min-hint" v-if="players.length < 4">⚠️ 至少需要 4 名玩家</p>
+      <div class="players-section">
+        <div class="players-header">
+          <h2>玩家</h2>
+          <span class="player-count">{{ players.length }} / {{ roomStore.room?.maxPlayers }}</span>
+        </div>
+
+        <div class="player-list">
+          <TransitionGroup name="player">
+            <div v-for="player in players" :key="player.id" class="player-card">
+              <div class="player-avatar">{{ player.nickname.charAt(0) }}</div>
+              <div class="player-info">
+                <span class="player-name">{{ player.nickname }}</span>
+                <div class="player-tags">
+                  <span v-if="player.id === roomStore.currentPlayerId" class="tag tag-you">你</span>
+                  <span v-if="player.isOwner" class="tag tag-owner">房主</span>
+                  <span v-if="player.id === roomStore.currentPlayerId && player.isOwner" class="tag tag-you">我</span>
+                </div>
+              </div>
+              <button
+                v-if="roomStore.isOwner && player.id !== roomStore.currentPlayerId"
+                class="btn-kick"
+                @click="kickPlayer(player.id)"
+                title="踢出"
+              >
+                ✕
+              </button>
+            </div>
+          </TransitionGroup>
+          <div v-if="players.length === 0" class="empty-players">等待玩家加入...</div>
+        </div>
       </div>
 
-      <div class="action-section">
+      <div class="lobby-actions">
         <button
           v-if="roomStore.isOwner"
           class="btn-start"
-          :disabled="players.length < 4"
+          :disabled="players.length < 2"
           @click="handleStart"
         >
-          🚀 开始游戏
+          <span class="btn-start-icon">{{ players.length < 2 ? '👥' : '🕵️' }}</span>
+          {{ players.length < 2 ? '等待更多玩家...' : '开始游戏' }}
+        </button>
+        <button v-if="roomStore.isOwner" class="btn-word-config" @click="showConfig = true">
+          ⚙️ 游戏设置
         </button>
         <button class="btn-leave" @click="handleLeave">离开房间</button>
       </div>
     </div>
+
+    <!-- 游戏设置弹窗 -->
+    <Transition name="fade">
+      <div v-if="showConfig" class="config-overlay" @click.self="showConfig = false">
+        <div class="config-modal">
+          <div class="config-modal-header">
+            <span>⚙️ 游戏设置</span>
+            <button class="config-close" @click="showConfig = false">✕</button>
+          </div>
+          <div class="config-modal-body">
+            <div class="config-row">
+              <div class="config-item">
+                <label>描述时间</label>
+                <select v-model.number="spyConfig.descriptionTime">
+                  <option :value="15">15 秒</option>
+                  <option :value="20">20 秒</option>
+                  <option :value="30">30 秒</option>
+                  <option :value="45">45 秒</option>
+                  <option :value="60">60 秒</option>
+                </select>
+              </div>
+              <div class="config-item">
+                <label>投票时间</label>
+                <select v-model.number="spyConfig.voteTime">
+                  <option :value="10">10 秒</option>
+                  <option :value="15">15 秒</option>
+                  <option :value="20">20 秒</option>
+                  <option :value="30">30 秒</option>
+                </select>
+              </div>
+            </div>
+            <p class="rounds-hint">共 <strong>{{ totalRoundsAuto }}</strong> 轮（按人数自动计算）</p>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="fade">
+      <p v-if="errorMessage" class="error-toast">{{ errorMessage }}</p>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted, watch } from 'vue'
+import { reactive, ref, computed, onMounted, onUnmounted, onBeforeMount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
-import VoiceControls from '@/components/VoiceControls.vue'
+import { useSpyStore } from '@/stores/spy'
 import { getSocket } from '@/composables/useSocket'
 import { CLIENT_EVENTS } from '@draw-and-guess/shared'
 
 const router = useRouter()
 const roomStore = useRoomStore()
+const spyStore = useSpyStore()
 
-const players = roomStore.players
+const players = computed(() => roomStore.players)
+const showConfig = ref(false)
+const errorMessage = ref<string | null>(null)
 
 const spyConfig = reactive({
-  totalRounds: 5,
   descriptionTime: 30,
   voteTime: 20,
 })
 
+const totalRoundsAuto = computed(() => Math.max(1, players.value.length - 1))
+
+onBeforeMount(() => {
+  roomStore.setupSocketListeners()
+  spyStore.setupSocketListeners()
+})
+
 onMounted(() => {
+  document.title = '🕵️ 谁是卧底 - Oiiiii早春'
   document.body.style.overflow = 'hidden'
+  roomStore.setupSocketListeners()
+})
+
+onUnmounted(() => {
+  document.title = 'Oiiiii早春 - 派对游戏'
 })
 
 watch(() => roomStore.room?.state, (newState) => {
@@ -138,103 +173,116 @@ function copyLink() {
 </script>
 
 <style scoped>
-.spy-lobby {
+.lobby-page {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 100vh;
-  background: var(--color-bg);
-  padding: 16px;
-  max-width: 640px;
-  margin: 0 auto;
+  padding: 2rem 1rem;
 }
 
+.lobby-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+/* ---- Header ---- */
 .lobby-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1.5rem 1.25rem;
+}
+
+.header-icon { font-size: 2.2rem; margin-bottom: 0.3rem; }
+
+.lobby-header h1 {
+  font-family: var(--font-title);
+  font-size: 1.6rem;
+  color: var(--color-text);
+  margin: 0 0 0.75rem;
+}
+
+.room-code-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: var(--color-bg-warm);
+  border-radius: var(--radius-full);
+}
+
+.code-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.code-value {
+  font-family: var(--font-number);
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: 0.1em;
+}
+
+.code-copy {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 4px;
+  line-height: 1;
+  opacity: 0.5;
+  transition: var(--transition);
+}
+
+.code-copy:hover { opacity: 1; }
+
+/* ---- Players ---- */
+.players-section { padding: 0 1.5rem; }
+
+.players-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 0.5rem;
 }
 
-.lobby-title-area {
-  text-align: center;
-}
-
-.lobby-title-area h1 {
-  font-family: var(--font-title);
-  font-size: 28px;
-  color: var(--color-primary-dark);
-  margin: 0;
-}
-
-.room-name {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-}
-
-.btn-back {
-  border: none;
-  background: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  transition: var(--transition);
-}
-
-.btn-back:hover {
-  background: var(--color-bg-warm);
-}
-
-.btn-copy {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  font-size: 12px;
-  transition: var(--transition);
-}
-
-.btn-copy:hover {
-  background: var(--color-bg-warm);
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.lobby-body {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.player-section h2,
-.config-section h2 {
-  font-size: 16px;
-  margin-bottom: 12px;
+.players-header h2 {
+  font-size: 1rem;
+  font-weight: 700;
   color: var(--color-text);
+}
+
+.player-count {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-number);
 }
 
 .player-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
 }
 
-.player-item {
+.player-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--color-surface);
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--color-bg);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
   transition: var(--transition);
 }
+
+.player-card:hover { background: var(--color-bg-warm); }
 
 .player-avatar {
   width: 36px;
@@ -245,122 +293,263 @@ function copyLink() {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 15px;
+  color: var(--color-text);
+  flex-shrink: 0;
 }
 
+.player-info { flex: 1; min-width: 0; }
+
 .player-name {
-  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.player-tags {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
   font-weight: 500;
 }
 
-.player-badge {
-  font-size: 16px;
-}
+.tag-you { background: var(--color-primary-light); color: white; }
+.tag-owner { background: var(--color-gold-bg); color: var(--color-gold); }
 
 .btn-kick {
   border: none;
-  background: var(--color-danger-light);
-  color: var(--color-danger);
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
   cursor: pointer;
-  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  transition: var(--transition);
 }
 
-.config-grid {
+.btn-kick:hover { background: var(--color-danger-light); color: var(--color-danger); }
+
+.empty-players {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* ---- Actions ---- */
+.lobby-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 1.5rem 1.5rem;
+}
+
+.lobby-actions > * {
+  width: 100%;
+}
+
+.btn-start {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.9rem;
+  border: none;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: white;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: var(--transition);
+}
+
+.btn-start:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+.btn-start:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-start-icon { font-size: 1.1rem; }
+
+.btn-word-config {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  padding: 0.7rem;
+  border-radius: var(--radius-full);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-word-config:hover {
+  background: var(--color-bg-warm);
+  border-color: var(--color-text-muted);
+}
+
+.btn-leave {
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.btn-leave:hover {
+  color: var(--color-danger);
+  background: var(--color-danger-light);
+}
+
+/* ---- Config Modal ---- */
+.config-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.config-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 360px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.config-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.config-close {
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.config-close:hover { background: var(--color-bg-warm); }
+
+.config-modal-body {
+  padding: 1.25rem;
+}
+
+.config-row {
   display: flex;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
-.config-field {
+.config-item {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.config-field label {
-  font-size: 12px;
-  color: var(--color-text-secondary);
+.config-item label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.config-field select {
-  padding: 6px 10px;
+.config-item select {
+  width: 100%;
+  padding: 8px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  background: var(--color-bg);
   font-size: 14px;
-  cursor: pointer;
-}
-
-.info-section {
-  background: var(--color-accent-pale);
-  padding: 14px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
+  font-family: var(--font-number);
   color: var(--color-text);
-  line-height: 1.6;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23B5A392' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
 }
 
-.min-hint {
-  color: var(--color-danger);
-  font-weight: 600;
-  margin-top: 6px;
+.rounds-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 14px 0 0;
+  text-align: center;
 }
 
-.action-section {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  padding: 8px 0;
+.rounds-hint strong {
+  color: var(--color-primary-dark);
+  font-weight: 700;
 }
 
-.btn-start {
-  border: none;
-  background: var(--color-primary);
+/* ---- Toast ---- */
+.error-toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-danger);
   color: white;
-  padding: 12px 40px;
+  padding: 0.6rem 1.5rem;
   border-radius: var(--radius-full);
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--transition);
+  font-size: 0.85rem;
+  z-index: 30;
+  white-space: nowrap;
 }
 
-.btn-start:hover:not(:disabled) {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
-.btn-start:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.btn-leave {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  padding: 12px 24px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.btn-leave:hover {
-  background: var(--color-danger-light);
-  color: var(--color-danger);
-}
-
-.list-enter-active,
-.list-leave-active {
+/* ---- Player animation ---- */
+.player-enter-active,
+.player-leave-active {
   transition: all 0.3s ease;
 }
-
-.list-enter-from,
-.list-leave-to {
+.player-enter-from,
+.player-leave-to {
   opacity: 0;
   transform: translateX(-20px);
+}
+
+/* ---- Mobile ---- */
+@media (max-width: 420px) {
+  .lobby-page { padding: 1rem 0.75rem; }
+  .lobby-header { padding: 1.5rem 1rem 1rem; }
+  .lobby-header h1 { font-size: 1.4rem; }
+  .players-section { padding: 0 1rem; }
+  .lobby-actions { padding: 0 1rem 1.25rem; }
 }
 </style>

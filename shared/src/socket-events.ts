@@ -59,6 +59,7 @@ export const SERVER_EVENTS = {
   // WebRTC
   WEBRTC_PEER_JOINED: 's_webrtc_peer_joined',
   WEBRTC_PEER_LEFT: 's_webrtc_peer_left',
+  WEBRTC_PEERS_LIST: 's_webrtc_peers_list',
   WEBRTC_OFFER: 's_webrtc_offer',
   WEBRTC_ANSWER: 's_webrtc_answer',
   WEBRTC_ICE_CANDIDATE: 's_webrtc_ice_candidate',

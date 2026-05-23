@@ -74,7 +74,11 @@ export const useSpyStore = defineStore('spy', () => {
 
     socket.off(SERVER_EVENTS.SPY_PHASE_CHANGE)
     socket.on(SERVER_EVENTS.SPY_PHASE_CHANGE, (data: {
-      phase: SpyPhase; round?: number; totalRounds?: number; timeLeft?: number
+      phase: SpyPhase; round?: number; totalRounds?: number; timeLeft?: number;
+      players?: Array<{
+        id: string; nickname: string; isOwner: boolean; isAlive: boolean;
+        description: string; voteTarget: string | null; voteCount: number; score: number;
+      }>;
     }) => {
       phase.value = data.phase
       if (data.round !== undefined) round.value = data.round
@@ -82,6 +86,22 @@ export const useSpyStore = defineStore('spy', () => {
       if (data.timeLeft !== undefined) {
         timeLeft.value = data.timeLeft
         startLocalTimer()
+      }
+      if (data.players && data.players.length > 0) {
+        const selfId = roomStore.currentPlayerId
+        players.value = data.players.map(p => ({
+          id: p.id,
+          nickname: p.nickname,
+          isOwner: p.isOwner,
+          isAlive: p.isAlive,
+          isSpy: p.id === selfId ? isSpy.value : false,
+          word: p.id === selfId ? myWord.value : '',
+          description: p.description ?? '',
+          voteTarget: p.voteTarget ?? null,
+          voteCount: p.voteCount,
+          score: p.score,
+          sessionId: '',
+        }))
       }
       if (data.phase === 'describing' || data.phase === 'voting') {
         hasDescribed.value = false

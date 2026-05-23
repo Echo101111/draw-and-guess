@@ -20,6 +20,7 @@ const PHASE_CONFIG: Record<SpyPhase, { icon: string; text: string; showTimer: bo
   idle: { icon: '', text: '', showTimer: false, cls: '' },
   word_distribution: { icon: '🔍', text: '查看你的词语...', showTimer: false, cls: 'info' },
   describing: { icon: '💬', text: '描述阶段', showTimer: true, cls: 'desc' },
+  discussion: { icon: '💭', text: '自由讨论', showTimer: true, cls: 'discuss' },
   voting: { icon: '🗳️', text: '投票找出卧底！', showTimer: true, cls: 'vote' },
   reveal: { icon: '📊', text: '投票结果揭晓', showTimer: false, cls: 'info' },
   round_end: { icon: '🔄', text: '回合结束', showTimer: false, cls: 'info' },
@@ -62,6 +63,7 @@ const label = computed(() => {
   color: var(--color-danger);
 }
 
+.phase-banner.discuss { background: var(--color-primary-light); color: white; }
 .phase-banner.info {
   background: var(--color-bg-warm);
   color: var(--color-text-secondary);

@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { getSocket } from './useSocket'
 import { SERVER_EVENTS, CLIENT_EVENTS } from '@draw-and-guess/shared'
 
@@ -9,22 +9,25 @@ const ICE_SERVERS: RTCConfiguration = {
   ],
 }
 
+// Singleton state — shared across all calls to useWebRTC()
+const _isMuted = ref(false)
+const _isDeafened = ref(false)
+const _isVoiceActive = ref(false)
+const _speakingPeers = shallowRef(new Set<string>())
+const _peerCount = ref(0)
+const _micError = ref('')
+let _localStream: MediaStream | null = null
+const _peerConnections = new Map<string, RTCPeerConnection>()
+const _analyserNodes = new Map<string, { analyser: AnalyserNode; dataArray: Uint8Array; interval: number }>()
+let _signalingSetup = false
+
 export function useWebRTC() {
-  const isMuted = ref(false)
-  const isDeafened = ref(false)
-  const isVoiceActive = ref(false)
-  const speakingPeers = ref<Set<string>>(new Set())
-  const peerCount = ref(0)
-
-  let localStream: MediaStream | null = null
-  const peerConnections = new Map<string, RTCPeerConnection>()
-  const analyserNodes = new Map<string, { analyser: AnalyserNode; dataArray: Uint8Array; interval: number }>()
-
   async function joinVoice(): Promise<void> {
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      isVoiceActive.value = true
-      peerCount.value = 0
+      _localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      _isVoiceActive.value = true
+      _micError.value = ''
+      _peerCount.value = 0
 
       const socket = getSocket()
       if (socket?.connected) {
@@ -32,16 +35,26 @@ export function useWebRTC() {
       }
     } catch (e) {
       console.warn('[WebRTC] Microphone access denied:', e)
+      const err = e as DOMException
+      if (err.name === 'NotAllowedError') {
+        _micError.value = '麦克风权限被拒绝。请点击浏览器地址栏左侧的🔒或⚠️图标，找到「麦克风」设为「允许」，然后刷新页面重试。'
+      } else if (err.name === 'NotFoundError') {
+        _micError.value = '未检测到麦克风。请确认麦克风已连接，或在系统设置中检查输入设备。'
+      } else if (err.name === 'NotReadableError') {
+        _micError.value = '麦克风被其他应用占用。请关闭其他使用麦克风的程序后重试。'
+      } else {
+        _micError.value = '无法访问麦克风，请检查浏览器权限和系统音频设置。'
+      }
     }
   }
 
   function leaveVoice(): void {
     destroyPeers()
-    if (localStream) {
-      localStream.getTracks().forEach(t => t.stop())
-      localStream = null
+    if (_localStream) {
+      _localStream.getTracks().forEach(t => t.stop())
+      _localStream = null
     }
-    isVoiceActive.value = false
+    _isVoiceActive.value = false
     const socket = getSocket()
     if (socket?.connected) {
       socket.emit(CLIENT_EVENTS.WEBRTC_LEAVE_VOICE)
@@ -49,39 +62,43 @@ export function useWebRTC() {
   }
 
   function toggleMute(): void {
-    isMuted.value = !isMuted.value
-    const audioTracks = localStream?.getAudioTracks() ?? []
+    _isMuted.value = !_isMuted.value
+    const audioTracks = _localStream?.getAudioTracks() ?? []
     for (const track of audioTracks) {
-      track.enabled = !isMuted.value
+      track.enabled = !_isMuted.value
     }
   }
 
   function toggleDeafen(): void {
-    isDeafened.value = !isDeafened.value
-    for (const pc of peerConnections.values()) {
+    _isDeafened.value = !_isDeafened.value
+    for (const pc of _peerConnections.values()) {
       const receivers = pc.getReceivers()
       for (const r of receivers) {
-        if (r.track) r.track.enabled = !isDeafened.value
+        if (r.track) r.track.enabled = !_isDeafened.value
       }
     }
   }
 
+  function clearMicError(): void {
+    _micError.value = ''
+  }
+
   async function handlePeerJoined(playerId: string): Promise<void> {
-    if (peerConnections.has(playerId)) return
+    if (_peerConnections.has(playerId)) return
     await createPeerConnection(playerId, true)
   }
 
   function handlePeerLeft(playerId: string): void {
-    const pc = peerConnections.get(playerId)
+    const pc = _peerConnections.get(playerId)
     if (pc) {
       pc.close()
-      peerConnections.delete(playerId)
+      _peerConnections.delete(playerId)
     }
     cleanupAnalyser(playerId)
-    const sp = new Set(speakingPeers.value)
+    const sp = new Set(_speakingPeers.value)
     sp.delete(playerId)
-    speakingPeers.value = sp
-    peerCount.value = peerConnections.size
+    _speakingPeers.value = sp
+    _peerCount.value = _peerConnections.size
   }
 
   async function handleOffer(fromId: string, sdp: RTCSessionDescriptionInit): Promise<void> {
@@ -101,7 +118,7 @@ export function useWebRTC() {
   }
 
   async function handleAnswer(fromId: string, sdp: RTCSessionDescriptionInit): Promise<void> {
-    const pc = peerConnections.get(fromId)
+    const pc = _peerConnections.get(fromId)
     if (!pc) return
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(sdp))
@@ -111,7 +128,7 @@ export function useWebRTC() {
   }
 
   function handleIceCandidate(fromId: string, candidate: RTCIceCandidateInit): void {
-    const pc = peerConnections.get(fromId)
+    const pc = _peerConnections.get(fromId)
     if (!pc) return
     pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
       console.error('[WebRTC] addIceCandidate error:', e)
@@ -120,8 +137,8 @@ export function useWebRTC() {
 
   async function createPeerConnection(targetId: string, isInitiator: boolean): Promise<RTCPeerConnection> {
     const pc = new RTCPeerConnection(ICE_SERVERS)
-    peerConnections.set(targetId, pc)
-    peerCount.value = peerConnections.size
+    _peerConnections.set(targetId, pc)
+    _peerCount.value = _peerConnections.size
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -142,26 +159,30 @@ export function useWebRTC() {
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        peerConnections.delete(targetId)
-        peerCount.value = peerConnections.size
+        _peerConnections.delete(targetId)
+        _peerCount.value = _peerConnections.size
         cleanupAnalyser(targetId)
       }
     }
 
-    if (localStream) {
-      for (const track of localStream.getAudioTracks()) {
-        pc.addTrack(track, localStream)
+    if (_localStream) {
+      for (const track of _localStream.getAudioTracks()) {
+        pc.addTrack(track, _localStream)
       }
     }
 
     if (isInitiator) {
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-      const socket = getSocket()
-      socket?.emit(CLIENT_EVENTS.WEBRTC_OFFER, {
-        targetId,
-        sdp: pc.localDescription,
-      })
+      try {
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        const socket = getSocket()
+        socket?.emit(CLIENT_EVENTS.WEBRTC_OFFER, {
+          targetId,
+          sdp: pc.localDescription,
+        })
+      } catch (e) {
+        console.error('[WebRTC] createOffer error:', e)
+      }
     }
 
     return pc
@@ -179,39 +200,42 @@ export function useWebRTC() {
       analyser.getByteFrequencyData(dataArray)
       const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
 
-      const sp = new Set(speakingPeers.value)
+      const sp = new Set(_speakingPeers.value)
       if (avg > 15) {
         sp.add(playerId)
       } else {
         sp.delete(playerId)
       }
-      speakingPeers.value = sp
+      _speakingPeers.value = sp
     }, 200)
 
-    analyserNodes.set(playerId, { analyser, dataArray, interval })
+    _analyserNodes.set(playerId, { analyser, dataArray, interval })
   }
 
   function cleanupAnalyser(playerId: string): void {
-    const entry = analyserNodes.get(playerId)
+    const entry = _analyserNodes.get(playerId)
     if (entry) {
       clearInterval(entry.interval)
-      analyserNodes.delete(playerId)
+      _analyserNodes.delete(playerId)
     }
   }
 
   function destroyPeers(): void {
-    for (const pc of peerConnections.values()) {
+    for (const pc of _peerConnections.values()) {
       pc.close()
     }
-    peerConnections.clear()
-    for (const [id] of analyserNodes) {
+    _peerConnections.clear()
+    for (const [id] of _analyserNodes) {
       cleanupAnalyser(id)
     }
-    speakingPeers.value = new Set()
-    peerCount.value = 0
+    _speakingPeers.value = new Set()
+    _peerCount.value = 0
   }
 
   function setupSignaling(): void {
+    if (_signalingSetup) return
+    _signalingSetup = true
+
     const socket = getSocket()
 
     socket.off(SERVER_EVENTS.WEBRTC_PEER_JOINED)
@@ -222,6 +246,13 @@ export function useWebRTC() {
     socket.off(SERVER_EVENTS.WEBRTC_PEER_LEFT)
     socket.on(SERVER_EVENTS.WEBRTC_PEER_LEFT, (data: { playerId: string }) => {
       handlePeerLeft(data.playerId)
+    })
+
+    socket.off(SERVER_EVENTS.WEBRTC_PEERS_LIST)
+    socket.on(SERVER_EVENTS.WEBRTC_PEERS_LIST, async (data: { peers: string[] }) => {
+      for (const pid of data.peers) {
+        await handlePeerJoined(pid)
+      }
     })
 
     socket.off(SERVER_EVENTS.WEBRTC_OFFER)
@@ -241,29 +272,43 @@ export function useWebRTC() {
   }
 
   function teardownSignaling(): void {
+    _signalingSetup = false
     const socket = getSocket()
     if (!socket) return
     ;[
       SERVER_EVENTS.WEBRTC_PEER_JOINED,
       SERVER_EVENTS.WEBRTC_PEER_LEFT,
+      SERVER_EVENTS.WEBRTC_PEERS_LIST,
       SERVER_EVENTS.WEBRTC_OFFER,
       SERVER_EVENTS.WEBRTC_ANSWER,
       SERVER_EVENTS.WEBRTC_ICE_CANDIDATE,
     ].forEach(evt => socket.off(evt))
   }
 
+  function destroy(): void {
+    destroyPeers()
+    if (_localStream) {
+      _localStream.getTracks().forEach(t => t.stop())
+      _localStream = null
+    }
+    teardownSignaling()
+  }
+
   return {
-    isMuted,
-    isDeafened,
-    isVoiceActive,
-    speakingPeers,
-    peerCount,
+    isMuted: _isMuted,
+    isDeafened: _isDeafened,
+    isVoiceActive: _isVoiceActive,
+    speakingPeers: _speakingPeers,
+    peerCount: _peerCount,
+    micError: _micError,
     joinVoice,
     leaveVoice,
     toggleMute,
     toggleDeafen,
+    clearMicError,
     setupSignaling,
     teardownSignaling,
     destroyPeers,
+    destroy,
   }
 }
