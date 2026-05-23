@@ -82,7 +82,7 @@ export const useSpyStore = defineStore('spy', () => {
       phase: SpyPhase; round?: number; totalRounds?: number; timeLeft?: number;
       players?: Array<{
         id: string; nickname: string; isOwner: boolean; isAlive: boolean;
-        description: string; voteTarget: string | null; voteCount: number; score: number;
+        description: string; voteTarget: string | null; voteCount: number; score: number; avatar: number;
       }>;
     }) => {
       phase.value = data.phase
@@ -106,6 +106,7 @@ export const useSpyStore = defineStore('spy', () => {
           voteCount: p.voteCount,
           score: p.score,
           sessionId: '',
+          avatar: p.avatar ?? 0,
         }))
       }
       if (data.phase === 'voting' && data.timeLeft) {

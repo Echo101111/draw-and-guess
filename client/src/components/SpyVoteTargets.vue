@@ -14,7 +14,7 @@
         :disabled="hasVoted || p.id === localPlayerId"
         @click="emit('vote', p.id)"
       >
-        <span class="vote-avatar">{{ p.nickname[0] }}</span>
+        <span class="vote-avatar" v-html="avatarSvg(p.avatar)"></span>
         <span class="vote-name">{{ p.nickname }}</span>
       </button>
     </div>
@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import type { SpyPlayer } from '@draw-and-guess/shared'
+import { getAvatarSvg } from '@/data/avatars'
 
 defineProps<{
   players: SpyPlayer[]
@@ -30,6 +31,10 @@ defineProps<{
   hasVoted: boolean
   localPlayerId: string
 }>()
+
+function avatarSvg(index: number): string {
+  return getAvatarSvg(index)
+}
 
 const emit = defineEmits<{
   vote: [playerId: string]
@@ -95,12 +100,20 @@ const emit = defineEmits<{
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--color-accent-pale);
+  background: linear-gradient(135deg, var(--color-accent-pale), var(--color-bg-warm));
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
   font-weight: 700;
+  overflow: hidden;
+  color: var(--color-text);
+}
+
+.vote-avatar svg {
+  width: 60%;
+  height: 60%;
+}
 }
 
 .vote-name {

@@ -313,14 +313,19 @@ function copyLink() {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--color-accent-pale);
+  background: linear-gradient(135deg, var(--color-accent-pale), var(--color-bg-warm));
+  color: var(--color-text);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 15px;
-  color: var(--color-text);
-  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.player-avatar svg {
+  width: 60%;
+  height: 60%;
 }
 
 .player-info { flex: 1; min-width: 0; }

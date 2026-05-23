@@ -17,6 +17,7 @@ function createPlayer(nickname: string, isOwner = false): Player {
     isOwner,
     score: 0,
     hasGuessedCorrectly: false,
+    avatar: Math.floor(Math.random() * 50),
     joinedAt: Date.now(),
     lastActiveAt: Date.now(),
   }
@@ -401,6 +402,7 @@ export class RoomManager {
         isOwner: p.isOwner,
         score: p.score,
         hasGuessedCorrectly: p.hasGuessedCorrectly,
+        avatar: p.avatar,
       })),
       currentRound: room.currentRound,
       totalRounds: room.totalRounds,

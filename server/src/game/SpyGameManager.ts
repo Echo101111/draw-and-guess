@@ -144,6 +144,7 @@ export class SpyGameManager {
         voteCount: 0,
         score: p.score,
         sessionId: p.sessionId,
+        avatar: p.avatar,
       }
     })
 
@@ -638,13 +639,13 @@ export class SpyGameManager {
 
   private getPublicPlayers(roomId: string): Array<{
     id: string; nickname: string; isOwner: boolean; isAlive: boolean;
-    description: string; voteTarget: string | null; voteCount: number; score: number;
+    description: string; voteTarget: string | null; voteCount: number; score: number; avatar: number;
   }> {
     const data = this.games.get(roomId)
     if (!data) return []
     return data.state.players.map(p => ({
       id: p.id, nickname: p.nickname, isOwner: p.isOwner, isAlive: p.isAlive,
-      description: p.description, voteTarget: p.voteTarget, voteCount: p.voteCount, score: p.score,
+      description: p.description, voteTarget: p.voteTarget, voteCount: p.voteCount, score: p.score, avatar: p.avatar,
     }))
   }
 

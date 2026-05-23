@@ -16,7 +16,7 @@
     >
       <div class="ring-avatar">
         <span v-if="!p.isAlive" class="avatar-text">💀</span>
-        <span v-else class="avatar-text">{{ p.nickname[0] }}</span>
+        <div v-else class="avatar-svg-wrap" v-html="avatarSvg(p.avatar)"></div>
       </div>
       <span class="ring-name">{{ p.nickname }}</span>
       <div class="ring-badges">
@@ -29,6 +29,7 @@
 
 <script setup lang="ts">
 import type { SpyPlayer, SpyPhase } from '@draw-and-guess/shared'
+import { getAvatarSvg } from '@/data/avatars'
 
 const props = defineProps<{
   players: SpyPlayer[]
@@ -43,6 +44,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   vote: [playerId: string]
 }>()
+
+function avatarSvg(index: number): string {
+  return getAvatarSvg(index)
+}
 
 function handleClick(playerId: string) {
   if (props.phase === 'voting') {
@@ -119,34 +124,6 @@ function handleClick(playerId: string) {
   transform: scale(1.08);
 }
 
-.ring-player.self .ring-avatar {
-  background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
-  color: white;
-  border-color: var(--color-primary-dark);
-}
-
-.avatar-text { line-height: 1; }
-
-.ring-name {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  max-width: 72px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.ring-player.eliminated .ring-name {
-  text-decoration: line-through;
-  opacity: 0.3;
-}
-
-.ring-player.self .ring-name {
-  color: var(--color-primary-dark);
-  font-weight: 700;
-}
-
 .ring-badges {
   display: flex;
   gap: 4px;
@@ -168,6 +145,19 @@ function handleClick(playerId: string) {
 @keyframes speakerPulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.06); }
+}
+
+.avatar-svg-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-svg-wrap svg {
+  width: 60%;
+  height: 60%;
 }
 
 @media (max-width: 380px) {

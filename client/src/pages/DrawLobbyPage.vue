@@ -331,14 +331,18 @@ function handleLeave() {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
-  color: #fff;
+  background: linear-gradient(135deg, var(--color-accent-pale), var(--color-bg-warm));
+  color: var(--color-text);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 0.95rem;
-  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.player-avatar svg {
+  width: 60%;
+  height: 60%;
 }
 
 .player-info {

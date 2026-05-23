@@ -10,6 +10,7 @@ interface RoomPlayer {
   isOwner: boolean
   score: number
   hasGuessedCorrectly: boolean
+  avatar: number
 }
 
 interface RoomData {

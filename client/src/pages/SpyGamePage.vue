@@ -4,6 +4,10 @@
     <header class="game-header">
       <button class="btn-exit" @click="handleLeave">←</button>
       <div class="header-center">
+        <div v-if="myPlayer" class="header-self">
+          <div class="header-self-avatar" v-html="avatarSvg(myPlayer.avatar)"></div>
+          <span class="header-self-name">{{ myPlayer.nickname }}</span>
+        </div>
         <span class="header-game">🕵️ 谁是卧底</span>
         <span class="header-round">第 {{ store.round }}/{{ store.totalRounds }} 轮</span>
       </div>
@@ -56,7 +60,7 @@
           <!-- Player ring -->
           <div class="ring-section">
             <SpyPlayerRing
-              :players="store.players"
+              :players="otherPlayers"
               :speaker-id="store.currentSpeaker?.playerId"
               :local-player-id="roomStore.currentPlayerId ?? ''"
               :selected-id="selectedVoteTarget"
@@ -140,14 +144,13 @@
               <div class="word-card civilian-card">
                 <div class="word-card-header">👤 平民词</div>
                 <div class="word-card-word">{{ store.civilianWord }}</div>
+                <div class="word-card-empty"></div>
               </div>
               <div class="word-card-vs">🆚</div>
               <div class="word-card spy-card">
-                <div class="word-card-header">
-                  🕵️ 卧底词
-                  <span class="word-card-spy-name">{{ spyPlayerName }}</span>
-                </div>
+                <div class="word-card-header">🕵️ 卧底词</div>
                 <div class="word-card-word">{{ store.spyWord }}</div>
+                <div class="word-card-spy-name">{{ spyPlayerName }}</div>
               </div>
             </div>
           </div>
@@ -174,6 +177,7 @@
 
     <!-- ====== FOOTER ====== -->
     <footer class="game-footer">
+
       <!-- My turn to describe -->
       <div v-if="store.phase === 'describing' && store.isMyTurnToSpeak && !store.hasDescribed" class="footer-action">
         <div class="action-input-wrap">
@@ -236,6 +240,8 @@ import SpyWordCard from '@/components/SpyWordCard.vue'
 import SpyPlayerRing from '@/components/SpyPlayerRing.vue'
 import SpyDescriptionBubble from '@/components/SpyDescriptionBubble.vue'
 import Scoreboard from '@/components/Scoreboard.vue'
+import { getAvatarSvg } from '@/data/avatars'
+
 
 const router = useRouter()
 const roomStore = useRoomStore()
@@ -246,6 +252,18 @@ const discussText = ref('')
 const descInput = ref<HTMLInputElement | null>(null)
 const selectedVoteTarget = ref('')
 const activeTab = ref(false)
+
+const myPlayer = computed(() =>
+  store.players.find(p => p.id === roomStore.currentPlayerId)
+)
+
+const otherPlayers = computed(() =>
+  store.players.filter(p => p.id !== roomStore.currentPlayerId)
+)
+
+function avatarSvg(index: number): string {
+  return getAvatarSvg(index)
+}
 
 const PHASE_LABELS: Record<string, string> = {
   word_distribution: '🔍 查看你的词语',
@@ -375,6 +393,7 @@ const voteProgressPct = computed(() => {
   height: 100dvh;
   overflow: hidden;
   background: var(--color-bg);
+  padding-top: max(12px, env(safe-area-inset-top));
 }
 
 /* ====== HEADER ====== */
@@ -403,9 +422,44 @@ const voteProgressPct = computed(() => {
 .header-center {
   flex: 1;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.header-self {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.header-self-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent-pale), var(--color-bg-warm));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  color: var(--color-text);
+}
+
+.header-self-avatar svg {
+  width: 55%;
+  height: 55%;
+}
+
+.header-self-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  white-space: nowrap;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-game {
@@ -521,8 +575,10 @@ const voteProgressPct = computed(() => {
 .word-badge {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 6px 14px;
+  min-width: 180px;
   background: var(--color-accent-pale);
   border: 1px solid var(--color-accent-light);
   border-radius: var(--radius-full);
@@ -750,7 +806,7 @@ const voteProgressPct = computed(() => {
 
 .word-reveal-cards {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 10px;
 }
 
@@ -759,10 +815,12 @@ const voteProgressPct = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 12px 16px;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 16px;
   border-radius: var(--radius-md);
   min-width: 100px;
+  min-height: 100px;
 }
 
 .word-card.civilian-card {
@@ -787,6 +845,11 @@ const voteProgressPct = computed(() => {
 .word-card-spy-name {
   font-size: 0.68rem;
   color: var(--color-danger);
+  font-weight: 600;
+}
+
+.word-card-empty {
+  height: 1rem;
 }
 
 .word-card-word {
@@ -911,12 +974,21 @@ const voteProgressPct = computed(() => {
 /* ====== FOOTER ====== */
 .game-footer {
   flex-shrink: 0;
-  padding: 8px 12px;
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  padding: 6px 12px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
   background: var(--color-surface);
   border-top: 1px solid var(--color-border-light);
   display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 6px;
+}
+
+.game-footer > .footer-action,
+.game-footer > .footer-status {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
   justify-content: center;
 }
 

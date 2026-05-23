@@ -7,6 +7,7 @@ export interface Player {
   score: number
   hasGuessedCorrectly: boolean
   isSpectator?: boolean
+  avatar: number
   joinedAt: number
   lastActiveAt: number
 }
@@ -146,6 +147,7 @@ export interface SpyPlayer {
   voteCount: number
   score: number
   sessionId: string
+  avatar: number
 }
 
 export interface SpyGameConfig {
