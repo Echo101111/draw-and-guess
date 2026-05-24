@@ -427,10 +427,15 @@ const errorMessage = ref<string | null>(null)
 
 // Room list
 const rooms = ref<RoomListItem[]>([])
-const showJoinModal = ref(false)
+
 const joinModalRoom = ref<RoomListItem | null>(null)
+const showJoinModal = ref(false)
 const joinModalNickname = ref('')
 const joinModalPassword = ref('')
+
+function handleRoomList(data: { rooms: RoomListItem[] }) {
+  rooms.value = data.rooms
+}
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 watch(() => roomStore.error, (newError) => {
@@ -506,11 +511,14 @@ async function confirmJoinRoom() {
   }
 }
 
-function doJoinRoom(roomCode: string, nicknameToUse: string) {
+async function doJoinRoom(roomCode: string, nicknameToUse: string) {
   isLoading.value = true
   errorMessage.value = null
-  roomStore.joinRoom(roomCode, nicknameToUse)
-  isLoading.value = false
+  try {
+    await roomStore.joinRoom(roomCode, nicknameToUse)
+  } finally {
+    isLoading.value = false
+  }
 }
 
 async function handleCreate() {
@@ -528,6 +536,8 @@ onUnmounted(() => {
   if (errorTimer) clearTimeout(errorTimer)
   if (contributeTimer) clearTimeout(contributeTimer)
   stopAutoRefresh()
+  const socket = getSocket()
+  if (socket) socket.off(SERVER_EVENTS.ROOM_LIST, handleRoomList)
 })
 
 onMounted(() => {
@@ -537,10 +547,8 @@ onMounted(() => {
   nickname.value = loadNickname()
 
   const socket = getSocket()
-  socket.off(SERVER_EVENTS.ROOM_LIST)
-  socket.on(SERVER_EVENTS.ROOM_LIST, (data: { rooms: RoomListItem[] }) => {
-    rooms.value = data.rooms
-  })
+  socket.off(SERVER_EVENTS.ROOM_LIST, handleRoomList)
+  socket.on(SERVER_EVENTS.ROOM_LIST, handleRoomList)
 })
 </script>
 

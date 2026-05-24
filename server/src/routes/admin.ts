@@ -1,7 +1,10 @@
 import { Router, type Request, type Response } from 'express'
 import { loadCustomWords } from '../data/customWordBank.js'
+import { requireAdminToken } from '../middleware/auth.js'
 
 export const adminRouter: Router = Router()
+
+adminRouter.use(requireAdminToken)
 
 adminRouter.get('/words', (_req: Request, res: Response) => {
   const entries = loadCustomWords()
@@ -101,6 +104,9 @@ ${hasRows ? `
 </table>` : '<div class="empty">暂无自定义词语</div>'}
 <div id="toast" class="toast"></div>
 <script>
+const token = new URLSearchParams(location.search).get('token') || ''
+const apiHeaders = token ? { 'Content-Type': 'application/json', 'X-Admin-Token': token } : { 'Content-Type': 'application/json' }
+
 const checkedWords = () => Array.from(document.querySelectorAll('.word-cb:checked')).map(cb => cb.value)
 
 document.getElementById('select-all')?.addEventListener('change', function() {
@@ -127,7 +133,7 @@ document.getElementById('btn-batch-del')?.addEventListener('click', async () => 
   try {
     const res = await fetch('/api/words', {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders,
       body: JSON.stringify({ words })
     })
     const data = await res.json()
@@ -141,7 +147,7 @@ document.querySelectorAll('.btn-del').forEach(btn => {
     const word = btn.dataset.word
     if (!confirm('确认删除 "' + word + '" ？')) return
     try {
-      const res = await fetch('/api/words/' + encodeURIComponent(word), { method: 'DELETE' })
+      const res = await fetch('/api/words/' + encodeURIComponent(word), { method: 'DELETE', headers: apiHeaders })
       const data = await res.json()
       showToast(data.message, data.success ? 'success' : 'error')
       if (data.success) setTimeout(() => location.reload(), 1000)

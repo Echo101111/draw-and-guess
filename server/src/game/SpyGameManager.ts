@@ -124,10 +124,8 @@ export class SpyGameManager {
       return false
     }
 
-    data.config.totalRounds = Math.max(1, activePlayers.length - 1)
-
     const spyIndex = Math.floor(Math.random() * activePlayers.length)
-    let spyId = activePlayers[spyIndex].id
+    const spyId = activePlayers[spyIndex].id
 
     const spyPlayer: SpyPlayer[] = room.players.map(p => {
       const isActive = !!p.sessionId
@@ -611,8 +609,8 @@ export class SpyGameManager {
         ...p,
         word: p.id === playerId ? p.word : '',
       })),
-      civilianWord: '',
-      spyWord: '',
+      civilianWord: (state.phase === 'round_end' || state.phase === 'game_over') ? state.civilianWord : '',
+      spyWord: (state.phase === 'round_end' || state.phase === 'game_over') ? state.spyWord : '',
       descriptionTimeLeft: 0,
       voteTimeLeft: 0,
       winner: state.winner,
@@ -631,8 +629,19 @@ export class SpyGameManager {
     }
     this.broadcastPublicPlayers(roomId)
 
+    if (player?.isSpy) {
+      data.state.winner = 'civilian'
+      for (const p of data.state.players) {
+        if (!p.isSpy && p.isAlive) {
+          p.score += SCORE_CIVILIAN_WIN
+        }
+      }
+      this.endGame(roomId)
+      return
+    }
+
     const alivePlayers = data.state.players.filter(p => p.isAlive)
-    if (alivePlayers.length <= 1 || (player?.isSpy && alivePlayers.length <= 2)) {
+    if (alivePlayers.length <= 1) {
       this.endGame(roomId)
     }
   }
@@ -686,6 +695,7 @@ export class SpyGameManager {
   }
 
   private getIO() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (global as any).io
   }
 }

@@ -26,7 +26,6 @@
                 <div class="player-tags">
                   <span v-if="player.id === roomStore.currentPlayerId" class="tag tag-you">你</span>
                   <span v-if="player.isOwner" class="tag tag-owner">房主</span>
-                  <span v-if="player.id === roomStore.currentPlayerId && player.isOwner" class="tag tag-you">我</span>
                 </div>
               </div>
               <button
@@ -65,6 +64,9 @@
           </button>
           <button v-if="roomStore.isOwner" class="btn-secondary" @click="showConfig = true">
             ⚙️ 游戏设置
+          </button>
+          <button v-if="roomStore.isOwner" class="btn-danger" @click="dismissRoom">
+            🗑️ 解散房间
           </button>
           <button class="btn-secondary btn-leave" @click="handleLeave">离开房间</button>
         </div>
@@ -114,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted, onUnmounted, onBeforeMount, watch } from 'vue'
+import { reactive, ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useSpyStore } from '@/stores/spy'
@@ -136,15 +138,11 @@ const spyConfig = reactive({
 
 const totalRoundsAuto = computed(() => Math.max(1, players.value.length - 1))
 
-onBeforeMount(() => {
-  roomStore.setupSocketListeners()
-  spyStore.setupSocketListeners()
-})
-
 onMounted(() => {
   document.title = '🕵️ 谁是卧底 - Oiiiii早春'
   document.body.style.overflow = 'hidden'
   roomStore.setupSocketListeners()
+  spyStore.setupSocketListeners()
 })
 
 onUnmounted(() => {
@@ -171,12 +169,18 @@ function toggleGameType() {
   socket.emit(CLIENT_EVENTS.UPDATE_GAME_TYPE, { gameType: newType })
 }
 
+function dismissRoom() {
+  const socket = getSocket()
+  if (socket?.connected) {
+    socket.emit(CLIENT_EVENTS.DISMISS_ROOM)
+  }
+}
+
 function handleStart() {
   const socket = getSocket()
-  socket?.emit(CLIENT_EVENTS.SPY_UPDATE_CONFIG, { config: { ...spyConfig } })
-  setTimeout(() => {
-    roomStore.startGame()
-  }, 100)
+  if (!socket?.connected) return
+  socket.emit(CLIENT_EVENTS.SPY_UPDATE_CONFIG, { config: { ...spyConfig } })
+  roomStore.startGame()
 }
 
 function handleLeave() {
@@ -447,6 +451,28 @@ function copyLink() {
   border-color: var(--color-danger);
   color: var(--color-danger);
   background: var(--color-danger-light);
+}
+
+.btn-danger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--color-surface);
+  color: #e74c3c;
+  border: 1.5px solid var(--color-danger-light);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.btn-danger:hover {
+  background: #fef2f2;
+  border-color: #e74c3c;
 }
 
 /* ---- Config Modal ---- */

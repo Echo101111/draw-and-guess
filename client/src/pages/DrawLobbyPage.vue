@@ -67,6 +67,13 @@
             <span>{{ room?.gameType === 'draw' ? '🕵️' : '🎨' }}</span>
             切换{{ room?.gameType === 'draw' ? '谁是卧底' : '你画我猜' }}
           </button>
+          <button
+            v-if="isOwner"
+            class="btn-danger"
+            @click="dismissRoom"
+          >
+            🗑️ 解散房间
+          </button>
 
           <button v-if="isOwner" class="btn-secondary" @click="showWordConfig = true">
             ⚙️ 词库设置
@@ -191,6 +198,13 @@ function handleKick(playerId: string) {
 
 function handleStartGame() {
   roomStore.startGame()
+}
+
+function dismissRoom() {
+  const socket = getSocket()
+  if (socket?.connected) {
+    socket.emit(CLIENT_EVENTS.DISMISS_ROOM)
+  }
 }
 
 function handleLeave() {
@@ -480,8 +494,29 @@ function handleLeave() {
 
 .btn-secondary:hover {
   border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: var(--color-accent-pale);
+  background: var(--color-bg-warm);
+}
+
+.btn-danger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--color-surface);
+  color: #e74c3c;
+  border: 1.5px solid var(--color-danger-light);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.btn-danger:hover {
+  background: #fef2f2;
+  border-color: #e74c3c;
 }
 
 .btn-secondary.btn-leave:hover {

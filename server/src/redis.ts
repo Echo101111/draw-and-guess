@@ -16,7 +16,7 @@ export async function setupRedis(io: any): Promise<boolean> {
     console.log('[Server] Redis adapter enabled (multi-node)')
     return true
   } catch (err) {
-    console.warn('[Server] Redis unavailable, using in-memory mode:', (err as Error).message)
+    console.warn('[Server] Redis unavailable, using in-memory mode:', err instanceof Error ? err.message : String(err))
     return false
   }
 }

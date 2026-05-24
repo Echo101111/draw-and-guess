@@ -50,7 +50,7 @@ const io = new SocketIOServer(httpServer, {
 ;(global as any).metrics = metrics
 
 setupRedis(io).catch((err) => {
-  console.warn('[Server] Redis setup failed, continuing in single-node mode:', (err as Error).message)
+  console.warn('[Server] Redis setup failed, continuing in single-node mode:', err instanceof Error ? err.message : String(err))
 })
 
 // 房间解散时清理游戏数据
@@ -62,6 +62,7 @@ roomManager.onDismissed((roomId) => {
 // 玩家被移除时清理 per-player 状态；若移除的是画师则结束当前轮
 roomManager.onPlayerRemoved((playerId, roomId) => {
   drawGameManager.removePlayerTimestamps(playerId)
+  spyGameManager.handlePlayerDisconnect(roomId, playerId)
   clearChatCooldown(playerId)
   const drawerId = drawGameManager.getCurrentDrawerId(roomId)
   if (drawerId === playerId) {

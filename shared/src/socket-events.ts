@@ -26,7 +26,6 @@ export const CLIENT_EVENTS = {
   WEBRTC_ANSWER: 'c_webrtc_answer',
   WEBRTC_ICE_CANDIDATE: 'c_webrtc_ice_candidate',
   // Spy
-  SPY_START_GAME: 'c_spy_start_game',
   SPY_SUBMIT_DESCRIPTION: 'c_spy_submit_description',
   SPY_VOTE: 'c_spy_vote',
   SPY_READY_NEXT_ROUND: 'c_spy_ready_next_round',
@@ -80,6 +79,3 @@ export const SERVER_EVENTS = {
   SPY_TIMER_SYNC: 's_spy_timer_sync',
   SPY_VOTE_PROGRESS: 's_spy_vote_progress',
 } as const
-
-export type ClientToServerEvents = typeof CLIENT_EVENTS
-export type ServerToClientEvents = typeof SERVER_EVENTS

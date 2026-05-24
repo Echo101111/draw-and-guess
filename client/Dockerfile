@@ -1,7 +1,8 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 RUN npm install -g pnpm@9
-RUN pnpm config set registry https://registry.npmmirror.com
+# 如需镜像加速，取消注释下一行：
+# RUN pnpm config set registry https://registry.npmmirror.com
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY shared/package.json shared/
@@ -11,7 +12,6 @@ RUN pnpm install --frozen-lockfile
 
 COPY shared/src shared/src
 COPY client/ client/
-COPY CHANGELOG.md ./
 RUN pnpm --filter @draw-and-guess/shared build
 
 ARG VITE_SERVER_URL

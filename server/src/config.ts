@@ -8,4 +8,5 @@ function parsePort(value: string | undefined): number {
 export const config = {
   port: parsePort(process.env.PORT),
   nodeEnv: process.env.NODE_ENV ?? 'development',
+  adminToken: process.env.ADMIN_TOKEN ?? '',
 } as const

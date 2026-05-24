@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express'
 import { validateGlobalWord } from '../data/wordValidator.js'
 import { addCustomWord, loadCustomWords, removeCustomWord, removeCustomWords } from '../data/customWordBank.js'
 import { invalidateIndex } from '../data/wordIndex.js'
+import { requireAdminToken } from '../middleware/auth.js'
 
 export const wordsRouter: Router = Router()
 
@@ -101,7 +102,7 @@ wordsRouter.post('/', (req: Request, res: Response) => {
   res.json({ success: true, message: `🎉 成功提交 ${addedWords.length} 个词语，感谢你的贡献！` })
 })
 
-wordsRouter.delete('/', (req: Request, res: Response) => {
+wordsRouter.delete('/', requireAdminToken, (req: Request, res: Response) => {
   const { words } = req.body as { words?: string[] }
   if (!Array.isArray(words) || words.length === 0) {
     res.status(400).json({ success: false, message: '请指定要删除的词语列表' })
@@ -118,7 +119,7 @@ wordsRouter.delete('/', (req: Request, res: Response) => {
   res.json({ success: true, message: `已删除 ${removed.length} 个词语`, removed })
 })
 
-wordsRouter.delete('/:word', (req: Request, res: Response) => {
+wordsRouter.delete('/:word', requireAdminToken, (req: Request, res: Response) => {
   const word = decodeURIComponent(req.params.word).trim()
   if (!word) {
     res.status(400).json({ success: false, message: '请指定要删除的词语' })

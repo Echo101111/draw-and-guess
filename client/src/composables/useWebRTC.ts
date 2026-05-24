@@ -20,11 +20,12 @@ const _micError = ref('')
 const _connectionQuality = ref<'good' | 'poor' | 'disconnected'>('disconnected')
 let _localStream: MediaStream | null = null
 const _peerConnections = new Map<string, RTCPeerConnection>()
-const _analyserNodes = new Map<string, { analyser: AnalyserNode; dataArray: Uint8Array; interval: number }>()
+const _analyserNodes = new Map<string, { analyser: AnalyserNode; dataArray: Uint8Array; interval: number; audioContext: AudioContext }>()
 let _signalingSetup = false
 let _voiceInitialized = false
 interface PendingEvent {
   type: 'offer' | 'peer_joined'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 }
 const _pendingEvents: PendingEvent[] = []
@@ -349,13 +350,14 @@ export function useWebRTC() {
       _speakingPeers.value = sp
     }, 200)
 
-    _analyserNodes.set(playerId, { analyser, dataArray, interval })
+    _analyserNodes.set(playerId, { analyser, dataArray, interval, audioContext })
   }
 
   function cleanupAnalyser(playerId: string): void {
     const entry = _analyserNodes.get(playerId)
     if (entry) {
       clearInterval(entry.interval)
+      entry.audioContext.close()
       _analyserNodes.delete(playerId)
     }
   }

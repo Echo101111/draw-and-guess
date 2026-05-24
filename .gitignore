@@ -15,3 +15,7 @@ coverage/
 # 部署临时包
 .deploy-package.tar.gz
 diff_output.txt
+.playwright-mcp/
+*.png
+*.yml
+.playwright-mcp/

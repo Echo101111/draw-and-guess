@@ -32,13 +32,6 @@ export interface RoomWordConfig {
   enabledCustomCategories: string[]
 }
 
-export const ALL_CATEGORIES: WordCategory[] = [
-  'animals', 'food', 'daily', 'nature', 'vehicles', 'sports',
-  'celebrities', 'professions', 'instruments', 'tools', 'furniture', 'treasures',
-  'clothing', 'buildings', 'appliances', 'tableware', 'plants', 'astronomy',
-  'mythology', 'body', 'games', 'festivals',
-]
-
 export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
   customWords: [],
   looseMatching: false,
@@ -97,12 +90,6 @@ export interface PlayerScore {
   rank: number
 }
 
-export interface GameResult {
-  roomId: string
-  finalScores: PlayerScore[]
-  winner: string | null
-}
-
 // === Error ===
 export enum ErrorCode {
   ROOM_NOT_FOUND = 'ROOM_NOT_FOUND',
@@ -120,9 +107,6 @@ export interface RoomErrorPayload {
   code: ErrorCode
   message: string
 }
-
-// === Word Sensitivity ===
-// Removed — all words are now 'safe', no sensitivity filtering needed
 
 // === Spy Game ===
 export type SpyPhase =

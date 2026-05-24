@@ -28,7 +28,7 @@
 
     <main class="game-content">
       <aside class="sidebar sidebar-left">
-        <Scoreboard />
+        <Scoreboard :scores="gameStore.scores" />
       </aside>
 
       <div class="game-area">
@@ -135,7 +135,7 @@
                   <span>🏆 积分榜</span>
                   <button class="scoreboard-modal-close" @click.stop="showScoreboard = false">✕</button>
                 </div>
-                <Scoreboard />
+                <Scoreboard :scores="gameStore.scores" />
               </div>
             </div>
           </Transition>
@@ -176,7 +176,7 @@
           </div>
           <div class="final-scores">
             <h3>最终排名</h3>
-            <Scoreboard />
+            <Scoreboard :scores="gameStore.scores" />
           </div>
           <div class="game-over-actions">
             <button v-if="roomStore.isOwner" class="btn-restart" @click="handleRestartGame">重新开始</button>
@@ -629,10 +629,6 @@ watch(() => roomStore.error, (err) => {
   display: flex;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.mobile-scores {
-  display: none;
 }
 
 .guessed-notice {
@@ -1265,68 +1261,6 @@ watch(() => roomStore.error, (err) => {
 
   .btn-trophy {
     display: block;
-  }
-
-  .mobile-scores {
-    display: flex;
-    width: 100%;
-    overflow-x: auto;
-    flex-shrink: 0;
-  }
-
-  .mobile-scores :deep(.scoreboard) {
-    flex-direction: row;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.2rem 0.5rem;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    background: var(--color-accent-pale);
-    overflow-x: auto;
-  }
-
-  .mobile-scores :deep(.scoreboard-header) {
-    display: none;
-  }
-
-  .mobile-scores :deep(.score-list) {
-    flex-direction: row;
-    padding: 0;
-    gap: 0.5rem;
-  }
-
-  .mobile-scores :deep(.score-item) {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.2rem;
-    padding: 0.1rem 0.3rem;
-    font-size: 0.7rem;
-    background: transparent;
-    border-radius: var(--radius-sm);
-    white-space: nowrap;
-  }
-
-  .mobile-scores :deep(.score-item.first) {
-    background: rgba(255, 215, 0, 0.12);
-  }
-
-  .mobile-scores :deep(.rank-medal) {
-    width: auto;
-    height: auto;
-    font-size: 0.7rem;
-  }
-
-  .mobile-scores :deep(.nickname) {
-    flex: none;
-    font-size: 0.7rem;
-    max-width: 3.5rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .mobile-scores :deep(.score) {
-    font-size: 0.7rem;
   }
 
   .toolbar-container {

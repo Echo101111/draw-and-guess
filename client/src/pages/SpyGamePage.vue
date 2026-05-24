@@ -26,14 +26,14 @@
     <div class="game-body">
       <!-- Desktop: left sidebar -->
       <aside class="sidebar-scores">
-        <Scoreboard />
+        <Scoreboard :scores="spyScores" />
       </aside>
 
       <!-- Mobile: tab content -->
       <div v-if="activeTab" class="mobile-tab-content">
         <div class="tab-panel">
           <button class="tab-close" @click="activeTab = false">✕</button>
-          <Scoreboard />
+          <Scoreboard :scores="spyScores" />
         </div>
       </div>
 
@@ -229,6 +229,20 @@
         <span>✅ 已投票，等待结果...</span>
       </div>
     </footer>
+
+    <Transition name="fade">
+      <div v-if="showLeaveConfirm" class="leave-confirm-overlay" @click.self="showLeaveConfirm = false">
+        <div class="leave-confirm-box">
+          <div class="leave-confirm-icon">🛑</div>
+          <div class="leave-confirm-text">确认离开游戏？</div>
+          <div class="leave-confirm-desc">离开后需要重新加入房间</div>
+          <div class="leave-confirm-actions">
+            <button class="btn-confirm-cancel" @click="showLeaveConfirm = false">取消</button>
+            <button class="btn-confirm-leave" @click="doLeave">确认离开</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -242,6 +256,7 @@ import SpyPlayerRing from '@/components/SpyPlayerRing.vue'
 import SpyDescriptionBubble from '@/components/SpyDescriptionBubble.vue'
 import Scoreboard from '@/components/Scoreboard.vue'
 import { getAvatarSvg } from '@/data/avatars'
+import { disconnectSocket } from '@/composables/useSocket'
 
 
 const router = useRouter()
@@ -252,11 +267,27 @@ const descText = ref('')
 const discussText = ref('')
 const descInput = ref<HTMLInputElement | null>(null)
 const selectedVoteTarget = ref('')
+const showLeaveConfirm = ref(false)
 const activeTab = ref(false)
 
 const myPlayer = computed(() =>
   store.players.find(p => p.id === roomStore.currentPlayerId)
 )
+
+const spyScores = computed(() => {
+  if (store.phase === 'game_over' && store.scores.length > 0) {
+    return store.scores
+  }
+  return store.players
+    .slice()
+    .sort((a, b) => b.score - a.score)
+    .map((p, i) => ({
+      playerId: p.id,
+      nickname: p.nickname,
+      score: p.score,
+      rank: i + 1,
+    }))
+})
 
 const otherPlayers = computed(() =>
   store.players.filter(p => p.id !== roomStore.currentPlayerId)
@@ -357,7 +388,14 @@ function handleVote(playerId: string) {
 }
 
 function handleLeave() {
+  showLeaveConfirm.value = true
+}
+
+function doLeave() {
+  showLeaveConfirm.value = false
   roomStore.leaveRoom()
+  store.resetGame()
+  disconnectSocket()
   router.push('/')
 }
 
@@ -1076,5 +1114,78 @@ const voteProgressPct = computed(() => {
 
 @media (min-width: 768px) and (max-width: 1024px) {
   .sidebar-scores { width: 160px; }
+}
+
+.leave-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(3px);
+}
+
+.leave-confirm-box {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem 2rem;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  max-width: 300px;
+  width: 85%;
+}
+
+.leave-confirm-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.leave-confirm-text {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 0.25rem;
+}
+
+.leave-confirm-desc {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+}
+
+.leave-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.btn-confirm-cancel,
+.btn-confirm-leave {
+  padding: 0.4rem 1rem;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-confirm-cancel {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+.btn-confirm-cancel:hover {
+  background: var(--color-text-muted);
+}
+
+.btn-confirm-leave {
+  background: #e74c3c;
+  color: #fff;
+}
+
+.btn-confirm-leave:hover {
+  background: #c0392b;
 }
 </style>

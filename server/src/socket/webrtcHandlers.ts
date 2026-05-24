@@ -1,6 +1,12 @@
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 
+function isTargetInRoom(roomId: string, targetId: string): boolean {
+  const room = roomManager.getRoomById(roomId)
+  return !!room && room.players.some(p => p.id === targetId)
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function registerWebRTCHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.WEBRTC_JOIN_VOICE, () => {
     const { roomId, playerId } = socket.data
@@ -49,9 +55,10 @@ export function registerWebRTCHandlers(io: any, socket: any): void {
     socket.to(room.code).emit(SERVER_EVENTS.WEBRTC_PEER_LEFT, { playerId })
   })
 
-  socket.on(CLIENT_EVENTS.WEBRTC_OFFER, ({ targetId, sdp }: { targetId: string; sdp: any }) => {
-    const { playerId } = socket.data
-    if (!playerId) return
+  socket.on(CLIENT_EVENTS.WEBRTC_OFFER, ({ targetId, sdp }: { targetId: string; // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sdp: any }) => {
+    const { roomId, playerId } = socket.data
+    if (!playerId || !roomId || !isTargetInRoom(roomId, targetId)) return
     console.log('[WebRTC 服务端] OFFER relay:', 'from=', playerId, 'to=', targetId)
     io.to(targetId).emit(SERVER_EVENTS.WEBRTC_OFFER, {
       fromId: playerId,
@@ -59,9 +66,10 @@ export function registerWebRTCHandlers(io: any, socket: any): void {
     })
   })
 
-  socket.on(CLIENT_EVENTS.WEBRTC_ANSWER, ({ targetId, sdp }: { targetId: string; sdp: any }) => {
-    const { playerId } = socket.data
-    if (!playerId) return
+  socket.on(CLIENT_EVENTS.WEBRTC_ANSWER, ({ targetId, sdp }: { targetId: string; // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sdp: any }) => {
+    const { roomId, playerId } = socket.data
+    if (!playerId || !roomId || !isTargetInRoom(roomId, targetId)) return
     console.log('[WebRTC 服务端] ANSWER relay:', 'from=', playerId, 'to=', targetId)
     io.to(targetId).emit(SERVER_EVENTS.WEBRTC_ANSWER, {
       fromId: playerId,
@@ -69,9 +77,10 @@ export function registerWebRTCHandlers(io: any, socket: any): void {
     })
   })
 
-  socket.on(CLIENT_EVENTS.WEBRTC_ICE_CANDIDATE, ({ targetId, candidate }: { targetId: string; candidate: any }) => {
-    const { playerId } = socket.data
-    if (!playerId) return
+  socket.on(CLIENT_EVENTS.WEBRTC_ICE_CANDIDATE, ({ targetId, candidate }: { targetId: string; // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  candidate: any }) => {
+    const { roomId, playerId } = socket.data
+    if (!playerId || !roomId || !isTargetInRoom(roomId, targetId)) return
     console.log('[WebRTC 服务端] ICE relay:', 'from=', playerId, 'to=', targetId)
     io.to(targetId).emit(SERVER_EVENTS.WEBRTC_ICE_CANDIDATE, {
       fromId: playerId,

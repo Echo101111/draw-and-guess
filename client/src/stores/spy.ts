@@ -203,6 +203,7 @@ export const useSpyStore = defineStore('spy', () => {
     })
 
     socket.off(SERVER_EVENTS.SPY_GAME_CONFIG_UPDATED)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     socket.on(SERVER_EVENTS.SPY_GAME_CONFIG_UPDATED, (data: any) => {
       if (data.config) {
         totalRounds.value = data.config.totalRounds

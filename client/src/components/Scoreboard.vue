@@ -28,12 +28,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useDrawGameStore } from '@/stores/drawGame'
+import type { PlayerScore } from '@draw-and-guess/shared'
 
-const gameStore = useDrawGameStore()
+const props = defineProps<{
+  scores: PlayerScore[]
+}>()
 
 const sortedScores = computed(() => {
-  return [...gameStore.scores].sort((a, b) => a.rank - b.rank)
+  return [...props.scores].sort((a, b) => a.rank - b.rank)
 })
 </script>
 

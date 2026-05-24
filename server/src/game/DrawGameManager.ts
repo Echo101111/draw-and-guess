@@ -12,8 +12,8 @@ const WORD_SELECTION_TIMEOUT_MS = 30000
 
 interface RoundTimer {
   roomId: string
-  timer: NodeJS.Timeout
-  syncTimer: NodeJS.Timeout
+  timer?: NodeJS.Timeout
+  syncTimer?: NodeJS.Timeout
   remaining: number
 }
 
@@ -231,8 +231,8 @@ export class GameManager {
       }))
 
     const io = this.getIO()
-    if (io) {
-      io.to(drawerId!).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
+    if (io && drawerId) {
+      io.to(drawerId).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
         round: room.currentRound,
         totalRounds: room.totalRounds,
         word: selectedWord,
@@ -271,7 +271,7 @@ export class GameManager {
     const hasEnabledBuiltin = room.wordConfig.enabledCategories && room.wordConfig.enabledCategories.length > 0
     const hasEnabledCustom = (room.wordConfig.enabledCustomCategories?.length ?? 0) > 0
 
-    // 如果两种都没有选，回退到全部 12 类内置
+    // 如果两种都没有选，回退到全部内置分类
     const enabledCategories = hasEnabledBuiltin
       ? room.wordConfig.enabledCategories
       : hasEnabledCustom ? [] : WORD_CATEGORIES
@@ -776,8 +776,6 @@ export class GameManager {
 
     const roundTimer: RoundTimer = {
       roomId,
-      timer: null as unknown as NodeJS.Timeout,
-      syncTimer: null as unknown as NodeJS.Timeout,
       remaining: duration,
     }
 

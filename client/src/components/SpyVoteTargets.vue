@@ -114,7 +114,6 @@ const emit = defineEmits<{
   width: 60%;
   height: 60%;
 }
-}
 
 .vote-name {
   font-size: 12px;

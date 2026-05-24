@@ -404,8 +404,3 @@ function saveConfig() {
   color: var(--color-text-muted);
 }
 </style>
-<｜end▁of▁thinking｜>Now Step 1 — roomStore `updateWordConfig` returns Promise:
-
-<｜｜DSML｜｜tool_calls>
-<｜｜DSML｜｜invoke name="edit">
-<｜｜DSML｜｜parameter name="filePath" string="true">/Users/echoz/project/claude/draw-and-guess/client/src/stores/room.ts
