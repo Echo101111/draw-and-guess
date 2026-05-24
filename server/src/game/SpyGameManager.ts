@@ -3,7 +3,7 @@ import { roomManager } from '../rooms/index.js'
 import { getRandomSpyPair, type SpyWordPair } from '../data/spy-words.js'
 import type { SpyPlayer, SpyPhase, SpyGameConfig, SpyDescription, SpyVoteResult, SpyGameState } from '@draw-and-guess/shared'
 
-export const SPY_MIN_PLAYERS = 2
+export const SPY_MIN_PLAYERS = 4
 
 const DEFAULT_CONFIG: SpyGameConfig = {
   totalRounds: 3,

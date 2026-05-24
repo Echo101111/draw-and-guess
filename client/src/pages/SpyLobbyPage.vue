@@ -50,7 +50,7 @@
           @click="handleStart"
         >
           <span class="btn-start-icon">{{ players.length < 2 ? '👥' : '🕵️' }}</span>
-           {{ players.length < 2 ? '等待更多玩家...' : '开始游戏' }}
+           {{ players.length < 4 ? '等待更多玩家...' : '开始游戏' }}
         </button>
 
         <div class="lobby-actions-secondary">
