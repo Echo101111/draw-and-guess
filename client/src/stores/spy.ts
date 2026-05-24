@@ -11,6 +11,12 @@ interface ScoreEntry {
   score: number
   rank: number
 }
+interface VoteDetail {
+  voterId: string
+  voterName: string
+  targetId: string
+  targetName: string
+}
 interface SpeakerInfo {
   playerId: string
   nickname: string
@@ -41,6 +47,7 @@ export const useSpyStore = defineStore('spy', () => {
   const civilianWord = ref('')
   const spyWord = ref('')
   const voteTimeMax = ref(0)
+  const voteDetails = ref<VoteDetail[]>([])
 
   const alivePlayers = computed(() => players.value.filter(p => p.isAlive))
   const eliminatedPlayers = computed(() => players.value.filter(p => !p.isAlive))
@@ -173,12 +180,36 @@ export const useSpyStore = defineStore('spy', () => {
     socket.on(SERVER_EVENTS.SPY_GAME_OVER, (data: {
       roomId: string; winner: 'civilian' | 'spy' | null; finalScores: ScoreEntry[]
       civilianWord?: string; spyWord?: string
+      players?: Array<{
+        id: string; nickname: string; isOwner: boolean; isAlive: boolean
+        isSpy: boolean; score: number; avatar: number
+      }>
+      voteDetails?: VoteDetail[]
     }) => {
       phase.value = 'game_over'
       winner.value = data.winner
       scores.value = data.finalScores
       if (data.civilianWord) civilianWord.value = data.civilianWord
       if (data.spyWord) spyWord.value = data.spyWord
+      if (data.players) {
+        players.value = data.players.map(p => ({
+          id: p.id,
+          nickname: p.nickname,
+          isOwner: p.isOwner,
+          isAlive: p.isAlive,
+          isSpy: p.isSpy,
+          score: p.score,
+          avatar: p.avatar,
+          word: '',
+          description: '',
+          voteTarget: null,
+          voteCount: 0,
+          sessionId: '',
+        }))
+      }
+      if (data.voteDetails) {
+        voteDetails.value = data.voteDetails
+      }
       stopLocalTimer()
     })
 
@@ -291,6 +322,7 @@ export const useSpyStore = defineStore('spy', () => {
     civilianWord.value = ''
     spyWord.value = ''
     voteTimeMax.value = 0
+    voteDetails.value = []
   }
 
   return {
@@ -298,7 +330,7 @@ export const useSpyStore = defineStore('spy', () => {
     currentSpeaker, descriptions, hasDescribed, hasVoted, canDescribe,
     voteResult, winner, scores, timeLeft, chatMessages, lastEliminated,
     votedCount, totalVoters, civilianWord, spyWord, voteTimeMax,
-    alivePlayers, eliminatedPlayers, isMyTurnToSpeak, currentSpeakerNickname,
+    alivePlayers, eliminatedPlayers, isMyTurnToSpeak, currentSpeakerNickname, voteDetails,
     setupSocketListeners, teardownSocketListeners,
     submitDescription, vote, readyNextRound, sendChat, resetGame,
   }

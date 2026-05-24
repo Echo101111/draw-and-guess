@@ -156,10 +156,24 @@
             </div>
           </div>
 
+          <div v-if="store.voteDetails.length > 0" class="vote-details">
+            <div class="vote-details-label">🗳️ 投票明细</div>
+            <div class="vote-details-list">
+              <div v-for="v in store.voteDetails" :key="v.voterId" class="vote-detail-row">
+                <span class="vote-detail-voter">{{ v.voterName }}</span>
+                <span class="vote-detail-arrow">→</span>
+                <span class="vote-detail-target">{{ v.targetName }}</span>
+              </div>
+            </div>
+          </div>
+
           <div class="score-list">
             <div v-for="s in store.scores" :key="s.playerId" class="score-row">
               <span class="score-rank">#{{ s.rank }}</span>
-              <span class="score-name">{{ s.nickname }}</span>
+              <span class="score-name">
+                {{ s.nickname }}
+                <span v-if="store.players.find(p => p.id === s.playerId)?.isSpy" class="spy-tag">🕵️ 卧底</span>
+              </span>
               <span class="score-pts">{{ s.score }}分</span>
             </div>
           </div>
@@ -905,6 +919,56 @@ const voteProgressPct = computed(() => {
   flex-shrink: 0;
 }
 
+.vote-details {
+  width: 100%;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  animation: wordRevealIn 0.5s ease-out;
+}
+
+.vote-details-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.vote-details-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vote-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--color-bg-warm);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+}
+
+.vote-detail-voter {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.vote-detail-arrow {
+  color: var(--color-text-muted);
+  font-weight: 300;
+}
+
+.vote-detail-target {
+  font-weight: 500;
+  color: var(--color-primary-dark);
+}
+
 .score-list {
   width: 100%;
   max-width: 260px;
@@ -930,7 +994,17 @@ const voteProgressPct = computed(() => {
   width: 24px;
 }
 
-.score-name { flex: 1; font-size: 0.9rem; font-weight: 500; }
+.score-name { flex: 1; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+
+.spy-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-danger);
+  background: var(--color-danger-light);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
 
 .score-pts {
   font-size: 0.85rem;

@@ -3,22 +3,18 @@ import { roomManager } from '../rooms/index.js'
 import { getRandomSpyPair, type SpyWordPair } from '../data/spy-words.js'
 import type { SpyPlayer, SpyPhase, SpyGameConfig, SpyDescription, SpyVoteResult, SpyGameState } from '@draw-and-guess/shared'
 
+export const SPY_MIN_PLAYERS = 2
+
 const DEFAULT_CONFIG: SpyGameConfig = {
-  totalRounds: 5,
+  totalRounds: 3,
   descriptionTime: 30,
   voteTime: 20,
 }
 
 const SCORE_CIVILIAN_WIN = 100
-const SCORE_SPY_SURVIVE_ROUND = 50
 const SCORE_SPY_WIN = 200
 const WORD_REVEAL_DURATION_MS = 3000
 const ROUND_TRANSITION_MS = 3000
-
-interface SpyRoundData {
-  pair: SpyWordPair
-  spyPlayerId: string
-}
 
 interface GameData {
   state: SpyGameState
@@ -27,13 +23,12 @@ interface GameData {
   descriptions: SpyDescription[]
   votes: Map<string, string | null>
   roundEnding: boolean
-  descRound: number
+  gameSpyId: string
 }
 
 export class SpyGameManager {
   private games = new Map<string, GameData>()
   private timers = new Map<string, NodeJS.Timeout>()
-  private roundData = new Map<string, SpyRoundData>()
   private gameConfigs = new Map<string, SpyGameConfig>()
 
   getGameSnapshot(roomId: string): SpyGameState | null {
@@ -64,38 +59,36 @@ export class SpyGameManager {
   resetGame(roomId: string): void {
     this.clearTimers(roomId)
     this.games.delete(roomId)
-    this.roundData.delete(roomId)
   }
 
   startRound(roomId: string): boolean {
     const room = roomManager.getRoomById(roomId)
     if (!room || room.state !== 'playing' || room.gameType !== 'spy') return false
 
+    // Only initialize game data on first round
     let data = this.games.get(roomId)
-    if (!data) {
-      const config = this.getGameConfig(roomId)
-      data = {
-        state: this.createEmptyState(roomId),
-        config,
-        usedIndices: new Set(),
-        descriptions: [],
-        votes: new Map(),
-        roundEnding: false,
-        descRound: 0,
-      }
-      this.games.set(roomId, data)
+    if (data) return false // Subsequent rounds are handled by advanceSpeaker
+
+    const config = this.getGameConfig(roomId)
+    room.currentRound = 1
+    data = {
+      state: this.createEmptyState(roomId),
+      config,
+      usedIndices: new Set(),
+      descriptions: [],
+      votes: new Map(),
+      roundEnding: false,
+      gameSpyId: '',
     }
+    this.games.set(roomId, data)
 
     const state = data.state
-    state.phase = 'word_distribution'
     state.round = room.currentRound
     state.totalRounds = data.config.totalRounds
     state.winner = null
     state.currentSpeakerIndex = 0
-    data.descriptions = []
     data.votes.clear()
     data.roundEnding = false
-    data.descRound = 0
 
     const pair = getRandomSpyPair(data.usedIndices)
     if (!pair) {
@@ -119,13 +112,14 @@ export class SpyGameManager {
     if (!data) return false
 
     const activePlayers = room.players.filter(p => p.sessionId)
-    if (activePlayers.length < 4) {
+    if (activePlayers.length < SPY_MIN_PLAYERS) {
       this.endGame(roomId)
       return false
     }
 
     const spyIndex = Math.floor(Math.random() * activePlayers.length)
     const spyId = activePlayers[spyIndex].id
+    data.gameSpyId = spyId
 
     const spyPlayer: SpyPlayer[] = room.players.map(p => {
       const isActive = !!p.sessionId
@@ -149,7 +143,6 @@ export class SpyGameManager {
     data.state.players = spyPlayer
     data.state.civilianWord = pair.civilian
     data.state.spyWord = pair.spy
-    this.roundData.set(roomId, { pair, spyPlayerId: spyId })
 
     const io = this.getIO()
     if (io) {
@@ -215,24 +208,15 @@ export class SpyGameManager {
 
     const alivePlayers = data.state.players.filter(p => p.isAlive)
     const idx = data.state.currentSpeakerIndex
-    const descRoundsPerPlayer = 1
 
     if (idx >= alivePlayers.length) {
-      data.descRound++
-      if (data.descRound < descRoundsPerPlayer) {
-        data.state.currentSpeakerIndex = 0
-        const io = this.getIO()
-        if (io) {
-          io.to(room.code).emit(SERVER_EVENTS.SPY_PHASE_CHANGE, {
-            phase: 'describing' as SpyPhase,
-            players: this.getPublicPlayers(roomId),
-            descRound: data.descRound + 1,
-          })
-        }
-        setTimeout(() => this.advanceSpeaker(roomId), 1000)
-        return
+      // All players have described this round
+      if (room.currentRound < data.config.totalRounds) {
+        room.currentRound++
+        this.startDescribing(roomId)
+      } else {
+        this.startDiscussion(roomId)
       }
-      this.startDiscussion(roomId)
       return
     }
 
@@ -244,8 +228,6 @@ export class SpyGameManager {
         playerId: speaker.id,
         nickname: speaker.nickname,
         timeLeft: data.config.descriptionTime,
-        descRound: data.descRound + 1,
-        totalDescRounds: descRoundsPerPlayer,
       })
     }
 
@@ -469,19 +451,14 @@ export class SpyGameManager {
   }
 
   private checkRoundEnd(roomId: string): void {
-    const room = roomManager.getRoomById(roomId)
-    if (!room) return
-
     const data = this.games.get(roomId)
     if (!data) return
 
-    const spy = data.state.players.find(p => p.isSpy)
+    const spy = data.state.players.find(p => p.id === data.gameSpyId)
     if (!spy) {
       this.endGame(roomId)
       return
     }
-
-    const io = this.getIO()
 
     if (!spy.isAlive) {
       data.state.winner = 'civilian'
@@ -490,20 +467,7 @@ export class SpyGameManager {
           p.score += SCORE_CIVILIAN_WIN
         }
       }
-      if (io) {
-        io.to(room.code).emit(SERVER_EVENTS.SPY_ROUND_RESULT, {
-          eliminated: spy.id,
-          reason: '卧底被发现！平民获胜',
-          civilianWord: data.state.civilianWord,
-          spyWord: data.state.spyWord,
-        })
-      }
-      this.endGame(roomId)
-      return
-    }
-
-    const aliveCount = data.state.players.filter(p => p.isAlive).length
-    if (aliveCount <= 3) {
+    } else {
       data.state.winner = 'spy'
       spy.score += SCORE_SPY_WIN
       for (const p of data.state.players) {
@@ -511,51 +475,9 @@ export class SpyGameManager {
           p.score += Math.max(0, SCORE_CIVILIAN_WIN - 20)
         }
       }
-      if (io) {
-        io.to(room.code).emit(SERVER_EVENTS.SPY_ROUND_RESULT, {
-          eliminated: null,
-          reason: '卧底存活到最后！卧底获胜',
-          civilianWord: data.state.civilianWord,
-          spyWord: data.state.spyWord,
-        })
-      }
-      this.endGame(roomId)
-      return
     }
 
-    if (room.currentRound >= data.config.totalRounds) {
-      data.state.winner = 'spy'
-      spy.score += SCORE_SPY_WIN
-      if (io) {
-        io.to(room.code).emit(SERVER_EVENTS.SPY_ROUND_RESULT, {
-          eliminated: null,
-          reason: '达到最大轮数！卧底获胜',
-          civilianWord: data.state.civilianWord,
-          spyWord: data.state.spyWord,
-        })
-      }
-      this.endGame(roomId)
-      return
-    }
-
-    spy.score += SCORE_SPY_SURVIVE_ROUND
-
-    if (io) {
-        io.to(room.code).emit(SERVER_EVENTS.SPY_ROUND_RESULT, {
-          eliminated: null,
-          reason: '回合结束，进入下一轮',
-          civilianWord: data.state.civilianWord,
-          spyWord: data.state.spyWord,
-        })
-    }
-
-    data.state.phase = 'round_end'
-    data.roundEnding = false
-
-    setTimeout(() => {
-      room.currentRound++
-      this.startRound(roomId)
-    }, ROUND_TRANSITION_MS)
+    this.endGame(roomId)
   }
 
   endGame(roomId: string): void {
@@ -580,6 +502,19 @@ export class SpyGameManager {
 
     room.state = 'gameover'
 
+    const voteDetails = Array.from(data.votes.entries())
+      .filter(([, targetId]) => targetId !== null)
+      .map(([voterId, targetId]) => {
+        const voter = data.state.players.find(p => p.id === voterId)
+        const target = data.state.players.find(p => p.id === targetId)
+        return {
+          voterId,
+          voterName: voter?.nickname ?? 'Unknown',
+          targetId: targetId!,
+          targetName: target?.nickname ?? 'Unknown',
+        }
+      })
+
     const io = this.getIO()
     if (io) {
       io.to(room.code).emit(SERVER_EVENTS.SPY_GAME_OVER, {
@@ -588,6 +523,16 @@ export class SpyGameManager {
         finalScores,
         civilianWord: data.state.civilianWord,
         spyWord: data.state.spyWord,
+        players: data.state.players.map(p => ({
+          id: p.id,
+          nickname: p.nickname,
+          isOwner: p.isOwner,
+          isAlive: p.isAlive,
+          isSpy: p.isSpy,
+          score: p.score,
+          avatar: p.avatar,
+        })),
+        voteDetails,
       })
     }
   }

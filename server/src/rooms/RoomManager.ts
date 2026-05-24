@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcrypt'
+import { SPY_MIN_PLAYERS } from '../game/SpyGameManager.js'
 import type { Player, Room, RoomErrorPayload, RoomWordConfig, GameType } from '@draw-and-guess/shared'
 import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG } from '@draw-and-guess/shared'
 
@@ -196,7 +197,7 @@ export class RoomManager {
       return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '游戏已在进行中' } }
     }
 
-    const minPlayers = room.gameType === 'spy' ? 4 : 2
+    const minPlayers = room.gameType === 'spy' ? SPY_MIN_PLAYERS : 2
     if (room.players.length < minPlayers) {
       return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: `至少需要${minPlayers}名玩家才能开始游戏` } }
     }

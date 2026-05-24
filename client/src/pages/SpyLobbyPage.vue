@@ -50,7 +50,7 @@
           @click="handleStart"
         >
           <span class="btn-start-icon">{{ players.length < 2 ? '👥' : '🕵️' }}</span>
-           {{ players.length < 4 ? '等待更多玩家...' : '开始游戏' }}
+           {{ players.length < 2 ? '等待更多玩家...' : '开始游戏' }}
         </button>
 
         <div class="lobby-actions-secondary">
@@ -84,6 +84,15 @@
           <div class="config-modal-body">
             <div class="config-row">
               <div class="config-item">
+                <label>总轮数</label>
+                <select v-model.number="spyConfig.totalRounds">
+                  <option :value="2">2 轮</option>
+                  <option :value="3">3 轮</option>
+                  <option :value="4">4 轮</option>
+                  <option :value="5">5 轮</option>
+                </select>
+              </div>
+              <div class="config-item">
                 <label>描述时间</label>
                 <select v-model.number="spyConfig.descriptionTime">
                   <option :value="15">15 秒</option>
@@ -103,7 +112,6 @@
                 </select>
               </div>
             </div>
-            <p class="rounds-hint">共 <strong>{{ totalRoundsAuto }}</strong> 轮（按人数自动计算）</p>
           </div>
         </div>
       </div>
@@ -132,11 +140,12 @@ const showConfig = ref(false)
 const errorMessage = ref<string | null>(null)
 
 const spyConfig = reactive({
+  totalRounds: 3,
   descriptionTime: 30,
   voteTime: 20,
 })
 
-const totalRoundsAuto = computed(() => Math.max(1, players.value.length - 1))
+
 
 onMounted(() => {
   document.title = '🕵️ 谁是卧底 - Oiiiii早春'
@@ -206,6 +215,7 @@ function copyLink() {
   position: relative;
   z-index: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
@@ -214,104 +224,116 @@ function copyLink() {
 
 .lobby-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
   background: var(--color-surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border-light);
   overflow: hidden;
+  animation: slideUp 0.5s ease-out;
 }
 
 /* ---- Header ---- */
 .lobby-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 2rem 1.5rem 1.25rem;
+  text-align: center;
+  padding: 2rem 2rem 1.5rem;
+  background: linear-gradient(180deg, var(--color-accent-pale) 0%, var(--color-surface) 100%);
+  border-bottom: 1px solid var(--color-border-light);
 }
 
-.header-icon { font-size: 2.2rem; margin-bottom: 0.3rem; }
+.header-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
 
 .lobby-header h1 {
   font-family: var(--font-title);
-  font-size: 1.6rem;
+  font-size: 1.8rem;
   color: var(--color-text);
-  margin: 0 0 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .room-code-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
+  background: var(--color-surface);
   padding: 0.5rem 1rem;
-  background: var(--color-bg-warm);
   border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
 }
 
 .code-label {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
 }
 
 .code-value {
   font-family: var(--font-number);
-  font-weight: 700;
+  font-size: 1.3rem;
+  font-weight: 800;
   color: var(--color-primary);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.15em;
 }
 
 .code-copy {
+  background: transparent;
   border: none;
-  background: none;
   cursor: pointer;
-  font-size: 0.9rem;
-  padding: 2px 4px;
-  line-height: 1;
-  opacity: 0.5;
+  font-size: 1rem;
+  padding: 0.2rem;
+  border-radius: 4px;
   transition: var(--transition);
+  line-height: 1;
 }
 
-.code-copy:hover { opacity: 1; }
+.code-copy:hover {
+  background: var(--color-border-light);
+}
 
 /* ---- Players ---- */
-.players-section { padding: 0 1.5rem; }
+.players-section { padding: 1.5rem 2rem; }
 
 .players-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
 .players-header h2 {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-text);
 }
 
 .player-count {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
   font-family: var(--font-number);
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  font-weight: 600;
 }
 
 .player-list {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 1.25rem;
+  gap: 0.5rem;
 }
 
 .player-card {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.65rem 0.85rem;
+  padding: 0.65rem 0.75rem;
   background: var(--color-bg);
   border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
   transition: var(--transition);
 }
 
-.player-card:hover { background: var(--color-bg-warm); }
+.player-card:hover {
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
 
 .player-avatar {
   width: 36px;
@@ -323,7 +345,6 @@ function copyLink() {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 15px;
   overflow: hidden;
 }
 
@@ -332,48 +353,72 @@ function copyLink() {
   height: 60%;
 }
 
-.player-info { flex: 1; min-width: 0; }
+.player-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
 
 .player-name {
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.95rem;
   color: var(--color-text);
 }
 
 .player-tags {
   display: flex;
-  gap: 4px;
-  margin-top: 2px;
+  gap: 0.3rem;
 }
 
 .tag {
-  font-size: 10px;
-  padding: 1px 6px;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
   border-radius: var(--radius-full);
-  font-weight: 500;
+  font-weight: 600;
 }
 
-.tag-you { background: var(--color-primary-light); color: white; }
-.tag-owner { background: var(--color-gold-bg); color: var(--color-gold); }
+.tag-you {
+  background: var(--color-accent-pale);
+  color: var(--color-accent);
+}
+
+.tag-owner {
+  background: var(--color-gold-bg);
+  color: var(--color-gold);
+}
 
 .btn-kick {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  background: none;
-  color: var(--color-text-muted);
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border-radius: 50%;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: 0.75rem;
+  font-weight: 700;
   transition: var(--transition);
+  opacity: 0;
 }
 
-.btn-kick:hover { background: var(--color-danger-light); color: var(--color-danger); }
+.player-card:hover .btn-kick {
+  opacity: 1;
+}
+
+.btn-kick:hover {
+  background: var(--color-danger);
+  color: #fff;
+}
 
 .empty-players {
   text-align: center;
-  padding: 1.5rem;
   color: var(--color-text-muted);
-  font-size: 0.85rem;
+  padding: 2rem;
+  font-size: 0.95rem;
 }
 
 /* ---- Actions ---- */
@@ -381,7 +426,8 @@ function copyLink() {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0 1.5rem 1.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-top: 1px solid var(--color-border-light);
 }
 
 .lobby-actions-secondary {
@@ -443,14 +489,7 @@ function copyLink() {
 
 .btn-secondary:hover {
   border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: var(--color-accent-pale);
-}
-
-.btn-secondary.btn-leave:hover {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-  background: var(--color-danger-light);
+  background: var(--color-bg-warm);
 }
 
 .btn-danger {
@@ -473,6 +512,12 @@ function copyLink() {
 .btn-danger:hover {
   background: #fef2f2;
   border-color: #e74c3c;
+}
+
+.btn-secondary.btn-leave:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background: var(--color-danger-light);
 }
 
 /* ---- Config Modal ---- */
@@ -560,54 +605,77 @@ function copyLink() {
   padding-right: 24px;
 }
 
-.rounds-hint {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  margin: 14px 0 0;
-  text-align: center;
-}
-
-.rounds-hint strong {
-  color: var(--color-primary-dark);
-  font-weight: 700;
-}
-
 /* ---- Toast ---- */
 .error-toast {
   position: fixed;
   bottom: 2rem;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--color-danger);
-  color: white;
-  padding: 0.6rem 1.5rem;
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  padding: 0.75rem 1.5rem;
   border-radius: var(--radius-full);
-  font-size: 0.85rem;
-  z-index: 30;
-  white-space: nowrap;
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  border: 1px solid rgba(217, 117, 107, 0.2);
+  z-index: 100;
 }
 
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateX(-50%) translateY(10px); }
 
 /* ---- Player animation ---- */
 .player-enter-active,
 .player-leave-active {
   transition: all 0.3s ease;
 }
-.player-enter-from,
-.player-leave-to {
+.player-enter-from {
   opacity: 0;
   transform: translateX(-20px);
 }
+.player-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
 
 /* ---- Mobile ---- */
-@media (max-width: 420px) {
-  .lobby-page { padding: 1rem 0.75rem; }
-  .lobby-header { padding: 1.5rem 1rem 1rem; }
-  .lobby-header h1 { font-size: 1.4rem; }
-  .players-section { padding: 0 1rem; }
-  .lobby-actions { padding: 0 0.75rem 1rem; }
-  .lobby-actions-secondary { flex-direction: column; }
+@media (max-width: 480px) {
+  .lobby-card {
+    border-radius: var(--radius-lg);
+  }
+
+  .lobby-header {
+    padding: 1.5rem 1rem 1rem;
+  }
+
+  .header-icon {
+    font-size: 2rem;
+  }
+
+  .lobby-header h1 {
+    font-size: 1.4rem;
+  }
+
+  .code-value {
+    font-size: 1.1rem;
+  }
+
+  .players-section {
+    padding: 1rem;
+  }
+
+  .lobby-actions {
+    padding: 0.75rem 1rem 1rem;
+  }
+
+  .lobby-actions-secondary {
+    flex-direction: column;
+  }
 }
 </style>
