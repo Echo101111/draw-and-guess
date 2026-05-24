@@ -569,12 +569,36 @@ export class SpyGameManager {
     if (!data) return
 
     const player = data.state.players.find(p => p.id === playerId)
-    if (player) {
-      player.isAlive = false
-    }
-    this.broadcastPublicPlayers(roomId)
+    if (!player || !player.isAlive) return
 
-    if (player?.isSpy) {
+    // 检查断线玩家是否是当前发言者
+    const isCurrentSpeaker = data.state.phase === 'describing' && (() => {
+      const alive = data.state.players.filter(p => p.isAlive)
+      const idx = data.state.currentSpeakerIndex
+      return idx < alive.length && alive[idx]?.id === playerId
+    })()
+
+    player.isAlive = false
+
+    // Bug 3: 当前发言者断线 → 立即推进到下一位
+    if (isCurrentSpeaker) {
+      this.clearTimers(roomId)
+      this.advanceSpeaker(roomId)
+      // advanceSpeaker 内部已 broadcastPublicPlayers
+      // 继续检查胜负条件
+    } else {
+      // Bug 2: 修正 currentSpeakerIndex
+      if (data.state.phase === 'describing') {
+        const disconPos = data.state.players.findIndex(p => p.id === playerId)
+        const aliveBefore = data.state.players.filter((p, i) => p.isAlive && i < disconPos).length
+        if (aliveBefore <= data.state.currentSpeakerIndex) {
+          data.state.currentSpeakerIndex--
+        }
+      }
+      this.broadcastPublicPlayers(roomId)
+    }
+
+    if (player.isSpy) {
       data.state.winner = 'civilian'
       for (const p of data.state.players) {
         if (!p.isSpy && p.isAlive) {

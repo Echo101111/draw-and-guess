@@ -119,10 +119,14 @@ export const useSpyStore = defineStore('spy', () => {
       if (data.phase === 'voting' && data.timeLeft) {
         voteTimeMax.value = data.timeLeft
       }
-      if (data.phase === 'describing' || data.phase === 'voting') {
-        hasDescribed.value = false
-        hasVoted.value = false
-        voteResult.value = null
+      // 仅在真正的阶段切换时（携带 round 字段）重置状态
+      // broadcastPublicPlayers 不携带 round，不应重置
+      if (data.round !== undefined) {
+        if (data.phase === 'describing' || data.phase === 'voting') {
+          hasDescribed.value = false
+          hasVoted.value = false
+          voteResult.value = null
+        }
       }
     })
 
