@@ -17,6 +17,13 @@ interface VoteDetail {
   targetId: string
   targetName: string
 }
+interface EliminationResult {
+  round: number
+  eliminatedName: string | null
+  voteCount: number
+  totalVotes: number
+  votes: Array<{ voterName: string; targetName: string }>
+}
 interface SpeakerInfo {
   playerId: string
   nickname: string
@@ -42,14 +49,19 @@ export const useSpyStore = defineStore('spy', () => {
   const timeLeft = ref(0)
   const chatMessages = ref<ChatMessage[]>([])
   const lastEliminated = ref<string | null>(null)
+  const roundEndReason = ref('')
   const votedCount = ref(0)
   const totalVoters = ref(0)
   const civilianWord = ref('')
   const spyWord = ref('')
   const voteTimeMax = ref(0)
   const voteDetails = ref<VoteDetail[]>([])
+  const roundResults = ref<EliminationResult[]>([])
+  const gameEliminationRound = ref(0)
+  const describeCycle = ref(0)
 
   const alivePlayers = computed(() => players.value.filter(p => p.isAlive))
+  const aliveCount = computed(() => players.value.filter(p => p.isAlive).length)
   const eliminatedPlayers = computed(() => players.value.filter(p => !p.isAlive))
   const isMyTurnToSpeak = computed(() =>
     currentSpeaker.value?.playerId === useRoomStore().currentPlayerId
@@ -87,18 +99,29 @@ export const useSpyStore = defineStore('spy', () => {
     socket.off(SERVER_EVENTS.SPY_PHASE_CHANGE)
     socket.on(SERVER_EVENTS.SPY_PHASE_CHANGE, (data: {
       phase: SpyPhase; round?: number; totalRounds?: number; timeLeft?: number;
+      describeCycle?: number;
       players?: Array<{
         id: string; nickname: string; isOwner: boolean; isAlive: boolean;
         description: string; voteTarget: string | null; voteCount: number; score: number; avatar: number;
       }>;
     }) => {
       phase.value = data.phase
-      if (data.round !== undefined) round.value = data.round
+      if (data.round !== undefined) {
+        const prevRound = round.value
+        round.value = data.round
+        gameEliminationRound.value = data.round
+        // 新淘汰局 → 清除旧描述
+        if (data.phase === 'describing' && data.round !== prevRound) {
+          descriptions.value = []
+          hasDescribed.value = false
+        }
+      }
       if (data.totalRounds !== undefined) totalRounds.value = data.totalRounds
       if (data.timeLeft !== undefined) {
         timeLeft.value = data.timeLeft
         startLocalTimer()
       }
+      if (data.describeCycle !== undefined) describeCycle.value = data.describeCycle
       if (data.players && data.players.length > 0) {
         const selfId = roomStore.currentPlayerId
         players.value = data.players.map(p => ({
@@ -122,8 +145,7 @@ export const useSpyStore = defineStore('spy', () => {
       // 仅在真正的阶段切换时（携带 round 字段）重置状态
       // broadcastPublicPlayers 不携带 round，不应重置
       if (data.round !== undefined) {
-        if (data.phase === 'describing' || data.phase === 'voting') {
-          hasDescribed.value = false
+        if (data.phase === 'voting') {
           hasVoted.value = false
           voteResult.value = null
         }
@@ -176,6 +198,7 @@ export const useSpyStore = defineStore('spy', () => {
     }) => {
       phase.value = 'round_end'
       lastEliminated.value = data.eliminated
+      roundEndReason.value = data.reason
       if (data.civilianWord) civilianWord.value = data.civilianWord
       if (data.spyWord) spyWord.value = data.spyWord
     })
@@ -189,12 +212,14 @@ export const useSpyStore = defineStore('spy', () => {
         isSpy: boolean; score: number; avatar: number
       }>
       voteDetails?: VoteDetail[]
+      roundResults?: EliminationResult[]
     }) => {
       phase.value = 'game_over'
       winner.value = data.winner
       scores.value = data.finalScores
       if (data.civilianWord) civilianWord.value = data.civilianWord
       if (data.spyWord) spyWord.value = data.spyWord
+      if (data.roundResults) roundResults.value = data.roundResults
       if (data.players) {
         players.value = data.players.map(p => ({
           id: p.id,
@@ -226,6 +251,7 @@ export const useSpyStore = defineStore('spy', () => {
     socket.on(SERVER_EVENTS.SPY_GAME_STATE_SNAPSHOT, (data: SpyGameState) => {
       phase.value = data.phase
       round.value = data.round
+      gameEliminationRound.value = data.round
       totalRounds.value = data.totalRounds
       players.value = data.players
       if (data.players.length > 0) {
@@ -327,14 +353,19 @@ export const useSpyStore = defineStore('spy', () => {
     spyWord.value = ''
     voteTimeMax.value = 0
     voteDetails.value = []
+    roundResults.value = []
+    gameEliminationRound.value = 0
+    describeCycle.value = 0
+    roundEndReason.value = ''
   }
 
   return {
     phase, round, totalRounds, players, myWord, isSpy,
     currentSpeaker, descriptions, hasDescribed, hasVoted, canDescribe,
-    voteResult, winner, scores, timeLeft, chatMessages, lastEliminated,
+    voteResult, winner, scores, timeLeft, chatMessages, lastEliminated, roundEndReason,
     votedCount, totalVoters, civilianWord, spyWord, voteTimeMax,
-    alivePlayers, eliminatedPlayers, isMyTurnToSpeak, currentSpeakerNickname, voteDetails,
+    alivePlayers, aliveCount, eliminatedPlayers, isMyTurnToSpeak, currentSpeakerNickname, voteDetails, roundResults,
+    gameEliminationRound, describeCycle,
     setupSocketListeners, teardownSocketListeners,
     submitDescription, vote, readyNextRound, sendChat, resetGame,
   }

@@ -55,6 +55,7 @@
 
 html {
   touch-action: manipulation;
+  overscroll-behavior: none;
 }
 
 body {

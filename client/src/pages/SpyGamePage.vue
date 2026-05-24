@@ -9,7 +9,7 @@
           <span class="header-self-name">{{ myPlayer.nickname }}</span>
         </div>
         <span class="header-game">🕵️ 谁是卧底</span>
-        <span class="header-round">第 {{ store.round }}/{{ store.totalRounds }} 轮</span>
+        <span class="header-round">第 {{ store.gameEliminationRound }}/{{ store.totalRounds }} 局 · 描述 {{ store.describeCycle }}/3</span>
       </div>
       <div class="header-right">
         <span v-if="store.timeLeft > 0" class="header-timer">⏱ {{ store.timeLeft }}s</span>
@@ -127,6 +127,8 @@
           <div v-if="store.lastEliminated" class="result-eliminated">
             {{ getPlayerName(store.lastEliminated) }} 被淘汰
           </div>
+          <div class="result-survivors">剩余 {{ store.aliveCount }} 人</div>
+          <div class="result-winner">{{ store.roundEndReason }}</div>
         </div>
 
         <!-- game_over -->
@@ -145,7 +147,6 @@
               <div class="word-card civilian-card">
                 <div class="word-card-header">👤 平民词</div>
                 <div class="word-card-word">{{ store.civilianWord }}</div>
-                <div class="word-card-empty"></div>
               </div>
               <div class="word-card-vs">🆚</div>
               <div class="word-card spy-card">
@@ -156,17 +157,7 @@
             </div>
           </div>
 
-          <div v-if="store.voteDetails.length > 0" class="vote-details">
-            <div class="vote-details-label">🗳️ 投票明细</div>
-            <div class="vote-details-list">
-              <div v-for="v in store.voteDetails" :key="v.voterId" class="vote-detail-row">
-                <span class="vote-detail-voter">{{ v.voterName }}</span>
-                <span class="vote-detail-arrow">→</span>
-                <span class="vote-detail-target">{{ v.targetName }}</span>
-              </div>
-            </div>
-          </div>
-
+          <!-- Score list -->
           <div class="score-list">
             <div v-for="s in store.scores" :key="s.playerId" class="score-row">
               <span class="score-rank">#{{ s.rank }}</span>
@@ -177,6 +168,43 @@
               <span class="score-pts">{{ s.score }}分</span>
             </div>
           </div>
+
+          <!-- Elimination timeline -->
+          <div v-if="store.roundResults.length > 0" class="timeline-wrap">
+            <button class="timeline-toggle" @click="showTimeline = !showTimeline">
+              <span>{{ showTimeline ? '▾' : '▸' }}</span>
+              📊 淘汰回顾（{{ store.roundResults.length }} 局）
+            </button>
+            <Transition name="collapse">
+              <div v-if="showTimeline" class="timeline-body">
+                <div
+                  v-for="r in store.roundResults"
+                  :key="r.round"
+                  class="timeline-round"
+                >
+                  <div class="timeline-round-header" @click="toggleRound(r.round)">
+                    <span class="timeline-round-icon">{{ r.eliminatedName ? '🗳️' : '🤝' }}</span>
+                    <span class="timeline-round-title">第 {{ r.round }} 局</span>
+                    <span v-if="r.eliminatedName" class="timeline-round-result">
+                      {{ r.eliminatedName }} 被淘汰（{{ r.voteCount }}/{{ r.totalVotes }} 票）
+                    </span>
+                    <span v-else class="timeline-round-result">平票，无人淘汰</span>
+                    <span class="timeline-round-expand">{{ expandedRound === r.round ? '▾' : '▸' }}</span>
+                  </div>
+                  <Transition name="collapse">
+                    <div v-if="expandedRound === r.round" class="timeline-round-details">
+                      <div v-for="v in r.votes" :key="v.voterName + r.round" class="vote-detail-row">
+                        <span class="vote-detail-voter">{{ v.voterName }}</span>
+                        <span class="vote-detail-arrow">→</span>
+                        <span class="vote-detail-target">{{ v.targetName }}</span>
+                      </div>
+                    </div>
+                  </Transition>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
           <div class="go-actions">
             <button class="btn-primary" @click="handleRestart" v-if="roomStore.isOwner">🔄 再来一局</button>
             <button class="btn-secondary" @click="handleLeave">返回大厅</button>
@@ -283,6 +311,15 @@ const descInput = ref<HTMLInputElement | null>(null)
 const selectedVoteTarget = ref('')
 const showLeaveConfirm = ref(false)
 const activeTab = ref(false)
+const showTimeline = ref(false)
+const expandedRound = ref<number | null>(null)
+
+// 手势事件监听引用（用于清理）
+let gestureCleanup: Array<{ el: EventTarget; type: string; fn: EventListener }> = []
+function addGestureGuard(el: EventTarget, type: string, fn: EventListener) {
+  el.addEventListener(type, fn, { passive: false })
+  gestureCleanup.push({ el, type, fn })
+}
 
 const myPlayer = computed(() =>
   store.players.find(p => p.id === roomStore.currentPlayerId)
@@ -309,6 +346,10 @@ const otherPlayers = computed(() =>
 
 function avatarSvg(index: number): string {
   return getAvatarSvg(index)
+}
+
+function toggleRound(round: number) {
+  expandedRound.value = expandedRound.value === round ? null : round
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -365,11 +406,42 @@ onMounted(() => {
   document.title = '🕵️ 谁是卧底 - Oiiiii早春'
   document.body.style.overflow = 'hidden'
   store.setupSocketListeners()
+
+  // 阻止 iOS Safari 双指缩放和手势
+  const preventPinch = (e: TouchEvent) => { if (e.touches.length > 1) e.preventDefault() }
+  const preventGesture = (e: Event) => e.preventDefault()
+  addGestureGuard(document, 'gesturestart', preventGesture)
+  addGestureGuard(document, 'gesturechange', preventGesture)
+  addGestureGuard(document, 'touchstart', preventPinch as EventListener)
+
+  // 阻止浏览器返回手势
+  window.history.pushState(null, '', window.location.href)
+  const onPop = () => {
+    showLeaveConfirm.value = true
+    window.history.replaceState(null, '', window.location.href)
+  }
+  window.addEventListener('popstate', onPop)
+  ;(window as any).__spyPopstateHandler = onPop
+
+  // 阻止页面刷新/关闭
+  const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault() }
+  window.addEventListener('beforeunload', onBeforeUnload)
+  ;(window as any).__spyBeforeunloadHandler = onBeforeUnload
 })
 
 onUnmounted(() => {
   document.title = 'Oiiiii早春 - 派对游戏'
   document.body.style.overflow = ''
+  // 清理手势监听
+  for (const { el, type, fn } of gestureCleanup) {
+    el.removeEventListener(type, fn)
+  }
+  gestureCleanup = []
+  // 清理 popstate
+  const onPop = (window as any).__spyPopstateHandler
+  if (onPop) window.removeEventListener('popstate', onPop)
+  const onBeforeUnload = (window as any).__spyBeforeunloadHandler
+  if (onBeforeUnload) window.removeEventListener('beforeunload', onBeforeUnload)
   store.teardownSocketListeners()
 })
 
@@ -441,9 +513,10 @@ const voteProgressPct = computed(() => {
 
 <style scoped>
 .spy-game {
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
   overflow: hidden;
   background: var(--color-bg);
   padding-top: max(12px, env(safe-area-inset-top));
@@ -919,54 +992,133 @@ const voteProgressPct = computed(() => {
   flex-shrink: 0;
 }
 
-.vote-details {
+/* ====== ELIMINATION TIMELINE ====== */
+.timeline-wrap {
   width: 100%;
-  max-width: 260px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 12px;
-  animation: wordRevealIn 0.5s ease-out;
+  max-width: 340px;
+  margin-bottom: 16px;
 }
 
-.vote-details-label {
-  font-size: 0.8rem;
+.timeline-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
 }
 
-.vote-details-list {
-  width: 100%;
+.timeline-toggle:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-pale);
+}
+
+.timeline-body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-top: 4px;
+  padding-left: 4px;
+  border-left: 2px solid var(--color-border-light);
 }
 
-.vote-detail-row {
+.timeline-round {
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-round-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 4px 10px;
-  background: var(--color-bg-warm);
+  gap: 6px;
+  padding: 8px 10px;
   border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
   font-size: 0.82rem;
 }
 
-.vote-detail-voter {
+.timeline-round-header:hover {
+  background: var(--color-bg-warm);
+}
+
+.timeline-round-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.timeline-round-title {
   font-weight: 600;
   color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.vote-detail-arrow {
+.timeline-round-result {
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.timeline-round-expand {
+  font-size: 0.7rem;
   color: var(--color-text-muted);
-  font-weight: 300;
+  flex-shrink: 0;
 }
 
-.vote-detail-target {
+.timeline-round-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 4px 28px;
+}
+
+.timeline-round-details .vote-detail-row {
+  font-size: 0.78rem;
+  padding: 2px 6px;
+  display: flex;
+  gap: 4px;
+}
+
+.timeline-round-details .vote-detail-voter {
+  color: var(--color-text);
   font-weight: 500;
-  color: var(--color-primary-dark);
+}
+
+.timeline-round-details .vote-detail-arrow {
+  color: var(--color-text-muted);
+}
+
+.timeline-round-details .vote-detail-target {
+  color: var(--color-text-secondary);
+}
+
+/* Collapse transition */
+.collapse-enter-active,
+.collapse-leave-active {
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+  opacity: 1;
+  max-height: 600px;
 }
 
 .score-list {

@@ -242,6 +242,13 @@ const showScoreboard = ref(false)
 const showLeaveConfirm = ref(false)
 const showDrawerAlert = ref(false)
 
+// 手势事件监听引用（用于清理）
+let gestureCleanup: Array<{ el: EventTarget; type: string; fn: EventListener }> = []
+function addGestureGuard(el: EventTarget, type: string, fn: EventListener) {
+  el.addEventListener(type, fn, { passive: false })
+  gestureCleanup.push({ el, type, fn })
+}
+
 // 中途加入提示（房间已开始游戏，当前轮仅观战）
 const showSpectatorNotice = ref(false)
 
@@ -302,10 +309,41 @@ onMounted(() => {
     }
     // 非观战者不设置 myRole，由 GAME_STATE_SNAPSHOT 决定
   }
+
+  // 阻止 iOS Safari 双指缩放和手势
+  const preventPinch = (e: TouchEvent) => { if (e.touches.length > 1) e.preventDefault() }
+  const preventGesture = (e: Event) => e.preventDefault()
+  addGestureGuard(document, 'gesturestart', preventGesture)
+  addGestureGuard(document, 'gesturechange', preventGesture)
+  addGestureGuard(document, 'touchstart', preventPinch as EventListener)
+
+  // 阻止浏览器返回手势
+  window.history.pushState(null, '', window.location.href)
+  const onPop = () => {
+    showLeaveConfirm.value = true
+    window.history.replaceState(null, '', window.location.href)
+  }
+  window.addEventListener('popstate', onPop)
+  ;(window as any).__popstateHandler = onPop
+
+  // 阻止页面刷新/关闭
+  const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault() }
+  window.addEventListener('beforeunload', onBeforeUnload)
+  ;(window as any).__beforeunloadHandler = onBeforeUnload
 })
 
 onUnmounted(() => {
   document.body.style.overflow = ''
+  // 清理手势监听
+  for (const { el, type, fn } of gestureCleanup) {
+    el.removeEventListener(type, fn)
+  }
+  gestureCleanup = []
+  // 清理 popstate
+  const onPop = (window as any).__popstateHandler
+  if (onPop) window.removeEventListener('popstate', onPop)
+  const onBeforeUnload = (window as any).__beforeunloadHandler
+  if (onBeforeUnload) window.removeEventListener('beforeunload', onBeforeUnload)
   gameStore.teardownSocketListeners()
   gameStore.resetGame()
 })
@@ -361,9 +399,9 @@ watch(() => roomStore.error, (err) => {
 
 <style scoped>
 .game-page {
-  position: relative;
+  position: fixed;
+  inset: 0;
   z-index: 1;
-  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;

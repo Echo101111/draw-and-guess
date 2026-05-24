@@ -84,12 +84,12 @@
           <div class="config-modal-body">
             <div class="config-row">
               <div class="config-item">
-                <label>总轮数</label>
+                <label>最大淘汰局数</label>
                 <select v-model.number="spyConfig.totalRounds">
-                  <option :value="2">2 轮</option>
-                  <option :value="3">3 轮</option>
-                  <option :value="4">4 轮</option>
-                  <option :value="5">5 轮</option>
+                  <option :value="3">3 局</option>
+                  <option :value="5">5 局</option>
+                  <option :value="7">7 局（默认）</option>
+                  <option :value="10">10 局</option>
                 </select>
               </div>
               <div class="config-item">

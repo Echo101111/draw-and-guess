@@ -167,4 +167,5 @@ export interface SpyGameState {
   descriptionTimeLeft: number
   voteTimeLeft: number
   winner: 'civilian' | 'spy' | null
+  describeCycle?: number
 }
