@@ -1,6 +1,6 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
-RUN npm install -g pnpm@9 && apk add --no-cache python3 make g++
+RUN npm install -g pnpm@9
 # 如需镜像加速，取消注释下一行：
 # RUN pnpm config set registry https://registry.npmmirror.com
 
