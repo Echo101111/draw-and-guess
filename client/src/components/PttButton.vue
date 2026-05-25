@@ -22,6 +22,7 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
 import { useWebRTC } from '@/composables/useWebRTC'
+import { PTT_TIMEOUT_MS, PTT_WARN_BEFORE_MS } from '@draw-and-guess/shared'
 
 const props = withDefaults(defineProps<{
   disabled?: boolean
@@ -35,8 +36,6 @@ const isPressed = ref(false)
 const timeoutWarn = ref(false)
 const btnRef = ref<HTMLElement | null>(null)
 
-const PTT_TIMEOUT_MS = 15000
-const WARN_BEFORE_MS = 3000
 let pttTimer: ReturnType<typeof setTimeout> | null = null
 let warnTimer: ReturnType<typeof setTimeout> | null = null
 let globalUpHandler: ((e: PointerEvent) => void) | null = null
@@ -77,7 +76,7 @@ function onPointerDown() {
 
   warnTimer = setTimeout(() => {
     timeoutWarn.value = true
-  }, PTT_TIMEOUT_MS - WARN_BEFORE_MS)
+  }, PTT_TIMEOUT_MS - PTT_WARN_BEFORE_MS)
 
   pttTimer = setTimeout(() => {
     timeoutWarn.value = false

@@ -1,6 +1,6 @@
 import { io, type Socket } from 'socket.io-client'
 import { ref } from 'vue'
-import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, SOCKET_RECONNECT_DELAY_MS, SOCKET_RECONNECT_DELAY_MAX_MS, SOCKET_RANDOMIZATION_FACTOR, SOCKET_CONNECT_TIMEOUT_MS, SOCKET_DISCONNECT_DELAY_MS, SOCKET_SESSION_RESTORE_TIMEOUT_MS } from '@draw-and-guess/shared'
 
 export const connectionState = ref<'connected' | 'disconnected' | 'reconnecting'>('disconnected')
 export const reconnectAttempt = ref(0)
@@ -24,10 +24,10 @@ export function getSocket(): Socket {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 30000,
-      randomizationFactor: 0.3,
-      timeout: 15000,
+      reconnectionDelay: SOCKET_RECONNECT_DELAY_MS,
+      reconnectionDelayMax: SOCKET_RECONNECT_DELAY_MAX_MS,
+      randomizationFactor: SOCKET_RANDOMIZATION_FACTOR,
+      timeout: SOCKET_CONNECT_TIMEOUT_MS,
     })
     socket.on('connect', () => {
       if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null }
@@ -42,7 +42,7 @@ export function getSocket(): Socket {
         if (!socket?.connected) {
           connectionState.value = 'disconnected'
         }
-      }, 800)
+      }, SOCKET_DISCONNECT_DELAY_MS)
     })
     socket.on('connect_error', (err) => {
       console.error('[Socket] Connection error:', err.message)
@@ -76,7 +76,7 @@ export function disconnectSocket(): void {
   }
 }
 
-export function waitForConnection(timeoutMs = 15000): Promise<void> {
+export function waitForConnection(timeoutMs = SOCKET_CONNECT_TIMEOUT_MS): Promise<void> {
   const s = getSocket()
   if (s.connected) return Promise.resolve()
   return new Promise((resolve, reject) => {
@@ -122,12 +122,14 @@ export function restoreSession(): Promise<boolean> {
   const session = getStoredSession()
   if (session && socket?.connected) {
     return new Promise((resolve) => {
-      const timer = setTimeout(() => resolve(false), 5000)
+      const timer = setTimeout(() => {
+        clearSession(); resolve(false)
+      }, SOCKET_SESSION_RESTORE_TIMEOUT_MS)
       socket!.once(SERVER_EVENTS.SESSION_RESTORED, () => {
         clearTimeout(timer); resolve(true)
       })
       socket!.once(SERVER_EVENTS.ROOM_ERROR, () => {
-        clearTimeout(timer); resolve(false)
+        clearTimeout(timer); clearSession(); resolve(false)
       })
       socket!.emit(CLIENT_EVENTS.RESTORE_SESSION, {
         roomName: session.roomName,

@@ -1,4 +1,4 @@
-import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, GAME_TYPE_SPY } from '@draw-and-guess/shared'
 import { spyGameManager } from '../game/SpyGameManager.js'
 import { roomManager } from '../rooms/index.js'
 import type { SpyGameConfig } from '@draw-and-guess/shared'
@@ -58,7 +58,7 @@ export function registerSpyGameHandlers(io: any, socket: any): void {
     if (!roomId || !playerId) return
 
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.gameType !== 'spy') return
+    if (!room || room.gameType !== GAME_TYPE_SPY) return
 
     spyGameManager.sendGameStateSnapshot(roomId, playerId)
   })
@@ -68,7 +68,7 @@ export function registerSpyGameHandlers(io: any, socket: any): void {
     if (!roomId || !playerId || isSpectator) return
 
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.gameType !== 'spy') return
+    if (!room || room.gameType !== GAME_TYPE_SPY) return
 
     spyGameManager.handlePlayerDisconnect(roomId, playerId)
   })

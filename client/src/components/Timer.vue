@@ -1,6 +1,6 @@
 <template>
   <div class="timer">
-    <div class="timer-ring" :class="{ warning: timeLeft <= 10 }">
+    <div class="timer-ring" :class="{ warning: timeLeft <= TIMER_WARN_THRESHOLD }">
       <svg viewBox="0 0 54 54" class="ring-svg">
         <circle cx="27" cy="27" r="23" class="ring-bg" />
         <circle
@@ -17,6 +17,7 @@
 </template>
 
 <script setup lang="ts">
+import { TIMER_WARN_THRESHOLD, DEFAULT_ROUND_DURATION } from '@draw-and-guess/shared'
 import { computed } from 'vue'
 import { useDrawGameStore } from '@/stores/drawGame'
 
@@ -26,7 +27,7 @@ const timeLeft = computed(() => gameStore.timeLeft)
 const currentRound = computed(() => gameStore.currentRound)
 const totalRounds = computed(() => gameStore.totalRounds)
 
-const maxTime = computed(() => gameStore.totalTime || 90)
+const maxTime = computed(() => gameStore.totalTime || DEFAULT_ROUND_DURATION)
 
 const ringStyle = computed(() => {
   const circumference = 2 * Math.PI * 23

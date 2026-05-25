@@ -9,6 +9,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { fabric } from 'fabric'
 import { useCanvasStore } from '@/stores/canvas'
 import { useDrawGameStore } from '@/stores/drawGame'
+import { EMIT_INTERVAL_MS, ERASER_COLOR, ERASER_WIDTH_MULTIPLIER, STROKE_MIN_POINTS, STROKE_SIMPLIFY_TOLERANCE, CANVAS_ASPECT_RATIO, BREAKPOINT_MOBILE } from '@draw-and-guess/shared'
 import type { Point } from '@draw-and-guess/shared'
 
 type FabricCanvas = InstanceType<typeof fabric.Canvas>
@@ -30,7 +31,7 @@ let resizeObserver: ResizeObserver | null = null
 let currentPathObject: FabricPath | null = null
 let pendingResize = false
 let strokeSeq = 0
-const EMIT_INTERVAL = 16
+const EMIT_INTERVAL = EMIT_INTERVAL_MS
 const strokePathMap = new Map<string, FabricPath>()
 
 function getCanvasPoint(e: { e: MouseEvent | Touch }): Point {
@@ -81,8 +82,8 @@ function handleTouchEnd(e: TouchEvent) {
   const strokeData = canvasStore.currentStroke.length > 0 && fabricCanvas ? {
     playerId: '',
     points: canvasStore.currentStroke.map((p) => ({ x: p.x / (fabricCanvas!.width ?? 1), y: p.y / (fabricCanvas!.height ?? 1) })),
-    color: canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
-    width: canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
+    color: canvasStore.tool === 'eraser' ? ERASER_COLOR : canvasStore.color,
+    width: canvasStore.tool === 'eraser' ? canvasStore.width * ERASER_WIDTH_MULTIPLIER : canvasStore.width,
     tool: canvasStore.tool,
     strokeSeq,
   } : null
@@ -129,8 +130,8 @@ function handleMouseUp() {
   const strokeData = canvasStore.currentStroke.length > 0 && fabricCanvas ? {
     playerId: '',
     points: canvasStore.currentStroke.map((p) => ({ x: p.x / (fabricCanvas!.width ?? 1), y: p.y / (fabricCanvas!.height ?? 1) })),
-    color: canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
-    width: canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
+    color: canvasStore.tool === 'eraser' ? ERASER_COLOR : canvasStore.color,
+    width: canvasStore.tool === 'eraser' ? canvasStore.width * ERASER_WIDTH_MULTIPLIER : canvasStore.width,
     tool: canvasStore.tool,
     strokeSeq,
   } : null
@@ -175,16 +176,16 @@ function emitStroke() {
   if (allPoints.length === 0 || !fabricCanvas) return
   let newPoints = allPoints.slice(lastEmitPointCount)
   if (newPoints.length === 0) return
-  if (newPoints.length > 10) {
-    newPoints = simplifyPath(newPoints, 2)
+  if (newPoints.length > STROKE_MIN_POINTS) {
+    newPoints = simplifyPath(newPoints, STROKE_SIMPLIFY_TOLERANCE)
   }
   lastEmitPointCount = allPoints.length
   const cw = fabricCanvas.width ?? 1
   const ch = fabricCanvas.height ?? 1
   gameStore.drawStroke(
     newPoints.map((p) => ({ x: p.x / cw, y: p.y / ch })),
-    canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
-    canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
+    canvasStore.tool === 'eraser' ? ERASER_COLOR : canvasStore.color,
+    canvasStore.tool === 'eraser' ? canvasStore.width * ERASER_WIDTH_MULTIPLIER : canvasStore.width,
     canvasStore.tool,
     strokeSeq
   )
@@ -196,8 +197,8 @@ function finalizeStroke() {
   const ch = fabricCanvas.height ?? 1
   gameStore.addCompletedStroke(
     canvasStore.currentStroke.map((p) => ({ x: p.x / cw, y: p.y / ch })),
-    canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color,
-    canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width,
+    canvasStore.tool === 'eraser' ? ERASER_COLOR : canvasStore.color,
+    canvasStore.tool === 'eraser' ? canvasStore.width * ERASER_WIDTH_MULTIPLIER : canvasStore.width,
     canvasStore.tool,
     strokeSeq
   )
@@ -263,8 +264,8 @@ function renderCurrentStroke() {
   const points = canvasStore.currentStroke
   if (points.length === 0) return
 
-  const currentColor = canvasStore.tool === 'eraser' ? '#ffffff' : canvasStore.color
-  const currentWidth = canvasStore.tool === 'eraser' ? canvasStore.width * 3 : canvasStore.width
+  const currentColor = canvasStore.tool === 'eraser' ? ERASER_COLOR : canvasStore.color
+  const currentWidth = canvasStore.tool === 'eraser' ? canvasStore.width * ERASER_WIDTH_MULTIPLIER : canvasStore.width
 
   // 获取 Fabric.js 的上层 canvas（用户看到的层）
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -344,11 +345,11 @@ function resizeCanvas() {
 
   if (containerWidth <= 0 || containerHeight <= 0) return
 
-  const ratio = 4 / 3
+  const ratio = CANVAS_ASPECT_RATIO
   let w: number, h: number
 
   // 移动端（<768px）：宽度占满屏幕，高度按4:3比例计算
-  if (window.innerWidth < 768) {
+  if (window.innerWidth < BREAKPOINT_MOBILE) {
     w = Math.floor(containerWidth)
     h = Math.floor(w / ratio)
   } else {

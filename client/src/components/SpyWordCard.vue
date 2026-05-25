@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { WORD_CARD_FLIP_DELAY_MS } from '@draw-and-guess/shared'
 
 defineProps<{
   word: string
@@ -27,7 +28,7 @@ const revealed = ref(false)
 onMounted(() => {
   setTimeout(() => {
     revealed.value = true
-  }, 800)
+  }, WORD_CARD_FLIP_DELAY_MS)
 })
 </script>
 

@@ -1,4 +1,4 @@
-import { CLIENT_EVENTS, SERVER_EVENTS, ErrorCode } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, ErrorCode, NICKNAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, DEFAULT_MAX_PLAYERS, DEFAULT_GAME_TYPE, GAME_TYPE_DRAW, GAME_TYPE_SPY } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { drawGameManager } from '../game/index.js'
 import { spyGameManager } from '../game/SpyGameManager.js'
@@ -32,19 +32,19 @@ function getPlayerRoomData(room: Room) {
 export function registerRoomHandlers(io: any, socket: any): void {
   socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password, wordConfig, gameType }: { nickname: string; roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig; gameType?: GameType }) => {
     const trimmedNickname = nickname.trim()
-    if (!trimmedNickname || trimmedNickname.length > 10) {
+    if (!trimmedNickname || trimmedNickname.length > NICKNAME_MAX_LENGTH) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
         code: ErrorCode.NICKNAME_TAKEN,
-        message: '昵称长度需在1-10字符之间',
+        message: `昵称长度需在1-${NICKNAME_MAX_LENGTH}字符之间`,
       })
       return
     }
 
     const trimmedName = roomName?.trim() || '房间'
-    if (trimmedName.length > 20) {
+    if (trimmedName.length > ROOM_NAME_MAX_LENGTH) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
         code: ErrorCode.NICKNAME_TAKEN,
-        message: '房间名称不能超过20个字符',
+        message: `房间名称不能超过${ROOM_NAME_MAX_LENGTH}个字符`,
       })
       return
     }
@@ -53,10 +53,10 @@ export function registerRoomHandlers(io: any, socket: any): void {
       const { room, player } = await roomManager.createRoom(
         trimmedNickname,
         trimmedName,
-        maxPlayers ?? 50,
+        maxPlayers ?? DEFAULT_MAX_PLAYERS,
         password ?? '',
         wordConfig,
-        gameType ?? 'draw'
+        gameType ?? DEFAULT_GAME_TYPE
       )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(global as any).metrics.roomsCreated++
@@ -103,10 +103,10 @@ export function registerRoomHandlers(io: any, socket: any): void {
     console.log(`[Room] Total rooms: ${roomManager.getAllRooms().length}`)
 
     const trimmedNickname = nickname.trim()
-    if (!trimmedNickname || trimmedNickname.length > 10) {
+    if (!trimmedNickname || trimmedNickname.length > NICKNAME_MAX_LENGTH) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
         code: ErrorCode.NICKNAME_TAKEN,
-        message: '昵称长度需在1-10字符之间',
+        message: `昵称长度需在1-${NICKNAME_MAX_LENGTH}字符之间`,
       })
       return
     }
@@ -348,7 +348,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
-    if (gameType !== 'draw' && gameType !== 'spy') {
+    if (gameType !== GAME_TYPE_DRAW && gameType !== GAME_TYPE_SPY) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.INVALID_WORD_CONFIG, message: '无效的游戏类型' })
       return
     }

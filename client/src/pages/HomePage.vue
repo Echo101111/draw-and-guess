@@ -134,7 +134,7 @@
               v-model="nickname"
               type="text"
               placeholder="1-10个字符"
-              maxlength="10"
+              :maxlength="NICKNAME_MAX_LENGTH"
               required
             />
           </div>
@@ -149,7 +149,7 @@
               v-model="createRoomName"
               type="text"
               placeholder="默认：房间"
-              maxlength="20"
+              :maxlength="ROOM_NAME_MAX_LENGTH"
             />
           </div>
         </div>
@@ -163,7 +163,7 @@
               v-model="password"
               type="password"
               placeholder="无密码"
-              maxlength="20"
+              :maxlength="PASSWORD_MAX_LENGTH"
             />
           </div>
         </div>
@@ -233,7 +233,7 @@
                   v-model="joinModalNickname"
                   type="text"
                   placeholder="1-10个字符"
-                  maxlength="10"
+                  :maxlength="NICKNAME_MAX_LENGTH"
                   required
                 />
               </div>
@@ -248,7 +248,7 @@
                   v-model="joinModalPassword"
                   type="password"
                   placeholder="输入密码"
-                  maxlength="20"
+                  :maxlength="PASSWORD_MAX_LENGTH"
                 />
               </div>
             </div>
@@ -274,7 +274,7 @@ import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { connectSocket, clearSession, loadNickname } from '@/composables/useSocket'
 import { getSocket } from '@/composables/useSocket'
-import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, NICKNAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, PASSWORD_MAX_LENGTH, CONTRIBUTE_SUCCESS_MS, TOAST_LOBBY_ERROR_MS, ROOM_LIST_REFRESH_MS } from '@draw-and-guess/shared'
 import type { GameType } from '@draw-and-guess/shared'
 
 interface RoomListItem {
@@ -352,7 +352,7 @@ async function handleContributeSubmit() {
       contributeTimer = setTimeout(() => {
         showContribute.value = false
         resetContributeForm()
-      }, 2500)
+      }, CONTRIBUTE_SUCCESS_MS)
     }
   } catch {
     contributeSuccess.value = false
@@ -443,7 +443,7 @@ watch(() => roomStore.error, (newError) => {
   if (newError) {
     isLoading.value = false
     if (errorTimer) clearTimeout(errorTimer)
-    errorTimer = setTimeout(() => { errorMessage.value = null; errorTimer = null }, 4000)
+    errorTimer = setTimeout(() => { errorMessage.value = null; errorTimer = null }, TOAST_LOBBY_ERROR_MS)
   }
 })
 
@@ -472,7 +472,7 @@ function fetchRoomList() {
 
 function startAutoRefresh() {
   stopAutoRefresh()
-  refreshTimer = setInterval(fetchRoomList, 5000)
+  refreshTimer = setInterval(fetchRoomList, ROOM_LIST_REFRESH_MS)
 }
 
 function stopAutoRefresh() {

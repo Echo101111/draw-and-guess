@@ -13,7 +13,7 @@
               <div v-for="(item, index) in words" :key="index" class="custom-word-row">
                 <input v-model="item.word" type="text" placeholder="词汇" maxlength="20" class="word-input" />
                 <select v-model="item.category" class="cat-select">
-                  <option v-for="opt in CATEGORY_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                  <option v-for="opt in CATEGORIES" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                   <option value="__custom__">自定义...</option>
                 </select>
                 <input v-if="item.category === '__custom__'" v-model="item.customText" type="text" placeholder="输入分类" class="cat-input" />
@@ -29,7 +29,7 @@
             <label>出现词汇类型</label>
             <div class="category-toggles">
               <button
-                v-for="opt in CATEGORY_OPTIONS"
+                v-for="opt in CATEGORIES"
                 :key="opt.value"
                 :class="['cat-toggle', { active: enabledCategories.includes(opt.value as string) }]"
                 @click="toggleCategory(opt.value as string)"
@@ -69,7 +69,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { CATEGORY_OPTIONS } from '@/constants/categories'
+import { CATEGORIES } from '@draw-and-guess/shared'
 import type { RoomWordConfig, CustomWord, WordCategory } from '@draw-and-guess/shared'
 
 const props = defineProps<{
@@ -112,8 +112,8 @@ watch(() => props.show, async (val) => {
     if (wc.customWords && wc.customWords.length > 0) {
       words.value = wc.customWords.map((w: CustomWord) => ({
         word: w.word,
-        category: CATEGORY_OPTIONS.some(o => o.value === w.category) ? w.category : '__custom__',
-        customText: CATEGORY_OPTIONS.some(o => o.value === w.category) ? '' : w.category,
+        category: CATEGORIES.some(o => o.value === w.category) ? w.category : '__custom__',
+        customText: CATEGORIES.some(o => o.value === w.category) ? '' : w.category,
       }))
     } else {
       words.value = [{ word: '', category: 'animals', customText: '' }]

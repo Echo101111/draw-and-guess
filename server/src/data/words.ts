@@ -1,62 +1,14 @@
+import type { WordCategory } from '@draw-and-guess/shared';
+import { CATEGORY_VALUES, CATEGORY_DISPLAY_NAMES } from '@draw-and-guess/shared';
+
+export { type WordCategory } from '@draw-and-guess/shared';
+export { CATEGORY_VALUES as WORD_CATEGORIES, CATEGORY_DISPLAY_NAMES }
+
 export interface WordEntry {
   word: string
   drawability: 1 | 2 | 3 | 4 | 5
   synonyms?: string[]
 }
-
-import type { WordCategory } from '@draw-and-guess/shared';
-
-export { type WordCategory } from '@draw-and-guess/shared';
-
-export const CATEGORY_DISPLAY_NAMES: Record<WordCategory, string> = {
-  animals: '动物',
-  food: '食物',
-  daily: '日常物品',
-  nature: '自然',
-  vehicles: '交通工具',
-  sports: '体育运动',
-  celebrities: '角色',
-  professions: '职业',
-  instruments: '乐器',
-  tools: '工具',
-  furniture: '家具',
-  treasures: '宝物',
-  clothing: '服饰鞋帽',
-  buildings: '建筑场所',
-  appliances: '电器/家电',
-  tableware: '餐具厨具',
-  plants: '植物花卉',
-  astronomy: '天文太空',
-  mythology: '神话传说',
-  body: '身体部位',
-  games: '游戏玩具',
-  festivals: '节日庆典',
-};
-
-export const WORD_CATEGORIES: WordCategory[] = [
-  'animals',
-  'food',
-  'daily',
-  'nature',
-  'vehicles',
-  'sports',
-  'celebrities',
-  'professions',
-  'instruments',
-  'tools',
-  'furniture',
-  'treasures',
-  'clothing',
-  'buildings',
-  'appliances',
-  'tableware',
-  'plants',
-  'astronomy',
-  'mythology',
-  'body',
-  'games',
-  'festivals',
-];
 
 export const WORDS: Record<WordCategory, WordEntry[]> = {
   // === 动物 (85) ===

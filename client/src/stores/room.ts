@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getSocket, connectSocket, saveSession, clearSession, waitForConnection, saveNickname } from '@/composables/useSocket'
-import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, DEFAULT_MAX_PLAYERS, DEFAULT_TOTAL_ROUNDS, DEFAULT_GAME_TYPE, WORD_CONFIG_SAVE_TIMEOUT_MS, SOCKET_CONNECT_TIMEOUT_MS } from '@draw-and-guess/shared'
 import type { RoomWordConfig, GameType } from '@draw-and-guess/shared'
 
 interface RoomPlayer {
@@ -55,17 +55,17 @@ export const useRoomStore = defineStore('room', () => {
           code: data.roomCode,
           name: '',
           state: 'lobby',
-          maxPlayers: 50,
+          maxPlayers: DEFAULT_MAX_PLAYERS,
           players: [],
           currentRound: 0,
-          totalRounds: 10,
+          totalRounds: DEFAULT_TOTAL_ROUNDS,
           wordConfig: {
             customWords: [],
             looseMatching: false,
             enabledCategories: [],
             enabledCustomCategories: [],
           },
-          gameType: 'draw',
+          gameType: DEFAULT_GAME_TYPE,
         }
       }
       currentPlayerId.value = data.playerId
@@ -145,7 +145,7 @@ export const useRoomStore = defineStore('room', () => {
     connectionState.value = 'disconnected'
   }
 
-  function waitForResponse(roomEvent: string, timeoutMs = 15000): Promise<void> {
+  function waitForResponse(roomEvent: string, timeoutMs = SOCKET_CONNECT_TIMEOUT_MS): Promise<void> {
     return new Promise((resolve) => {
       const socket = getSocket()
       const timer = setTimeout(() => {
@@ -178,7 +178,7 @@ export const useRoomStore = defineStore('room', () => {
     clearSession()
     if (!socket.connected) {
       try {
-        await waitForConnection(15000)
+        await waitForConnection(SOCKET_CONNECT_TIMEOUT_MS)
       } catch (e) {
         const msg = e instanceof Error ? e.message : '连接失败'
         error.value = `${msg}，请检查网络后重试`
@@ -196,7 +196,7 @@ export const useRoomStore = defineStore('room', () => {
       maxPlayers: options?.maxPlayers,
       password: options?.password,
       wordConfig: options?.wordConfig,
-      gameType: options?.gameType ?? 'draw',
+      gameType: options?.gameType ?? DEFAULT_GAME_TYPE,
     })
     await waitForResponse(SERVER_EVENTS.ROOM_CREATED)
   }
@@ -209,7 +209,7 @@ export const useRoomStore = defineStore('room', () => {
     clearSession()
     if (!socket.connected) {
       try {
-        await waitForConnection(15000)
+        await waitForConnection(SOCKET_CONNECT_TIMEOUT_MS)
       } catch (e) {
         const msg = e instanceof Error ? e.message : '连接失败'
         error.value = `${msg}，请检查网络后重试`
@@ -236,7 +236,7 @@ export const useRoomStore = defineStore('room', () => {
     setupSocketListeners()
     if (!socket.connected) {
       try {
-        await waitForConnection(15000)
+        await waitForConnection(SOCKET_CONNECT_TIMEOUT_MS)
       } catch (e) {
         const msg = e instanceof Error ? e.message : '连接失败'
         error.value = `${msg}，请检查网络后重试`
@@ -302,7 +302,7 @@ export const useRoomStore = defineStore('room', () => {
             settled = true
             reject(new Error('保存超时，请重试'))
           }
-        }, 10000)
+        }, WORD_CONFIG_SAVE_TIMEOUT_MS)
         socket.emit(CLIENT_EVENTS.UPDATE_WORD_CONFIG, { wordConfig: updates })
       } else {
         resolve()

@@ -1,15 +1,12 @@
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcrypt'
-import { SPY_MIN_PLAYERS } from '../game/SpyGameManager.js'
 import type { Player, Room, RoomErrorPayload, RoomWordConfig, GameType } from '@draw-and-guess/shared'
-import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG } from '@draw-and-guess/shared'
-
-const BCRYPT_ROUNDS = 6
+import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG, SPY_MIN_PLAYERS, DRAW_MIN_PLAYERS, NICKNAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, BCRYPT_ROUNDS, AVATAR_COUNT, DEFAULT_TOTAL_ROUNDS, DEFAULT_ROUND_DURATION, RECONNECT_TIMEOUT_MS, ROOM_DISMISS_TIMEOUT_MS } from '@draw-and-guess/shared'
 
 function createPlayer(nickname: string, isOwner = false): Player {
   const trimmed = nickname.trim()
-  if (!trimmed || trimmed.length > 10) {
-    throw new Error('昵称长度需在1-10字符之间')
+  if (!trimmed || trimmed.length > NICKNAME_MAX_LENGTH) {
+    throw new Error(`昵称长度需在1-${NICKNAME_MAX_LENGTH}字符之间`)
   }
   return {
     id: randomUUID(),
@@ -18,7 +15,7 @@ function createPlayer(nickname: string, isOwner = false): Player {
     isOwner,
     score: 0,
     hasGuessedCorrectly: false,
-    avatar: Math.floor(Math.random() * 50),
+    avatar: Math.floor(Math.random() * AVATAR_COUNT),
     joinedAt: Date.now(),
     lastActiveAt: Date.now(),
   }
@@ -35,9 +32,9 @@ function createRoom(name: string, maxPlayers: number, password: string, owner: P
     players: [owner],
     currentWord: null,
     currentRound: 0,
-    totalRounds: 10,
+    totalRounds: DEFAULT_TOTAL_ROUNDS,
     roundStartTime: null,
-    roundDuration: 90,
+    roundDuration: DEFAULT_ROUND_DURATION,
     wordConfig,
     gameType,
   }
@@ -52,7 +49,7 @@ export class RoomManager {
   private playerSocketMap = new Map<string, string>()
   private onDismissCallbacks: Array<(roomId: string) => void> = []
   private onPlayerRemovedCallbacks: Array<(playerId: string, roomId: string) => void> = []
-  private RECONNECT_TIMEOUT = 60_000
+  private RECONNECT_TIMEOUT = RECONNECT_TIMEOUT_MS
 
   onDismissed(callback: (roomId: string) => void): void {
     this.onDismissCallbacks.push(callback)
@@ -75,12 +72,12 @@ export class RoomManager {
       throw new Error('Room name is required')
     }
 
-    if (trimmedName.length > 20) {
-      throw new Error('房间名称不能超过20个字符')
+    if (trimmedName.length > ROOM_NAME_MAX_LENGTH) {
+      throw new Error(`房间名称不能超过${ROOM_NAME_MAX_LENGTH}个字符`)
     }
 
-    if (password && (password.length < 4 || password.length > 100)) {
-      throw new Error('密码长度需在4-100字符之间')
+    if (password && (password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH)) {
+      throw new Error(`密码长度需在${PASSWORD_MIN_LENGTH}-${PASSWORD_MAX_LENGTH}字符之间`)
     }
 
     // Check name uniqueness (case-insensitive)
@@ -118,11 +115,29 @@ export class RoomManager {
       return { error: { code: ErrorCode.ROOM_PASSWORD_WRONG, message: '密码错误' } }
     }
 
-    const nicknameTaken = room.players.some(
-      (p) => p.nickname.toLowerCase() === nickname.toLowerCase() && p.sessionId,
+    // 检查昵称是否已被占用，若原玩家的 socket 已断线则自动清理
+    const existing = room.players.find(
+      (p) => p.nickname.toLowerCase() === nickname.toLowerCase(),
     )
-    if (nicknameTaken) {
-      return { error: { code: ErrorCode.NICKNAME_TAKEN, message: '该昵称已被使用，请换一个名字' } }
+    if (existing) {
+      const socketId = this.playerSocketMap.get(existing.id)
+      let isActive = false
+      if (socketId) {
+        const io = this.getIO()
+        const sock = io?.sockets.sockets.get(socketId)
+        isActive = sock?.connected ?? false
+      }
+      if (isActive) {
+        return { error: { code: ErrorCode.NICKNAME_TAKEN, message: '该昵称已被使用，请换一个名字' } }
+      }
+      // 旧玩家已断线 → 移除旧记录，新玩家可正常加入
+      const wasOwner = existing.isOwner
+      room.players.splice(room.players.indexOf(existing), 1)
+      this.cleanupPlayer(existing.id)
+      // 断线房主被移除后，转移房主给剩余玩家中最早的
+      if (wasOwner && room.players.length > 0) {
+        room.players[0].isOwner = true
+      }
     }
 
     const player = createPlayer(nickname, false)
@@ -197,12 +212,12 @@ export class RoomManager {
       return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: '游戏已在进行中' } }
     }
 
-    const minPlayers = room.gameType === 'spy' ? SPY_MIN_PLAYERS : 2
+    const minPlayers = room.gameType === 'spy' ? SPY_MIN_PLAYERS : DRAW_MIN_PLAYERS
     if (room.players.length < minPlayers) {
       return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: `至少需要${minPlayers}名玩家才能开始游戏` } }
     }
 
-    room.totalRounds = room.wordConfig.customWords.length > 0 ? room.wordConfig.customWords.length : 10
+    room.totalRounds = room.wordConfig.customWords.length > 0 ? room.wordConfig.customWords.length : DEFAULT_TOTAL_ROUNDS
     room.state = 'playing'
     room.currentRound = 1
     room.players.forEach((p) => {
@@ -349,7 +364,7 @@ export class RoomManager {
     this.cancelDismissTimer(roomId)
     const timer = setTimeout(() => {
       this.dismissRoom(roomId)
-    }, 30_000)
+    }, ROOM_DISMISS_TIMEOUT_MS)
     this.dismissTimers.set(roomId, timer)
   }
 
@@ -382,7 +397,7 @@ export class RoomManager {
 
     room.state = 'lobby'
     room.currentRound = 0
-    room.totalRounds = 10
+    room.totalRounds = DEFAULT_TOTAL_ROUNDS
     room.currentWord = null
     room.roundStartTime = null
     room.players.forEach((p) => {

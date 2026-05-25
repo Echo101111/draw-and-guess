@@ -1,25 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { PRESET_COLORS, WIDTH_PRESETS } from '@draw-and-guess/shared'
 import type { Point } from '@draw-and-guess/shared'
 
 export const useCanvasStore = defineStore('canvas', () => {
   const tool = ref<'brush' | 'eraser'>('brush')
   const color = ref('#000000')
-  const width = ref(4)
+  const width = ref<number>(WIDTH_PRESETS.medium)
   const isDrawing = ref(false)
   const currentStroke = ref<Point[]>([])
-
-  const PRESET_COLORS = [
-    '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff',
-    '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#88ff00',
-    '#0088ff', '#ff0088',
-  ]
-
-  const WIDTH_PRESETS = {
-    thin: 2,
-    medium: 4,
-    thick: 8,
-  }
 
   function setTool(newTool: 'brush' | 'eraser') {
     tool.value = newTool

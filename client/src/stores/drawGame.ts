@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
 import { useCanvasStore } from '@/stores/canvas'
 import { getSocket } from '@/composables/useSocket'
-import { CLIENT_EVENTS, SERVER_EVENTS, type ChatMessage, type Point } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, DEFAULT_TOTAL_ROUNDS, DEFAULT_ROUND_DURATION, CHAT_MESSAGE_LIMIT, CHAT_MESSAGE_KEEP, UNDO_ROLLBACK_MS, TIMER_TICK_INTERVAL_MS, type ChatMessage, type Point } from '@draw-and-guess/shared'
 
 interface DrawerInfo {
   id: string
@@ -38,9 +38,9 @@ interface RoundStartToDrawerPayload {
 export const useDrawGameStore = defineStore('drawGame', () => {
   const state = ref<'idle' | 'choosing' | 'playing' | 'round_end' | 'game_over'>('idle')
   const currentRound = ref(0)
-  const totalRounds = ref(10)
+  const totalRounds = ref(DEFAULT_TOTAL_ROUNDS)
   const timeLeft = ref(0)
-  const totalTime = ref(90)
+  const totalTime = ref(DEFAULT_ROUND_DURATION)
   const myRole = ref<'drawer' | 'guesser' | 'spectator'>('spectator')
   const scores = ref<ScoreEntry[]>([])
   const chatMessages = ref<ChatMessage[]>([])
@@ -96,7 +96,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
       if (timeLeft.value > 0) {
         timeLeft.value--
       }
-    }, 1000)
+    }, TIMER_TICK_INTERVAL_MS)
   }
 
   function stopLocalTimer() {
@@ -297,8 +297,8 @@ export const useDrawGameStore = defineStore('drawGame', () => {
         isWrongGuess: data.isWrongGuess ?? false,
         timestamp: data.timestamp,
       })
-      if (chatMessages.value.length > 500) {
-        chatMessages.value = chatMessages.value.slice(-300)
+      if (chatMessages.value.length > CHAT_MESSAGE_LIMIT) {
+        chatMessages.value = chatMessages.value.slice(-CHAT_MESSAGE_KEEP)
       }
     })
 
@@ -339,8 +339,8 @@ export const useDrawGameStore = defineStore('drawGame', () => {
       isSystem: true,
       timestamp: Date.now(),
     })
-    if (chatMessages.value.length > 500) {
-      chatMessages.value = chatMessages.value.slice(-300)
+    if (chatMessages.value.length > CHAT_MESSAGE_LIMIT) {
+      chatMessages.value = chatMessages.value.slice(-CHAT_MESSAGE_KEEP)
     }
   }
 
@@ -397,7 +397,6 @@ export const useDrawGameStore = defineStore('drawGame', () => {
         }
       }
     }
-    // 3秒后若服务器未确认，回滚
     if (undoRollbackTimer) clearTimeout(undoRollbackTimer)
     undoRollbackTimer = setTimeout(() => {
       if (undoSavedStroke) {
@@ -407,7 +406,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
         strokeVersion.value++
       }
       undoRollbackTimer = null
-    }, 3000)
+    }, UNDO_ROLLBACK_MS)
 
     const socket = getSocket()
     if (socket?.connected) {
@@ -455,7 +454,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
     state.value = 'idle'
     currentRound.value = 0
     timeLeft.value = 0
-    totalTime.value = 90
+    totalTime.value = DEFAULT_ROUND_DURATION
     myRole.value = 'spectator'
     scores.value = []
     hasGuessedCorrectly.value = false

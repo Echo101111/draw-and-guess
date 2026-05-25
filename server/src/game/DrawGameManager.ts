@@ -1,14 +1,10 @@
-import { SERVER_EVENTS } from '@draw-and-guess/shared'
+import { SERVER_EVENTS, SCORE_BASE, SCORE_DRAWER_BONUS, WORD_SELECTION_TIMEOUT_MS, ROUND_TRANSITION_MS, DRAW_RATE_LIMIT_MS, ANSWER_COOLDOWN_MS, PRUNE_INTERVAL_MS, WORD_SELECTION_OPTIONS_COUNT, WORD_SELECTION_MAX_ATTEMPTS, TIMER_SYNC_INTERVAL_MS, TIMER_TICK_INTERVAL_MS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { getWordCategory, CATEGORY_DISPLAY_NAMES, WORD_CATEGORIES, WORDS } from '../data/words.js'
 import { matchAnswer } from '../data/wordIndex.js'
 import { getAllCustomWordEntries } from '../data/customWordBank.js'
 import type { Room, Player, Point, Stroke, CustomWord } from '@draw-and-guess/shared'
 import type { WordCategory } from '../data/words.js'
-
-const SCORE_BASE = 100
-const SCORE_DRAWER_BONUS = 50
-const WORD_SELECTION_TIMEOUT_MS = 30000
 
 interface RoundTimer {
   roomId: string
@@ -40,12 +36,10 @@ export class GameManager {
   private undoneStrokes = new Map<string, Set<string>>()
   private pendingWordSelection = new Map<string, PendingSelection>()
   private wordSelectionTimers = new Map<string, NodeJS.Timeout>()
-  private static readonly DRAW_RATE_LIMIT_MS = 8
-  private static readonly ANSWER_COOLDOWN_MS = 200
   private pruneTimer: NodeJS.Timeout | null = null
 
   constructor() {
-    this.pruneTimer = setInterval(() => this.prune(), 300_000) // 每5分钟清理
+    this.pruneTimer = setInterval(() => this.prune(), PRUNE_INTERVAL_MS)
   }
 
   destroy(): void {
@@ -295,7 +289,7 @@ export class GameManager {
       const order = this.customWordOrder.get(room.id)!
       const startIdx = room.currentRound - 1
       const options: WordOption[] = []
-      for (let i = startIdx; i < order.length && options.length < 5; i++) {
+      for (let i = startIdx; i < order.length && options.length < WORD_SELECTION_OPTIONS_COUNT; i++) {
         const entry = order[i]
         if (!used.has(entry.word)) {
           options.push({ word: entry.word, category: entry.category })
@@ -321,10 +315,10 @@ export class GameManager {
       : []
 
     let attempts = 0
-    while (options.length < 5 && attempts < 50) {
+    while (options.length < WORD_SELECTION_OPTIONS_COUNT && attempts < WORD_SELECTION_MAX_ATTEMPTS) {
       attempts++
       for (const cat of categories) {
-        if (options.length >= 5) break
+        if (options.length >= WORD_SELECTION_OPTIONS_COUNT) break
         const catWords = WORDS[cat]
         if (!catWords) continue
         const available = catWords.filter((e) => !used.has(e.word))
@@ -337,7 +331,7 @@ export class GameManager {
         }
       }
       // 每轮内置分类选词后，也加入一个全局贡献词候选
-      if (globalCustomPool.length > 0 && options.length < 5) {
+      if (globalCustomPool.length > 0 && options.length < WORD_SELECTION_OPTIONS_COUNT) {
         const availCustom = globalCustomPool.filter(e => !used.has(e.word))
         if (availCustom.length > 0) {
           const idx = Math.floor(Math.random() * availCustom.length)
@@ -351,7 +345,7 @@ export class GameManager {
     }
 
     // 保底：从已启用的内置分类里选
-    while (options.length < 5) {
+    while (options.length < WORD_SELECTION_OPTIONS_COUNT) {
       const allEnabled = enabledCategories.flatMap(c => WORDS[c] ?? [])
       const available = allEnabled.filter(e => !used.has(e.word))
       if (available.length === 0) break
@@ -364,7 +358,7 @@ export class GameManager {
       }
     }
     // 保底：从全局贡献词里选
-    while (options.length < 5 && globalCustomPool.length > 0) {
+    while (options.length < WORD_SELECTION_OPTIONS_COUNT && globalCustomPool.length > 0) {
       const available = globalCustomPool.filter(e => !used.has(e.word))
       if (available.length === 0) break
       const idx = Math.floor(Math.random() * available.length)
@@ -400,7 +394,7 @@ export class GameManager {
 
     const now = Date.now()
     const lastAns = this.lastAnswerTime.get(playerId) ?? 0
-    if (now - lastAns < GameManager.ANSWER_COOLDOWN_MS) {
+    if (now - lastAns < ANSWER_COOLDOWN_MS) {
       return { correct: false }
     }
     this.lastAnswerTime.set(playerId, now)
@@ -474,7 +468,7 @@ export class GameManager {
       const rateKey = strokeSeq !== undefined ? `${playerId}:${strokeSeq}` : playerId
       const now = Date.now()
       const lastTime = this.lastDrawTime.get(rateKey) ?? 0
-      if (now - lastTime < GameManager.DRAW_RATE_LIMIT_MS) {
+      if (now - lastTime < DRAW_RATE_LIMIT_MS) {
         console.log(`[Draw] RATE_LIMIT: key=${rateKey.slice(0,14)}`)
         return
       }
@@ -637,7 +631,6 @@ export class GameManager {
       })
     }
 
-    // Auto-start next round after 3 seconds
     const existing = this.nextRoundTimers.get(roomId)
     if (existing) clearTimeout(existing)
     this.nextRoundTimers.set(roomId, setTimeout(() => {
@@ -655,7 +648,7 @@ export class GameManager {
       }
 
       this.startRound(roomId)
-    }, 3000))
+    }, ROUND_TRANSITION_MS))
   }
 
   endGame(roomId: string): boolean {
@@ -786,7 +779,7 @@ export class GameManager {
           timeLeft: roundTimer.remaining,
         })
       }
-    }, 5000)
+    }, TIMER_SYNC_INTERVAL_MS)
 
     roundTimer.timer = setInterval(() => {
       roundTimer.remaining--
@@ -794,7 +787,7 @@ export class GameManager {
         this.clearTimer(roomId)
         this.endRound(roomId, 'timeout')
       }
-    }, 1000)
+    }, TIMER_TICK_INTERVAL_MS)
 
     this.roundTimers.set(roomId, roundTimer)
   }

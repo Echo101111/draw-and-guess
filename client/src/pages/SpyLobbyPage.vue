@@ -50,7 +50,7 @@
           @click="handleStart"
         >
           <span class="btn-start-icon">{{ players.length < 2 ? '👥' : '🕵️' }}</span>
-           {{ players.length < 4 ? '等待更多玩家...' : '开始游戏' }}
+           {{ players.length < SPY_MIN_PLAYERS ? '等待更多玩家...' : '开始游戏' }}
         </button>
 
         <div class="lobby-actions-secondary">
@@ -129,7 +129,7 @@ import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useSpyStore } from '@/stores/spy'
 import { getSocket } from '@/composables/useSocket'
-import { CLIENT_EVENTS } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SPY_MIN_PLAYERS } from '@draw-and-guess/shared'
 
 const router = useRouter()
 const roomStore = useRoomStore()

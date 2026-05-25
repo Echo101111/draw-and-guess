@@ -1,10 +1,9 @@
-import { CLIENT_EVENTS, SERVER_EVENTS } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, CHAT_COOLDOWN_MS, CHAT_MESSAGE_MAX_LENGTH, GAME_TYPE_DRAW } from '@draw-and-guess/shared'
 import { drawGameManager } from '../game/index.js'
 import { roomManager } from '../rooms/index.js'
 import { matchAnswer } from '../data/wordIndex.js'
 
 const lastChatTime = new Map<string, number>()
-const CHAT_COOLDOWN = 1000
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function registerDrawGameHandlers(io: any, socket: any): void {
@@ -12,7 +11,7 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.gameType !== 'draw') return
+    if (!room || room.gameType !== GAME_TYPE_DRAW) return
 
     if (!answer || !answer.trim()) return
 
@@ -37,7 +36,7 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.gameType !== 'draw') return
+    if (!room || room.gameType !== GAME_TYPE_DRAW) return
 
     try {
       const start = Date.now()
@@ -56,7 +55,7 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.gameType !== 'draw') return
+    if (!room || room.gameType !== GAME_TYPE_DRAW) return
 
     try {
       drawGameManager.clearCanvas(roomId, playerId, socket.id)
@@ -80,17 +79,17 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
 
       // chat 频率限制
       const lastTime = lastChatTime.get(playerId) ?? 0
-      if (now - lastTime < CHAT_COOLDOWN) return
+      if (now - lastTime < CHAT_COOLDOWN_MS) return
       lastChatTime.set(playerId, now)
 
       const nickname = player?.nickname ?? '玩家'
 
       // 非 draw 房间：直接广播，不做答案检查
-      if (room.gameType !== 'draw') {
+      if (room.gameType !== GAME_TYPE_DRAW) {
         io.to(room.code).emit(SERVER_EVENTS.CHAT_MESSAGE, {
           playerId,
           nickname,
-          text: text.trim().slice(0, 200),
+          text: text.trim().slice(0, CHAT_MESSAGE_MAX_LENGTH),
           isSystem: false,
           isWrongGuess: false,
           timestamp: now,
@@ -122,7 +121,7 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
       io.to(room.code).emit(SERVER_EVENTS.CHAT_MESSAGE, {
         playerId,
         nickname,
-        text: text.trim().slice(0, 200),
+        text: text.trim().slice(0, CHAT_MESSAGE_MAX_LENGTH),
         isSystem: false,
         isWrongGuess,
         timestamp: now,
@@ -154,7 +153,7 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.gameType !== 'draw') return
+    if (!room || room.gameType !== GAME_TYPE_DRAW) return
     try {
       drawGameManager.undoStroke(roomId, playerId)
     } catch (err) {
@@ -166,7 +165,7 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.gameType !== 'draw') return
+    if (!room || room.gameType !== GAME_TYPE_DRAW) return
     try {
       drawGameManager.sendGameStateSnapshot(roomId, playerId)
     } catch (err) {
@@ -178,7 +177,7 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.gameType !== 'draw') return
+    if (!room || room.gameType !== GAME_TYPE_DRAW) return
     try {
       drawGameManager.resyncStrokes(roomId, playerId, strokes)
     } catch (err) {
@@ -190,7 +189,7 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) return
     const room = roomManager.getRoomById(roomId)
-    if (!room || room.gameType !== 'draw') return
+    if (!room || room.gameType !== GAME_TYPE_DRAW) return
     try {
       drawGameManager.handleWordSelection(roomId, playerId, word)
     } catch (err) {
@@ -199,7 +198,7 @@ export function registerDrawGameHandlers(io: any, socket: any): void {
   })
 }
 
-export { lastChatTime, CHAT_COOLDOWN }
+export { lastChatTime, CHAT_COOLDOWN_MS }
 
 export function clearChatCooldown(playerId: string): void {
   lastChatTime.delete(playerId)

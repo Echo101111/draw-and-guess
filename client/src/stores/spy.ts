@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
 import { getSocket } from '@/composables/useSocket'
-import { CLIENT_EVENTS, SERVER_EVENTS, type ChatMessage } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, CHAT_MESSAGE_LIMIT, CHAT_MESSAGE_KEEP, TIMER_TICK_INTERVAL_MS, type ChatMessage } from '@draw-and-guess/shared'
 import type { SpyPhase, SpyPlayer, SpyDescription, SpyVoteResult, SpyGameState } from '@draw-and-guess/shared'
 
 interface ScoreEntry {
@@ -74,7 +74,7 @@ export const useSpyStore = defineStore('spy', () => {
     stopLocalTimer()
     localTimer = setInterval(() => {
       if (timeLeft.value > 0) timeLeft.value--
-    }, 1000)
+    }, TIMER_TICK_INTERVAL_MS)
   }
 
   function stopLocalTimer() {
@@ -274,8 +274,8 @@ export const useSpyStore = defineStore('spy', () => {
     socket.off(SERVER_EVENTS.CHAT_MESSAGE)
     socket.on(SERVER_EVENTS.CHAT_MESSAGE, (data: ChatMessage) => {
       chatMessages.value.push(data)
-      if (chatMessages.value.length > 500) {
-        chatMessages.value = chatMessages.value.slice(-300)
+      if (chatMessages.value.length > CHAT_MESSAGE_LIMIT) {
+        chatMessages.value = chatMessages.value.slice(-CHAT_MESSAGE_KEEP)
       }
     })
   }

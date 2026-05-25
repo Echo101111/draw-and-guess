@@ -4,9 +4,10 @@ import { ErrorCode } from '@draw-and-guess/shared'
 
 const mockEmit = vi.fn()
 const mockTo = vi.fn().mockReturnValue({ emit: mockEmit })
+const mockSocketsGet = vi.fn()
 
 Object.defineProperty(global, 'io', {
-  value: { to: mockTo },
+  value: { to: mockTo, sockets: { sockets: { get: mockSocketsGet } } },
   writable: true,
 })
 
@@ -15,6 +16,7 @@ describe('RoomManager', () => {
 
   beforeEach(() => {
     roomManager = new RoomManager()
+    mockSocketsGet.mockReset()
   })
 
   describe('createRoom', () => {
@@ -122,11 +124,20 @@ describe('RoomManager', () => {
     it('should return NICKNAME_TAKEN for duplicate nickname', async () => {
       const { room, player } = await roomManager.createRoom('Host', 'NickDup', 8, '')
       roomManager.updatePlayerSession(room.id, player.id, 'session-abc')
+      roomManager.updatePlayerSocket(player.id, 'mock-socket-id')
+      mockSocketsGet.mockReturnValue({ connected: true })
       const result = await roomManager.joinRoom('NickDup', '', 'Host')
       expect('error' in result).toBe(true)
       if ('error' in result) {
         expect(result.error.code).toBe(ErrorCode.NICKNAME_TAKEN)
       }
+    })
+
+    it('should auto-clean stale disconnected player with same nickname', async () => {
+      await roomManager.createRoom('Host', 'StaleRoom', 8, '')
+      // Host joins as "Host" - no socket mapping (implies disconnected)
+      const result = await roomManager.joinRoom('StaleRoom', '', 'Host')
+      expect('error' in result).toBe(false)
     })
 
     it('should return ROOM_PASSWORD_WRONG for wrong password', async () => {

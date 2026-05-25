@@ -37,7 +37,7 @@
           type="text"
           :placeholder="inputPlaceholder"
           :disabled="inputDisabled"
-          maxlength="200"
+          :maxlength="CHAT_MESSAGE_MAX_LENGTH"
           @keyup.enter="handleSend"
         />
       </div>
@@ -48,6 +48,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { CHAT_MESSAGE_MAX_LENGTH } from '@draw-and-guess/shared'
 import { useDrawGameStore } from '@/stores/drawGame'
 
 const gameStore = useDrawGameStore()

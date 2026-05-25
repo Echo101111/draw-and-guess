@@ -1,6 +1,6 @@
 import { ref, shallowRef } from 'vue'
 import { getSocket } from './useSocket'
-import { SERVER_EVENTS, CLIENT_EVENTS } from '@draw-and-guess/shared'
+import { SERVER_EVENTS, CLIENT_EVENTS, WEBRTC_FFT_SIZE, WEBRTC_VAD_THRESHOLD, WEBRTC_VAD_INTERVAL_MS, WEBRTC_RECONNECT_DELAY_MS } from '@draw-and-guess/shared'
 
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
@@ -332,7 +332,7 @@ export function useWebRTC() {
     }
     const source = audioContext.createMediaStreamSource(stream)
     const analyser = audioContext.createAnalyser()
-    analyser.fftSize = 256
+    analyser.fftSize = WEBRTC_FFT_SIZE
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
     source.connect(analyser)
     analyser.connect(audioContext.destination)
@@ -342,15 +342,15 @@ export function useWebRTC() {
       const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
 
       const sp = new Set(_speakingPeers.value)
-      if (avg > 15) {
+      if (avg > WEBRTC_VAD_THRESHOLD) {
         sp.add(playerId)
       } else {
         sp.delete(playerId)
       }
       _speakingPeers.value = sp
-    }, 200)
-
-    _analyserNodes.set(playerId, { analyser, dataArray, interval, audioContext })
+    }, WEBRTC_VAD_INTERVAL_MS)
+ 
+     _analyserNodes.set(playerId, { analyser, dataArray, interval, audioContext })
   }
 
   function cleanupAnalyser(playerId: string): void {
@@ -378,13 +378,12 @@ export function useWebRTC() {
   function handleSocketReconnect(): void {
     if (_isVoiceActive.value) {
       destroyPeers()
-      // Small delay to ensure session restoration completes
       setTimeout(() => {
         const sock = getSocket()
         if (sock?.connected) {
           sock.emit(CLIENT_EVENTS.WEBRTC_JOIN_VOICE)
         }
-      }, 500)
+      }, WEBRTC_RECONNECT_DELAY_MS)
     }
   }
 

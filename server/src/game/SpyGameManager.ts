@@ -1,22 +1,15 @@
-import { SERVER_EVENTS } from '@draw-and-guess/shared'
+import { SERVER_EVENTS, SPY_MIN_PLAYERS, SCORE_CIVILIAN_WIN, SCORE_SPY_WIN, SCORE_SPY_SURVIVE_ROUND, WORD_REVEAL_DURATION_MS, SPY_ROUND_TRANSITION_MS, SPY_DESCRIPTION_MAX_LENGTH, SPY_ALIVE_WIN_THRESHOLD, SPY_DESCRIBE_CYCLES, DISCUSSION_TIME_BASE, DISCUSSION_TIME_PER_PLAYER, SPY_DEFAULT_DESCRIPTION_TIME, SPY_DEFAULT_VOTE_TIME, SPY_CIVILIAN_CONSOLATION } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { getRandomSpyPair, type SpyWordPair } from '../data/spy-words.js'
 import type { SpyPlayer, SpyPhase, SpyGameConfig, SpyDescription, SpyVoteResult, SpyGameState } from '@draw-and-guess/shared'
 
-export const SPY_MIN_PLAYERS = 4
+export { SPY_MIN_PLAYERS }
 
 const DEFAULT_CONFIG: SpyGameConfig = {
   totalRounds: 7,
-  descriptionTime: 30,
-  voteTime: 20,
+  descriptionTime: SPY_DEFAULT_DESCRIPTION_TIME,
+  voteTime: SPY_DEFAULT_VOTE_TIME,
 }
-
-const DESCRIBE_CYCLES_PER_ROUND = 3
-const SCORE_CIVILIAN_WIN = 100
-const SCORE_SPY_WIN = 200
-const SCORE_SPY_SURVIVE_ROUND = 50
-const WORD_REVEAL_DURATION_MS = 3000
-const ROUND_TRANSITION_MS = 3000
 
 interface EliminationResult {
   round: number
@@ -227,7 +220,7 @@ export class SpyGameManager {
     const idx = data.state.currentSpeakerIndex
 
     if (idx >= alivePlayers.length) {
-      if (data.describeCycle < DESCRIBE_CYCLES_PER_ROUND) {
+      if (data.describeCycle < SPY_DESCRIBE_CYCLES) {
         data.describeCycle++
         data.state.currentSpeakerIndex = 0
         this.startDescribing(roomId)
@@ -266,7 +259,7 @@ export class SpyGameManager {
     data.state.phase = 'discussion'
     data.state.currentSpeakerIndex = 0
 
-    const timeLeft = Math.max(15, data.state.players.filter(p => p.isAlive).length * 10)
+    const timeLeft = Math.max(DISCUSSION_TIME_BASE, data.state.players.filter(p => p.isAlive).length * DISCUSSION_TIME_PER_PLAYER)
 
     const io = this.getIO()
     if (io) {
@@ -304,7 +297,7 @@ export class SpyGameManager {
     if (currentSpeaker.id !== playerId) return { success: false, error: '还没轮到你描述' }
 
     const trimmed = text.trim()
-    if (!trimmed || trimmed.length > 100) return { success: false, error: '描述需在1-100字之间' }
+    if (!trimmed || trimmed.length > SPY_DESCRIPTION_MAX_LENGTH) return { success: false, error: `描述需在1-${SPY_DESCRIPTION_MAX_LENGTH}字之间` }
 
     const descriptor: SpyDescription = {
       playerId,
@@ -482,7 +475,7 @@ export class SpyGameManager {
 
     setTimeout(() => {
       this.checkRoundEnd(roomId)
-    }, ROUND_TRANSITION_MS)
+    }, SPY_ROUND_TRANSITION_MS)
   }
 
   private checkRoundEnd(roomId: string): void {
@@ -505,11 +498,11 @@ export class SpyGameManager {
     const aliveCount = data.state.players.filter(p => p.isAlive).length
 
     // 条件2：存活人数 ≤ 3
-    if (aliveCount <= 3) {
+    if (aliveCount <= SPY_ALIVE_WIN_THRESHOLD) {
       data.state.winner = 'spy'
       spy.score += SCORE_SPY_WIN
       for (const p of data.state.players) {
-        if (!p.isSpy && p.isAlive) p.score += Math.max(0, SCORE_CIVILIAN_WIN - 20)
+        if (!p.isSpy && p.isAlive) p.score += Math.max(0, SCORE_CIVILIAN_WIN - SPY_CIVILIAN_CONSOLATION)
       }
       this.emitRoundResult(roomId, `存活仅剩 ${aliveCount} 人！卧底获胜`, true)
       return
@@ -520,7 +513,7 @@ export class SpyGameManager {
       data.state.winner = 'spy'
       spy.score += SCORE_SPY_WIN
       for (const p of data.state.players) {
-        if (!p.isSpy && p.isAlive) p.score += Math.max(0, SCORE_CIVILIAN_WIN - 20)
+        if (!p.isSpy && p.isAlive) p.score += Math.max(0, SCORE_CIVILIAN_WIN - SPY_CIVILIAN_CONSOLATION)
       }
       this.emitRoundResult(roomId, '达到最大局数！卧底获胜', true)
       return
@@ -553,10 +546,10 @@ export class SpyGameManager {
     data.state.phase = 'round_end'
 
     if (gameOver) {
-      setTimeout(() => this.endGame(roomId), ROUND_TRANSITION_MS)
+      setTimeout(() => this.endGame(roomId), SPY_ROUND_TRANSITION_MS)
     } else {
       data.roundEnding = false
-      setTimeout(() => this.startNextEliminationRound(roomId), ROUND_TRANSITION_MS)
+      setTimeout(() => this.startNextEliminationRound(roomId), SPY_ROUND_TRANSITION_MS)
     }
   }
 

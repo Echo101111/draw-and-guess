@@ -51,11 +51,11 @@
         <button
           v-if="isOwner"
           class="btn-start"
-          :disabled="players.length < 2 || gameState === 'playing' || roomStore.connectionState !== 'connected'"
+          :disabled="players.length < DRAW_MIN_PLAYERS || gameState === 'playing' || roomStore.connectionState !== 'connected'"
           @click="handleStartGame"
         >
-          <span class="btn-start-icon">{{ players.length < 2 ? '👥' : '🎯' }}</span>
-          {{ roomStore.connectionState !== 'connected' ? '连接中...' : (players.length < 2 ? '等待更多玩家...' : '开始游戏') }}
+          <span class="btn-start-icon">{{ players.length < DRAW_MIN_PLAYERS ? '👥' : '🎯' }}</span>
+          {{ roomStore.connectionState !== 'connected' ? '连接中...' : (players.length < DRAW_MIN_PLAYERS ? '等待更多玩家...' : '开始游戏') }}
         </button>
 
         <div class="lobby-actions-secondary">
@@ -102,7 +102,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useDrawGameStore } from '@/stores/drawGame'
 import { getSocket } from '@/composables/useSocket'
-import { CLIENT_EVENTS } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, DRAW_MIN_PLAYERS, TOAST_LOBBY_ERROR_MS } from '@draw-and-guess/shared'
 import WordConfigModal from '@/components/WordConfigModal.vue'
 import type { RoomWordConfig } from '@draw-and-guess/shared'
 
@@ -140,7 +140,7 @@ watch(() => roomStore.room?.code, (code) => {
 watch(() => roomStore.error, (newError) => {
   errorMessage.value = newError
   if (newError) {
-    setTimeout(() => { errorMessage.value = null }, 4000)
+    setTimeout(() => { errorMessage.value = null }, TOAST_LOBBY_ERROR_MS)
   }
 })
 

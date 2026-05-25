@@ -9,7 +9,7 @@
           <span class="header-self-name">{{ myPlayer.nickname }}</span>
         </div>
         <span class="header-game">🕵️ 谁是卧底</span>
-        <span class="header-round">第 {{ store.gameEliminationRound }}/{{ store.totalRounds }} 局 · 描述 {{ store.describeCycle }}/3</span>
+        <span class="header-round">第 {{ store.gameEliminationRound }}/{{ store.totalRounds }} 局 · 描述 {{ store.describeCycle }}/{{ SPY_DESCRIBE_CYCLES }}</span>
       </div>
       <div class="header-right">
         <span v-if="store.timeLeft > 0" class="header-timer">⏱ {{ store.timeLeft }}s</span>
@@ -90,7 +90,7 @@
                 <circle class="vote-ring-bg" cx="30" cy="30" r="26" />
                 <circle
                   class="vote-ring-fg"
-                  :class="{ urgent: store.timeLeft <= 5 }"
+                  :class="{ urgent: store.timeLeft <= TIMER_URGENT_THRESHOLD }"
                   cx="30" cy="30" r="26"
                   :style="{ strokeDashoffset: voteRingOffset }"
                 />
@@ -229,7 +229,7 @@
             v-model="descText"
             class="action-input"
             placeholder="描述你的词..."
-            maxlength="100"
+            :maxlength="SPY_DESCRIPTION_MAX_LENGTH"
             @keyup.enter="submitDesc"
           />
           <button class="action-send" @click="submitDesc" :disabled="!descText.trim()">发送</button>
@@ -258,7 +258,7 @@
             v-model="discussText"
             class="action-input"
             placeholder="自由讨论..."
-            maxlength="200"
+            :maxlength="CHAT_MESSAGE_MAX_LENGTH"
             @keyup.enter="sendDiscuss"
           />
           <button class="action-send" @click="sendDiscuss" :disabled="!discussText.trim()">发送</button>
@@ -293,6 +293,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useSpyStore } from '@/stores/spy'
+import { SPY_DESCRIPTION_MAX_LENGTH, CHAT_MESSAGE_MAX_LENGTH, SPY_DEFAULT_VOTE_TIME, SPY_DESCRIBE_CYCLES, TIMER_URGENT_THRESHOLD } from '@draw-and-guess/shared'
 import SpyWordCard from '@/components/SpyWordCard.vue'
 import SpyPlayerRing from '@/components/SpyPlayerRing.vue'
 import SpyDescriptionBubble from '@/components/SpyDescriptionBubble.vue'
@@ -499,7 +500,7 @@ const spyPlayerName = computed(() => {
 })
 
 const voteRingOffset = computed(() => {
-  const maxTime = store.voteTimeMax || 20
+  const maxTime = store.voteTimeMax || SPY_DEFAULT_VOTE_TIME
   const ratio = Math.min(store.timeLeft / maxTime, 1)
   const circumference = 2 * Math.PI * 26
   return circumference * (1 - ratio)

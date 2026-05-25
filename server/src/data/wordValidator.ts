@@ -1,3 +1,4 @@
+import { WORD_MAX_LENGTH, WORD_BATCH_MAX, WORD_ERROR_TRUNCATE } from '@draw-and-guess/shared'
 import type { CustomWord } from '@draw-and-guess/shared'
 import { getWordCategory } from './words.js'
 import { getCustomWordSet } from './customWordBank.js'
@@ -14,7 +15,7 @@ export function validateCustomWords(inputs: { word: string; category: string }[]
     const word = input.word?.trim()
     const category = input.category?.trim()
     if (!word) continue
-    if (word.length > 20) return { valid: false, error: `词汇"${word.slice(0, 10)}..."过长` }
+    if (word.length > WORD_MAX_LENGTH) return { valid: false, error: `词汇"${word.slice(0, WORD_ERROR_TRUNCATE)}..."过长` }
     if (!category) return { valid: false, error: `词汇"${word}"缺少分类` }
     if (BAD_WORDS.has(word.toLowerCase())) return { valid: false, error: `词汇"${word}"包含不适当内容` }
     words.push({ word, category })
@@ -34,7 +35,7 @@ export function validateGlobalWord(
 ): WordValidationResult {
   const trimmed = word.trim()
   if (!trimmed) return { valid: false, error: '词语不能为空' }
-  if (trimmed.length > 20) return { valid: false, error: `"${trimmed.slice(0, 10)}..."过长（最多20字）` }
+  if (trimmed.length > WORD_MAX_LENGTH) return { valid: false, error: `"${trimmed.slice(0, WORD_ERROR_TRUNCATE)}..."过长（最多${WORD_MAX_LENGTH}字）` }
 
   if (!category?.trim()) {
     return { valid: false, error: '请填写分类' }
@@ -60,7 +61,7 @@ export function validateGlobalWords(
   category: string,
 ): { valid: boolean; error?: string; failed?: string[] } {
   if (words.length === 0) return { valid: false, error: '至少输入一个词语' }
-  if (words.length > 20) return { valid: false, error: '单次最多提交20个词语' }
+  if (words.length > WORD_BATCH_MAX) return { valid: false, error: `单次最多提交${WORD_BATCH_MAX}个词语` }
 
   const failed: string[] = []
   for (const w of words) {

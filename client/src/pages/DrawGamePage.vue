@@ -38,10 +38,10 @@
           <button
             v-if="roomStore.isOwner"
             class="btn-start-game"
-            :disabled="roomStore.players.length < 2"
+            :disabled="roomStore.players.length < DRAW_MIN_PLAYERS"
             @click="handleStartGame"
           >
-            <span>{{ roomStore.players.length < 2 ? '等待更多玩家...' : '开始游戏' }}</span>
+            <span>{{ roomStore.players.length < DRAW_MIN_PLAYERS ? '等待更多玩家...' : '开始游戏' }}</span>
           </button>
         </div>
 
@@ -122,7 +122,7 @@
               v-for="(g, i) in gameStore.recentGuessers"
               :key="g.playerId"
               class="guesser-bubble"
-              :style="{ animationDelay: `${i * 0.15}s` }"
+              :style="{ animationDelay: `${i * GUESSER_STAGGER_DELAY_S}s` }"
             >
               ✅ {{ g.nickname }}
             </div>
@@ -222,7 +222,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useDrawGameStore } from '@/stores/drawGame'
 import { connectSocket, disconnectSocket, getSocket, connectionState, reconnectAttempt } from '@/composables/useSocket'
-import { CLIENT_EVENTS } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, DRAW_MIN_PLAYERS, TOAST_SUCCESS_MS, TOAST_ERROR_MS, SPECTATOR_NOTICE_MS, GUESSER_STAGGER_DELAY_S } from '@draw-and-guess/shared'
 import type { RoomWordConfig } from '@draw-and-guess/shared'
 import Timer from '@/components/Timer.vue'
 import Scoreboard from '@/components/Scoreboard.vue'
@@ -305,7 +305,7 @@ onMounted(() => {
     if (roomStore.isSpectator) {
       gameStore.myRole = 'spectator'
       showSpectatorNotice.value = true
-      setTimeout(() => { showSpectatorNotice.value = false }, 4000)
+      setTimeout(() => { showSpectatorNotice.value = false }, SPECTATOR_NOTICE_MS)
     }
     // 非观战者不设置 myRole，由 GAME_STATE_SNAPSHOT 决定
   }
@@ -381,7 +381,7 @@ async function onGameoverWordConfigSave(config: Partial<RoomWordConfig>) {
   try {
     await roomStore.updateWordConfig(config)
     toastSuccess.value = '词库设置已保存'
-    setTimeout(() => toastSuccess.value = null, 2000)
+    setTimeout(() => toastSuccess.value = null, TOAST_SUCCESS_MS)
     showWordConfigGameover.value = false
   } catch {
     // error toast handled by watch on roomStore.error
@@ -391,7 +391,7 @@ async function onGameoverWordConfigSave(config: Partial<RoomWordConfig>) {
 watch(() => roomStore.error, (err) => {
   if (err) {
     toastError.value = err
-    setTimeout(() => toastError.value = null, 3000)
+    setTimeout(() => toastError.value = null, TOAST_ERROR_MS)
   }
 })
 
