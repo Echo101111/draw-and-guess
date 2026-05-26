@@ -310,9 +310,9 @@ export class GameManager {
 
     // 收集全局贡献词（按启用的自定义分类过滤）
     const allGlobalCustomWords = getAllCustomWordEntries()
-    const globalCustomPool = enabledCustomCats.length > 0
-      ? allGlobalCustomWords.filter(e => enabledCustomCats.includes(e.category))
-      : []
+      const globalCustomPool = enabledCustomCats.length > 0
+        ? allGlobalCustomWords.filter(e => enabledCustomCats.includes(e.category))
+        : allGlobalCustomWords
 
     let attempts = 0
     while (options.length < WORD_SELECTION_OPTIONS_COUNT && attempts < WORD_SELECTION_MAX_ATTEMPTS) {
