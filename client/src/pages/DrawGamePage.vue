@@ -598,13 +598,17 @@ watch(() => roomStore.error, (err) => {
 }
 
 .info-word {
-  font-family: var(--font-title);
-  font-size: 1.1rem;
-  font-weight: 700;
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  font-weight: 800;
   color: var(--color-primary);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.12em;
   line-height: 1.2;
   flex-shrink: 0;
+  padding: 0.15rem 0.6rem;
+  background: linear-gradient(135deg, var(--color-accent-pale) 0%, var(--color-surface) 100%);
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-accent);
 }
 
 .info-hint {
@@ -723,22 +727,29 @@ watch(() => roomStore.error, (err) => {
 }
 
 .rt-word {
-  font-family: var(--font-title);
-  font-size: 2.2rem;
-  color: var(--color-text);
-  letter-spacing: 0.08em;
-  line-height: 1.2;
-  padding: 0.3rem 1.5rem;
-  background: var(--color-surface);
+  font-family: var(--font-body);
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.3;
+  padding: 0.4rem 2rem;
+  background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-accent-pale) 100%);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(244, 162, 97, 0.15);
   border: 2px solid var(--color-accent);
-  animation: rtWordPulse 2s ease-in-out infinite;
+  animation: rtWordPulse 2.5s ease-in-out infinite;
+  color: var(--color-text);
 }
 
 @keyframes rtWordPulse {
-  0%, 100% { box-shadow: var(--shadow-md); }
-  50% { box-shadow: 0 0 0 4px rgba(244, 162, 97, 0.15), 0 4px 20px rgba(244, 162, 97, 0.2); }
+  0%, 100% {
+    box-shadow: var(--shadow-md), 0 0 0 1px rgba(244, 162, 97, 0.15);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(244, 162, 97, 0.12), 0 6px 24px rgba(244, 162, 97, 0.18);
+    transform: scale(1.02);
+  }
 }
 
 .rt-reason-tag {

@@ -97,10 +97,11 @@ defineEmits<{
 }
 
 .option-word {
-  font-family: var(--font-title);
-  font-size: 1.1rem;
-  font-weight: 700;
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  font-weight: 800;
   color: var(--color-text);
+  letter-spacing: 0.06em;
 }
 
 .option-category {

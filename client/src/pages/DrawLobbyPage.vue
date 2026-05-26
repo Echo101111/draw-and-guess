@@ -47,6 +47,25 @@
         </div>
       </div>
 
+      <div v-if="isOwner && gameState !== 'playing'" class="rounds-setting">
+        <label class="rounds-label">
+          <span>每人画 <strong>{{ room?.roundsPerPlayer ?? 2 }}</strong> 轮</span>
+          <span class="rounds-info">共 {{ (room?.players.length ?? 0) * (room?.roundsPerPlayer ?? 2) }} 轮</span>
+        </label>
+        <input
+          type="range"
+          min="1"
+          max="5"
+          step="1"
+          :value="room?.roundsPerPlayer ?? 2"
+          @input="handleRoundsChange"
+          class="rounds-slider"
+        />
+        <div class="rounds-labels">
+          <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+        </div>
+      </div>
+
       <div class="lobby-actions">
         <button
           v-if="isOwner"
@@ -198,6 +217,12 @@ function handleKick(playerId: string) {
 
 function handleStartGame() {
   roomStore.startGame()
+}
+
+function handleRoundsChange(e: Event) {
+  const target = e.target as HTMLInputElement
+  const val = parseInt(target.value, 10)
+  roomStore.updateRoundsPerPlayer(val)
 }
 
 function dismissRoom() {
@@ -425,6 +450,75 @@ function handleLeave() {
   color: var(--color-text-muted);
   padding: 2rem;
   font-size: 0.95rem;
+}
+
+.rounds-setting {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.rounds-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  margin-bottom: 0.5rem;
+}
+
+.rounds-label strong {
+  font-family: var(--font-number);
+  font-size: 1.1rem;
+  color: var(--color-primary);
+}
+
+.rounds-info {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.rounds-slider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--color-border-light);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.rounds-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(232, 133, 108, 0.3);
+  transition: var(--transition);
+}
+
+.rounds-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.rounds-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: pointer;
+  border: none;
+}
+
+.rounds-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  padding: 0.15rem 0.1rem 0;
 }
 
 .lobby-actions {

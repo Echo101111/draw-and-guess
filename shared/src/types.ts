@@ -52,6 +52,7 @@ export interface Room {
   totalRounds: number
   roundStartTime: number | null
   roundDuration: number
+  roundsPerPlayer: number
   wordConfig: RoomWordConfig
   gameType: GameType
 }

@@ -19,6 +19,7 @@ export const CLIENT_EVENTS = {
   SELECT_WORD: 'c_select_word',
   LIST_ROOMS: 'c_list_rooms',
   UPDATE_GAME_TYPE: 'c_update_game_type',
+  UPDATE_ROUNDS_PER_PLAYER: 'c_update_rounds_per_player',
   // WebRTC
   WEBRTC_JOIN_VOICE: 'c_webrtc_join_voice',
   WEBRTC_LEAVE_VOICE: 'c_webrtc_leave_voice',

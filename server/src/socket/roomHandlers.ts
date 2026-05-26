@@ -24,13 +24,14 @@ function getPlayerRoomData(room: Room) {
     })),
     currentRound: room.currentRound,
     totalRounds: room.totalRounds,
+    roundsPerPlayer: room.roundsPerPlayer,
     wordConfig: room.wordConfig,
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function registerRoomHandlers(io: any, socket: any): void {
-  socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password, wordConfig, gameType }: { nickname: string; roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig; gameType?: GameType }) => {
+  socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ nickname, roomName, maxPlayers, password, wordConfig, gameType, roundsPerPlayer }: { nickname: string; roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig; gameType?: GameType; roundsPerPlayer?: number }) => {
     const trimmedNickname = nickname.trim()
     if (!trimmedNickname || trimmedNickname.length > NICKNAME_MAX_LENGTH) {
       socket.emit(SERVER_EVENTS.ROOM_ERROR, {
@@ -56,7 +57,8 @@ export function registerRoomHandlers(io: any, socket: any): void {
         maxPlayers ?? DEFAULT_MAX_PLAYERS,
         password ?? '',
         wordConfig,
-        gameType ?? DEFAULT_GAME_TYPE
+        gameType ?? DEFAULT_GAME_TYPE,
+        roundsPerPlayer
       )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(global as any).metrics.roomsCreated++
@@ -200,7 +202,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
   })
 
-  socket.on(CLIENT_EVENTS.START_GAME, () => {
+  socket.on(CLIENT_EVENTS.START_GAME, ({ roundsPerPlayer }: { roundsPerPlayer?: number } = {}) => {
     console.log(`[Room] START_GAME received from socket ${socket.id}`)
     const { roomId, playerId } = socket.data
     if (!roomId || !playerId) {
@@ -220,6 +222,11 @@ export function registerRoomHandlers(io: any, socket: any): void {
           message: '房间不存在',
         })
         return
+      }
+
+      // 更新每人轮次设置
+      if (roundsPerPlayer !== undefined && room.state === 'lobby') {
+        room.roundsPerPlayer = roundsPerPlayer
       }
 
       if (room.gameType === 'spy') {
@@ -314,6 +321,25 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
 
     io.to(room.code).emit(SERVER_EVENTS.WORD_CONFIG_UPDATED, { wordConfig: room.wordConfig })
+  })
+
+  socket.on(CLIENT_EVENTS.UPDATE_ROUNDS_PER_PLAYER, ({ roundsPerPlayer }: { roundsPerPlayer: number }) => {
+    const { roomId, playerId } = socket.data
+    if (!roomId || !playerId) return
+
+    const room = roomManager.getRoomById(roomId)
+    if (!room) return
+
+    const player = room.players.find((p) => p.id === playerId)
+    if (!player?.isOwner) return
+
+    if (room.state !== 'lobby') return
+
+    const clamped = Math.max(1, Math.min(5, Math.round(roundsPerPlayer)))
+    if (clamped !== roundsPerPlayer) return
+
+    room.roundsPerPlayer = clamped
+    io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
   })
 
   socket.on(CLIENT_EVENTS.LIST_ROOMS, ({ gameType }: { gameType?: GameType } = {}) => {

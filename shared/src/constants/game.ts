@@ -40,6 +40,10 @@ export const WORD_ERROR_TRUNCATE = 10
 // ===== Spy Consolation =====
 export const SPY_CIVILIAN_CONSOLATION = 20
 
+// ===== Rounds Per Player =====
+export const DEFAULT_ROUNDS_PER_PLAYER = 2
+export const MAX_ROUNDS_PER_PLAYER = 5
+
 // ===== Chat =====
 export const CHAT_MESSAGE_MAX_LENGTH = 200
 export const CHAT_MESSAGE_LIMIT = 500

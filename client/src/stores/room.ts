@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getSocket, connectSocket, saveSession, clearSession, waitForConnection, saveNickname } from '@/composables/useSocket'
-import { CLIENT_EVENTS, SERVER_EVENTS, DEFAULT_MAX_PLAYERS, DEFAULT_TOTAL_ROUNDS, DEFAULT_GAME_TYPE, WORD_CONFIG_SAVE_TIMEOUT_MS, SOCKET_CONNECT_TIMEOUT_MS } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, DEFAULT_MAX_PLAYERS, DEFAULT_TOTAL_ROUNDS, DEFAULT_ROUNDS_PER_PLAYER, DEFAULT_GAME_TYPE, WORD_CONFIG_SAVE_TIMEOUT_MS, SOCKET_CONNECT_TIMEOUT_MS } from '@draw-and-guess/shared'
 import type { RoomWordConfig, GameType } from '@draw-and-guess/shared'
 
 interface RoomPlayer {
@@ -22,6 +22,7 @@ interface RoomData {
   players: RoomPlayer[]
   currentRound: number
   totalRounds: number
+  roundsPerPlayer: number
   wordConfig: RoomWordConfig
   gameType: GameType
 }
@@ -59,6 +60,7 @@ export const useRoomStore = defineStore('room', () => {
           players: [],
           currentRound: 0,
           totalRounds: DEFAULT_TOTAL_ROUNDS,
+          roundsPerPlayer: DEFAULT_ROUNDS_PER_PLAYER,
           wordConfig: {
             customWords: [],
             looseMatching: false,
@@ -169,7 +171,7 @@ export const useRoomStore = defineStore('room', () => {
 
   const createRoom = async (
     nickname: string,
-    options?: { roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig; gameType?: GameType }
+    options?: { roomName?: string; maxPlayers?: number; password?: string; wordConfig?: RoomWordConfig; gameType?: GameType; roundsPerPlayer?: number }
   ) => {
     connectionState.value = 'connecting'
     error.value = null
@@ -197,6 +199,7 @@ export const useRoomStore = defineStore('room', () => {
       password: options?.password,
       wordConfig: options?.wordConfig,
       gameType: options?.gameType ?? DEFAULT_GAME_TYPE,
+      roundsPerPlayer: options?.roundsPerPlayer ?? DEFAULT_ROUNDS_PER_PLAYER,
     })
     await waitForResponse(SERVER_EVENTS.ROOM_CREATED)
   }
@@ -270,7 +273,7 @@ export const useRoomStore = defineStore('room', () => {
   const startGame = () => {
     const socket = getSocket()
     if (socket?.connected) {
-      socket.emit(CLIENT_EVENTS.START_GAME)
+      socket.emit(CLIENT_EVENTS.START_GAME, { roundsPerPlayer: room.value?.roundsPerPlayer ?? DEFAULT_ROUNDS_PER_PLAYER })
     } else {
       error.value = '连接未就绪，请等待重新连接'
     }
@@ -278,6 +281,13 @@ export const useRoomStore = defineStore('room', () => {
 
   const clearError = () => {
     error.value = null
+  }
+
+  const updateRoundsPerPlayer = (roundsPerPlayer: number) => {
+    const socket = getSocket()
+    if (socket?.connected && isOwner.value) {
+      socket.emit(CLIENT_EVENTS.UPDATE_ROUNDS_PER_PLAYER, { roundsPerPlayer })
+    }
   }
 
   const updateWordConfig = (updates: Partial<RoomWordConfig>): Promise<void> => {
@@ -328,5 +338,6 @@ export const useRoomStore = defineStore('room', () => {
     startGame,
     clearError,
     updateWordConfig,
+    updateRoundsPerPlayer,
   }
 })
