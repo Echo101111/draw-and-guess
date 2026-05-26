@@ -5,6 +5,7 @@ import { config, APP_VERSION } from './config.js'
 import { healthRouter } from './routes/health.js'
 import { wordsRouter } from './routes/words.js'
 import { adminRouter } from './routes/admin.js'
+import { feedbackRouter } from './routes/feedback.js'
 import { registerRoomHandlers, registerDrawGameHandlers, registerSpyGameHandlers, registerWebRTCHandlers } from './socket/index.js'
 import { drawGameManager } from './game/index.js'
 import { spyGameManager } from './game/SpyGameManager.js'
@@ -71,9 +72,11 @@ roomManager.onPlayerRemoved((playerId, roomId) => {
 })
 
 app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
 app.use('/health', healthRouter)
 app.use('/api/words', wordsRouter)
 app.use('/admin', adminRouter)
+app.use('/api/feedback', feedbackRouter)
 
 io.on('connection', (socket) => {
   metrics.connections++

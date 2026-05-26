@@ -7,6 +7,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - CLIENT_URL=${CLIENT_URL:-http://localhost:8888}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
     ports:
       - "127.0.0.1:3000:3000"
     healthcheck:
@@ -15,6 +16,8 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+    volumes:
+      - word-data:/app/server/dist/server/data
     restart: unless-stopped
     networks:
       - draw-and-guess
@@ -33,6 +36,9 @@ services:
     restart: unless-stopped
     networks:
       - draw-and-guess
+
+volumes:
+  word-data:
 
 networks:
   draw-and-guess:

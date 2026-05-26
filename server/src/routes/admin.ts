@@ -1,12 +1,97 @@
 import { Router, type Request, type Response } from 'express'
 import { loadCustomWords } from '../data/customWordBank.js'
-import { requireAdminToken } from '../middleware/auth.js'
+import { requireAdminToken, loginPage, escapeHtml } from '../middleware/auth.js'
+import { config } from '../config.js'
+import { feedbackStore } from './feedback.js'
 
 export const adminRouter: Router = Router()
 
-adminRouter.use(requireAdminToken)
+function layout(title: string, body: string, activeTab: 'words' | 'feedback'): string {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title} — Draw & Guess</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'Noto Sans SC', sans-serif;
+    background: #FFF8F0;
+    color: #4A3728;
+    padding: 2rem;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 1rem; }
+  .nav {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1.5rem;
+    background: #F0E4D8;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  .nav a {
+    flex: 1;
+    text-align: center;
+    padding: 0.55rem 1rem;
+    text-decoration: none;
+    color: #8B7A6A;
+    font-size: 0.88rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+  .nav a:hover { color: #4A3728; }
+  .nav a.active {
+    background: #fff;
+    color: #4A3728;
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .nav a .icon { margin-right: 0.25rem; }
+</style>
+</head>
+<body>
+<h1>📊 管理后台</h1>
+<div class="nav">
+  <a href="/admin/words" class="${activeTab === 'words' ? 'active' : ''}"><span class="icon">📖</span>词库管理</a>
+  <a href="/admin/feedback" class="${activeTab === 'feedback' ? 'active' : ''}"><span class="icon">💬</span>反馈建议</a>
+</div>
+${body}
+</body>
+</html>`
+}
 
-adminRouter.get('/words', (_req: Request, res: Response) => {
+// POST /admin/login — 密码登录，成功后设置 Cookie
+adminRouter.post('/login', (req: Request, res: Response) => {
+  const password = req.body?.password ?? ''
+
+  if (!config.adminToken) {
+    res.status(403).send(loginPage('管理员功能未启用（未设置 ADMIN_TOKEN）'))
+    return
+  }
+
+  if (password === config.adminToken) {
+    res.setHeader('Set-Cookie', `admin_token=${encodeURIComponent(config.adminToken)}; HttpOnly; SameSite=Strict; Path=/admin; Max-Age=86400`)
+    res.redirect('/admin/words')
+  } else {
+    res.status(403).send(loginPage('密码错误，请重试'))
+  }
+})
+
+// GET /admin — 首页，已登录则跳转
+adminRouter.get('/', (req: Request, res: Response) => {
+  const token = (req.query.token as string) || ''
+  if (token === config.adminToken) {
+    // 兼容旧版 URL token → 设置 cookie 后跳转
+    res.setHeader('Set-Cookie', `admin_token=${encodeURIComponent(config.adminToken)}; HttpOnly; SameSite=Strict; Path=/admin; Max-Age=86400`)
+    return res.redirect('/admin/words')
+  }
+  res.send(loginPage())
+})
+
+// GET /admin/words — 词库管理
+adminRouter.get('/words', requireAdminToken, (_req: Request, res: Response) => {
   const entries = loadCustomWords()
   const hasRows = entries.length > 0
   const rows = entries.map(e => `
@@ -21,21 +106,8 @@ adminRouter.get('/words', (_req: Request, res: Response) => {
 
   const totalBuiltin = 789
 
-  res.send(`<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>词库管理 — Draw & Guess</title>
+  const body = `
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: -apple-system, 'Noto Sans SC', sans-serif;
-    background: #FFF8F0;
-    color: #4A3728;
-    padding: 2rem;
-  }
-  h1 { font-size: 1.4rem; margin-bottom: 0.5rem; }
   .stats { color: #8B7A6A; font-size: 0.85rem; margin-bottom: 1.5rem; }
   .toolbar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
   .toolbar label { font-size: 0.85rem; color: #4A3728; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
@@ -89,9 +161,6 @@ adminRouter.get('/words', (_req: Request, res: Response) => {
   .toast.error { background: #D9756B; }
   .empty { color: #B5A392; text-align: center; padding: 2rem; }
 </style>
-</head>
-<body>
-<h1>📖 自定义词库管理</h1>
 <div class="stats">共 ${entries.length} 个自定义词 · 内置词库 ${totalBuiltin} 个</div>
 ${hasRows ? `
 <div class="toolbar">
@@ -162,11 +231,39 @@ function showToast(msg, type) {
   t.style.display = 'block'
   setTimeout(() => t.style.display = 'none', 2500)
 }
-</script>
-</body>
-</html>`)
+</script>`
+
+  res.send(layout('词库管理', body, 'words'))
 })
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
+// GET /admin/feedback — 反馈列表
+adminRouter.get('/feedback', requireAdminToken, (_req: Request, res: Response) => {
+  const sorted = [...feedbackStore].sort((a, b) => b.timestamp - a.timestamp)
+  const hasRows = sorted.length > 0
+  const rows = sorted.map(f => `
+    <tr>
+      <td class="col-time">${new Date(f.timestamp).toLocaleString('zh-CN')}</td>
+      <td>${escapeHtml(f.text)}</td>
+    </tr>
+  `).join('\n')
+
+  const body = `
+<style>
+  .stats { color: #8B7A6A; font-size: 0.85rem; margin-bottom: 1.5rem; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(180,140,110,0.1); }
+  th, td { padding: 0.65rem 0.75rem; text-align: left; font-size: 0.85rem; vertical-align: top; }
+  th { background: #F7EFE6; font-weight: 600; white-space: nowrap; }
+  tr:not(:last-child) td { border-bottom: 1px solid #F0E4D8; }
+  .col-time { width: 160px; white-space: nowrap; }
+  .empty { color: #B5A392; text-align: center; padding: 3rem; font-size: 0.9rem; }
+</style>
+<div class="stats">共 ${sorted.length} 条反馈</div>
+${hasRows ? `
+<table>
+<thead><tr><th class="col-time">提交时间</th><th>内容</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>` : '<div class="empty">暂无反馈</div>'}
+`
+
+  res.send(layout('反馈建议', body, 'feedback'))
+})

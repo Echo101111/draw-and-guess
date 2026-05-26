@@ -9,6 +9,10 @@
         <span class="changelog-icon">📋</span>
         <span class="changelog-label">更新日志</span>
       </button>
+      <button class="btn-feedback" @click="showFeedback = true" title="反馈建议">
+        <span class="feedback-icon">💬</span>
+        <span class="feedback-label">反馈建议</span>
+      </button>
     </div>
 
     <Transition name="changelog">
@@ -95,6 +99,52 @@
               </div>
             </Transition>
 
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="feedback">
+      <div v-if="showFeedback" class="feedback-overlay" @click.self="showFeedback = false">
+        <div class="feedback-modal">
+          <div class="feedback-header">
+            <div class="feedback-header-left">
+              <span class="feedback-header-icon">💬</span>
+              <span>反馈建议</span>
+            </div>
+            <button class="feedback-close" @click="showFeedback = false" title="关闭">✕</button>
+          </div>
+          <div class="feedback-body">
+            <div class="feedback-desc">告诉我们你的想法，帮助我们做得更好</div>
+            <div class="field">
+              <label for="feedback-text">你的建议</label>
+              <div class="input-wrap">
+                <textarea
+                  id="feedback-text"
+                  v-model="feedbackText"
+                  class="feedback-textarea"
+                  placeholder="请描述你的建议、bug 反馈或任何想法…"
+                  rows="4"
+                  maxlength="1000"
+                />
+              </div>
+              <div class="feedback-counter">{{ feedbackText.length }}/1000</div>
+            </div>
+            <div class="feedback-actions">
+              <button
+                class="btn-feedback-submit"
+                :disabled="feedbackLoading || !feedbackText.trim()"
+                @click="handleFeedbackSubmit"
+              >
+                <span v-if="feedbackLoading" class="btn-loading" />
+                <span v-else>📤 提交反馈</span>
+              </button>
+            </div>
+            <Transition name="fade">
+              <div v-if="feedbackMessage" :class="['contribute-feedback', feedbackSuccess ? 'feedback-success' : 'feedback-error']">
+                {{ feedbackMessage }}
+              </div>
+            </Transition>
           </div>
         </div>
       </div>
@@ -301,6 +351,13 @@ const contributeMessage = ref<string | null>(null)
 const contributeSuccess = ref(false)
 let contributeTimer: ReturnType<typeof setTimeout> | null = null
 
+const showFeedback = ref(false)
+const feedbackText = ref('')
+const feedbackLoading = ref(false)
+const feedbackMessage = ref<string | null>(null)
+const feedbackSuccess = ref(false)
+let feedbackTimer: ReturnType<typeof setTimeout> | null = null
+
 const wordCount = computed(() => {
   return contributeWords.value.split('\n').map(s => s.trim()).filter(Boolean).length
 })
@@ -359,6 +416,35 @@ async function handleContributeSubmit() {
     contributeMessage.value = '提交失败，请检查网络连接'
   } finally {
     contributeLoading.value = false
+  }
+}
+
+async function handleFeedbackSubmit() {
+  if (!feedbackText.value.trim()) return
+  feedbackLoading.value = true
+  feedbackMessage.value = null
+  try {
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: feedbackText.value.trim() }),
+    })
+    const data = await res.json()
+    feedbackSuccess.value = data.success
+    feedbackMessage.value = data.message
+    if (data.success) {
+      feedbackText.value = ''
+      if (feedbackTimer) clearTimeout(feedbackTimer)
+      feedbackTimer = setTimeout(() => {
+        showFeedback.value = false
+        feedbackMessage.value = null
+      }, 2000)
+    }
+  } catch {
+    feedbackSuccess.value = false
+    feedbackMessage.value = '提交失败，请检查网络连接'
+  } finally {
+    feedbackLoading.value = false
   }
 }
 
@@ -535,6 +621,7 @@ async function handleCreate() {
 onUnmounted(() => {
   if (errorTimer) clearTimeout(errorTimer)
   if (contributeTimer) clearTimeout(contributeTimer)
+  if (feedbackTimer) clearTimeout(feedbackTimer)
   stopAutoRefresh()
   const socket = getSocket()
   if (socket) socket.off(SERVER_EVENTS.ROOM_LIST, handleRoomList)
@@ -1067,13 +1154,39 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
+.btn-feedback {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.85rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  font-weight: 500;
+}
+
+.btn-feedback:hover {
+  border-color: var(--color-success);
+  color: var(--color-success);
+  box-shadow: 0 4px 16px rgba(126, 184, 122, 0.2);
+  transform: translateY(-1px);
+}
+
 .btn-changelog:active,
-.btn-contribute:active {
+.btn-contribute:active,
+.btn-feedback:active {
   transform: translateY(0);
 }
 
-.changelog-icon { font-size: 0.85rem; }
+.changelog-icon,
+.feedback-icon { font-size: 0.85rem; }
 .changelog-label,
+.feedback-label,
 .action-label { font-size: 0.78rem; }
 
 .changelog-overlay {
@@ -1503,6 +1616,195 @@ onMounted(() => {
   opacity: 0;
 }
 
+/* ─── Feedback Modal ─── */
+.feedback-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(74, 55, 40, 0.4);
+  backdrop-filter: blur(5px);
+}
+
+.feedback-modal {
+  width: 90%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #FFFDF8 0%, #FFF8F0 100%);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 12px 48px rgba(74, 55, 40, 0.2);
+  border: 1px solid rgba(126, 184, 122, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+.feedback-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-success), #8BC34A, var(--color-success));
+  z-index: 1;
+}
+
+.feedback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 0.7rem;
+  flex-shrink: 0;
+}
+
+.feedback-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  letter-spacing: 0.03em;
+}
+
+.feedback-header-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.feedback-close {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  border-radius: 50%;
+  transition: all 0.25s;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.feedback-close:hover {
+  background: var(--color-border-light);
+  color: var(--color-text);
+  transform: rotate(90deg);
+}
+
+.feedback-body {
+  padding: 0.25rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.feedback-desc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin-bottom: 0.25rem;
+}
+
+.feedback-textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  transition: var(--transition);
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
+}
+
+.feedback-textarea:focus {
+  outline: none;
+  border-color: var(--color-success);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 3px rgba(126, 184, 122, 0.12);
+}
+
+.feedback-textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.feedback-counter {
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  padding: 0.2rem 0.2rem 0;
+}
+
+.feedback-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.btn-feedback-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.65rem;
+  background: linear-gradient(135deg, var(--color-success), #6AA866);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  letter-spacing: 0.03em;
+}
+
+.btn-feedback-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(126, 184, 122, 0.35);
+}
+
+.btn-feedback-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-feedback-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Feedback overlay animation */
+.feedback-enter-active {
+  transition: opacity 0.3s ease;
+}
+
+.feedback-enter-active .feedback-modal {
+  animation: modalEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.feedback-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.feedback-leave-active .feedback-modal {
+  animation: modalExit 0.2s ease-in;
+}
+
+.feedback-enter-from,
+.feedback-leave-to {
+  opacity: 0;
+}
+
 /* ─── Error toast (keep original transition) ─── */
 .fade-enter-active,
 .fade-leave-active {
@@ -1536,7 +1838,8 @@ onMounted(() => {
   }
 
   .btn-changelog,
-  .btn-contribute {
+  .btn-contribute,
+  .btn-feedback {
     padding: 0.35rem 0.65rem;
     font-size: 0.75rem;
   }
