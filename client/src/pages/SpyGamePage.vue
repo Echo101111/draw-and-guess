@@ -220,6 +220,9 @@
 
     <!-- ====== FOOTER ====== -->
     <footer class="game-footer">
+      <div class="footer-voice">
+        <VoiceControls :can-talk="canTalk" />
+      </div>
 
       <!-- My turn to describe -->
       <div v-if="store.phase === 'describing' && store.isMyTurnToSpeak && !store.hasDescribed" class="footer-action">
@@ -298,10 +301,12 @@ import SpyWordCard from '@/components/SpyWordCard.vue'
 import SpyPlayerRing from '@/components/SpyPlayerRing.vue'
 import SpyDescriptionBubble from '@/components/SpyDescriptionBubble.vue'
 import Scoreboard from '@/components/Scoreboard.vue'
+import { useWebRTC } from '@/composables/useWebRTC'
+import VoiceControls from '@/components/VoiceControls.vue'
 import { getAvatarSvg } from '@/data/avatars'
 import { disconnectSocket } from '@/composables/useSocket'
 
-
+const { setupSignaling, teardownSignaling, forceMute, forceUnmute, setMuted, stopPtt, leaveVoice } = useWebRTC()
 const router = useRouter()
 const roomStore = useRoomStore()
 const store = useSpyStore()
@@ -344,6 +349,13 @@ const spyScores = computed(() => {
 const otherPlayers = computed(() =>
   store.players.filter(p => p.id !== roomStore.currentPlayerId)
 )
+
+const canTalk = computed(() => {
+  const phase = store.phase
+  if (phase === 'discussion') return true
+  if (phase === 'describing' && store.isMyTurnToSpeak && !store.hasDescribed) return true
+  return false
+})
 
 function avatarSvg(index: number): string {
   return getAvatarSvg(index)
@@ -407,6 +419,7 @@ onMounted(() => {
   document.title = '🕵️ 谁是卧底 - Oiiiii早春'
   document.body.style.overflow = 'hidden'
   store.setupSocketListeners()
+  setupSignaling()
 
   // 阻止 iOS Safari 双指缩放和手势
   const preventPinch = (e: TouchEvent) => { if (e.touches.length > 1) e.preventDefault() }
@@ -433,6 +446,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.title = 'Oiiiii早春 - 派对游戏'
   document.body.style.overflow = ''
+  teardownSignaling()
   // 清理手势监听
   for (const { el, type, fn } of gestureCleanup) {
     el.removeEventListener(type, fn)
@@ -447,8 +461,42 @@ onUnmounted(() => {
 })
 
 watch(() => store.isMyTurnToSpeak, (val) => {
+  if (store.phase === 'describing') {
+    if (val && !store.hasDescribed) {
+      forceUnmute()
+    } else {
+      forceMute()
+      stopPtt()
+    }
+  }
   if (val && store.phase === 'describing') {
     nextTick(() => descInput.value?.focus())
+  }
+})
+
+// 自动管理麦克风：描述阶段非当前玩家时静音，讨论阶段恢复
+watch(() => store.phase, (phase) => {
+  if (phase === 'word_distribution' || phase === 'voting' || phase === 'reveal' || phase === 'round_end' || phase === 'idle' || phase === 'game_over') {
+    forceMute()
+  } else if (phase === 'discussion') {
+    forceUnmute()
+    setMuted(false)
+    stopPtt()
+  } else if (phase === 'describing') {
+    if (!store.isMyTurnToSpeak || store.hasDescribed) {
+      forceMute()
+      stopPtt()
+    } else {
+      forceUnmute()
+    }
+  }
+})
+
+// 描述提交后自动结束 PTT 并静音
+watch(() => store.hasDescribed, (done) => {
+  if (done && store.phase === 'describing') {
+    stopPtt()
+    forceMute()
   }
 })
 
@@ -480,6 +528,7 @@ function handleLeave() {
 
 function doLeave() {
   showLeaveConfirm.value = false
+  leaveVoice()
   roomStore.leaveRoom()
   store.resetGame()
   disconnectSocket()
@@ -1318,6 +1367,14 @@ const voteProgressPct = computed(() => {
   gap: 8px;
   font-size: 0.9rem;
   color: var(--color-text-secondary);
+  width: 100%;
+  max-width: 520px;
+}
+
+/* ====== VOICE ====== */
+.footer-voice {
+  display: flex;
+  justify-content: center;
   width: 100%;
   max-width: 520px;
 }

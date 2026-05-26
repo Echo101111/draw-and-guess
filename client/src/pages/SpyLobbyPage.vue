@@ -70,6 +70,10 @@
           </button>
           <button class="btn-secondary btn-leave" @click="handleLeave">离开房间</button>
         </div>
+
+        <div class="voice-row">
+          <VoiceControls :can-talk="true" />
+        </div>
       </div>
     </div>
 
@@ -129,8 +133,11 @@ import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useSpyStore } from '@/stores/spy'
 import { getSocket } from '@/composables/useSocket'
+import { useWebRTC } from '@/composables/useWebRTC'
+import VoiceControls from '@/components/VoiceControls.vue'
 import { CLIENT_EVENTS, SPY_MIN_PLAYERS } from '@draw-and-guess/shared'
 
+const { setupSignaling, teardownSignaling, leaveVoice } = useWebRTC()
 const router = useRouter()
 const roomStore = useRoomStore()
 const spyStore = useSpyStore()
@@ -152,10 +159,13 @@ onMounted(() => {
   document.body.style.overflow = 'hidden'
   roomStore.setupSocketListeners()
   spyStore.setupSocketListeners()
+  setupSignaling()
 })
 
 onUnmounted(() => {
   document.title = 'Oiiiii早春 - 派对游戏'
+  // 只移除信令监听，保留 WebRTC 连接，SpyGamePage 会接管
+  teardownSignaling()
 })
 
 watch(() => roomStore.room?.state, (newState) => {
@@ -193,6 +203,7 @@ function handleStart() {
 }
 
 function handleLeave() {
+  leaveVoice()
   roomStore.leaveRoom()
   document.body.style.overflow = ''
   router.push('/')
@@ -603,6 +614,13 @@ function copyLink() {
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 24px;
+}
+
+/* ---- Voice ---- */
+.voice-row {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.5rem;
 }
 
 /* ---- Toast ---- */
