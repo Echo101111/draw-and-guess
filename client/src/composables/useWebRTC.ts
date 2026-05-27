@@ -56,6 +56,11 @@ export function useWebRTC() {
 
       if (!_sharedAudioContext || _sharedAudioContext.state === 'closed') {
         _sharedAudioContext = new AudioContext()
+        _sharedAudioContext.onstatechange = () => {
+          if (_sharedAudioContext?.state === 'suspended') {
+            _sharedAudioContext.resume()
+          }
+        }
       }
       if (_sharedAudioContext.state === 'suspended') {
         await _sharedAudioContext.resume()
@@ -308,6 +313,12 @@ export function useWebRTC() {
         _peerConnections.delete(targetId)
         _peerCount.value = _peerConnections.size
         cleanupAnalyser(targetId)
+        // ICE 失败后自动重试
+        setTimeout(() => {
+          if (_isVoiceActive.value && !_peerConnections.has(targetId)) {
+            handlePeerJoined(targetId)
+          }
+        }, 3000)
       }
       updateConnectionQuality()
     }
@@ -336,7 +347,7 @@ export function useWebRTC() {
   }
 
   function setupAnalyser(playerId: string, stream: MediaStream): void {
-    if (!_sharedAudioContext || _sharedAudioContext.state !== 'running') return
+    if (!_sharedAudioContext || _sharedAudioContext.state === 'closed') return
     const audioContext = _sharedAudioContext
     const source = audioContext.createMediaStreamSource(stream)
     const analyser = audioContext.createAnalyser()
