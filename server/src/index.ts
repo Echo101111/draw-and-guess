@@ -6,6 +6,7 @@ import { healthRouter } from './routes/health.js'
 import { wordsRouter } from './routes/words.js'
 import { adminRouter } from './routes/admin.js'
 import { feedbackRouter } from './routes/feedback.js'
+import { turnRouter } from './routes/turn.js'
 import { registerRoomHandlers, registerDrawGameHandlers, registerSpyGameHandlers, registerWebRTCHandlers } from './socket/index.js'
 import { drawGameManager } from './game/index.js'
 import { spyGameManager } from './game/SpyGameManager.js'
@@ -77,6 +78,7 @@ app.use('/health', healthRouter)
 app.use('/api/words', wordsRouter)
 app.use('/admin', adminRouter)
 app.use('/api/feedback', feedbackRouter)
+app.use('/api', turnRouter)
 
 io.on('connection', (socket) => {
   metrics.connections++

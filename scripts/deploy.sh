@@ -54,6 +54,10 @@ docker compose up -d --build
 echo "✅ 部署完成！"
 echo "   访问: http://${SERVER_IP}:8888"
 echo "   健康:  http://${SERVER_IP}:8888/health"
+echo ""
+echo "⚠️  如果语音功能不可用，请检查服务器防火墙是否开放以下端口："
+echo "   UDP 3478       — TURN 监听端口"
+echo "   UDP 49152-65535 — TURN 中继端口范围"
 SSHCMD
 
 rm "${ARCHIVE}"

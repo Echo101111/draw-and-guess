@@ -106,6 +106,9 @@ export const useSpyStore = defineStore('spy', () => {
       }>;
     }) => {
       phase.value = data.phase
+      if (data.phase !== 'describing') {
+        currentSpeaker.value = null
+      }
       if (data.round !== undefined) {
         const prevRound = round.value
         round.value = data.round

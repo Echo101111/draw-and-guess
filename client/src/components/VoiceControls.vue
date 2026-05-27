@@ -40,18 +40,6 @@
 
     <span class="vc-divider" />
 
-    <button
-      class="vc-talk-btn"
-      :class="{ active: isPttActive }"
-      :disabled="!canTalk"
-      @click="handleTalkToggle"
-    >
-      <span>{{ isPttActive ? '🟢' : '🎤' }}</span>
-      <span>{{ isPttActive ? '发言中' : '发言' }}</span>
-    </button>
-
-    <span class="vc-divider" />
-
     <span class="vc-peers">{{ peerCount }} 人</span>
 
     <span
@@ -66,17 +54,10 @@
 import { computed } from 'vue'
 import { useWebRTC } from '@/composables/useWebRTC'
 
-const props = withDefaults(defineProps<{
-  canTalk?: boolean
-}>(), {
-  canTalk: false,
-})
-
 const {
-  isMuted, isDeafened, isVoiceActive, isForceMuted, isPttActive,
+  isMuted, isDeafened, isVoiceActive, isForceMuted,
   peerCount, micError, connectionQuality,
   joinVoice, leaveVoice, toggleMute, toggleDeafen, clearMicError,
-  startPtt, stopPtt,
 } = useWebRTC()
 
 async function handleJoin() {
@@ -91,15 +72,6 @@ function handleLeave() {
 function handleRetry() {
   clearMicError()
   handleJoin()
-}
-
-function handleTalkToggle() {
-  if (!props.canTalk) return
-  if (isPttActive.value) {
-    stopPtt()
-  } else {
-    startPtt()
-  }
 }
 
 const qualityTitle = computed(() => {
@@ -233,38 +205,6 @@ const qualityTitle = computed(() => {
   height: 18px;
   background: var(--color-border-light);
   margin: 0 4px;
-}
-
-.vc-talk-btn {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  cursor: pointer;
-  padding: 3px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  transition: var(--transition);
-  white-space: nowrap;
-}
-
-.vc-talk-btn:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  color: var(--color-primary-dark);
-}
-
-.vc-talk-btn.active {
-  background: var(--color-success);
-  border-color: var(--color-success-dark);
-  color: white;
-}
-
-.vc-talk-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .vc-peers {

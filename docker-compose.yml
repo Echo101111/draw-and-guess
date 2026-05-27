@@ -1,4 +1,17 @@
 services:
+  turn:
+    image: instrumentisto/coturn:latest
+    network_mode: host
+    command:
+      - --log-file=stdout
+      - --external-ip=${SERVER_IP}
+      - --listening-port=3478
+      - --realm=${TURN_REALM}
+      - --user=${TURN_USERNAME}:${TURN_CREDENTIAL}
+      - --min-port=49152
+      - --max-port=65535
+    restart: unless-stopped
+
   server:
     build:
       context: .
@@ -8,6 +21,9 @@ services:
       - PORT=3000
       - CLIENT_URL=${CLIENT_URL:-http://localhost:8888}
       - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - TURN_SERVER_URL=${TURN_SERVER_URL}
+      - TURN_USERNAME=${TURN_USERNAME:-party-game}
+      - TURN_CREDENTIAL=${TURN_CREDENTIAL}
     ports:
       - "127.0.0.1:3000:3000"
     healthcheck:
@@ -21,6 +37,8 @@ services:
     restart: unless-stopped
     networks:
       - draw-and-guess
+    depends_on:
+      - turn
 
   client:
     build:

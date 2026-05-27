@@ -221,7 +221,7 @@
     <!-- ====== FOOTER ====== -->
     <footer class="game-footer">
       <div class="footer-voice">
-        <VoiceControls :can-talk="canTalk" />
+        <VoiceControls />
       </div>
 
       <!-- My turn to describe -->
@@ -231,11 +231,11 @@
             ref="descInput"
             v-model="descText"
             class="action-input"
-            placeholder="描述你的词..."
+            placeholder="输入文字描述（可选），语音后点完成"
             :maxlength="SPY_DESCRIPTION_MAX_LENGTH"
             @keyup.enter="submitDesc"
           />
-          <button class="action-send" @click="submitDesc" :disabled="!descText.trim()">发送</button>
+          <button class="action-send" @click="submitDesc">✅ 完成描述</button>
         </div>
         <span class="action-hint">💡 不要直接说出你的词语</span>
       </div>
@@ -306,7 +306,7 @@ import VoiceControls from '@/components/VoiceControls.vue'
 import { getAvatarSvg } from '@/data/avatars'
 import { disconnectSocket } from '@/composables/useSocket'
 
-const { setupSignaling, teardownSignaling, forceMute, forceUnmute, setMuted, stopPtt, leaveVoice } = useWebRTC()
+const { setupSignaling, teardownSignaling, forceMute, forceUnmute, setMuted, leaveVoice } = useWebRTC()
 const router = useRouter()
 const roomStore = useRoomStore()
 const store = useSpyStore()
@@ -349,13 +349,6 @@ const spyScores = computed(() => {
 const otherPlayers = computed(() =>
   store.players.filter(p => p.id !== roomStore.currentPlayerId)
 )
-
-const canTalk = computed(() => {
-  const phase = store.phase
-  if (phase === 'discussion') return true
-  if (phase === 'describing' && store.isMyTurnToSpeak && !store.hasDescribed) return true
-  return false
-})
 
 function avatarSvg(index: number): string {
   return getAvatarSvg(index)
@@ -446,6 +439,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.title = 'Oiiiii早春 - 派对游戏'
   document.body.style.overflow = ''
+  leaveVoice()
   teardownSignaling()
   // 清理手势监听
   for (const { el, type, fn } of gestureCleanup) {
@@ -464,9 +458,9 @@ watch(() => store.isMyTurnToSpeak, (val) => {
   if (store.phase === 'describing') {
     if (val && !store.hasDescribed) {
       forceUnmute()
+      setMuted(false)
     } else {
       forceMute()
-      stopPtt()
     }
   }
   if (val && store.phase === 'describing') {
@@ -481,21 +475,19 @@ watch(() => store.phase, (phase) => {
   } else if (phase === 'discussion') {
     forceUnmute()
     setMuted(false)
-    stopPtt()
   } else if (phase === 'describing') {
     if (!store.isMyTurnToSpeak || store.hasDescribed) {
       forceMute()
-      stopPtt()
     } else {
       forceUnmute()
+      setMuted(false)
     }
   }
 })
 
-// 描述提交后自动结束 PTT 并静音
+// 描述提交后自动静音
 watch(() => store.hasDescribed, (done) => {
   if (done && store.phase === 'describing') {
-    stopPtt()
     forceMute()
   }
 })
@@ -504,8 +496,7 @@ function onWordRevealed() {}
 
 function submitDesc() {
   const text = descText.value.trim()
-  if (!text) return
-  store.submitDescription(text)
+  store.submitDescription(text || '（语音描述）')
   descText.value = ''
 }
 

@@ -72,7 +72,7 @@
         </div>
 
         <div class="voice-row">
-          <VoiceControls :can-talk="true" />
+          <VoiceControls />
         </div>
       </div>
     </div>

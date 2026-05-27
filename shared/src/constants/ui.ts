@@ -28,7 +28,7 @@ export const SOCKET_SESSION_RESTORE_TIMEOUT_MS = 5000
 
 // ===== WebRTC =====
 export const WEBRTC_FFT_SIZE = 256
-export const WEBRTC_VAD_THRESHOLD = 15
+export const WEBRTC_VAD_THRESHOLD = 40
 export const WEBRTC_VAD_INTERVAL_MS = 200
 export const WEBRTC_RECONNECT_DELAY_MS = 500
 
