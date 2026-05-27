@@ -135,6 +135,7 @@ export function useWebRTC() {
   }
 
   function forceMute(): void {
+    _isPttActive.value = false
     _isForceMuted.value = true
     applyMuteState()
   }
@@ -162,8 +163,9 @@ export function useWebRTC() {
 
   async function handlePeerJoined(playerId: string): Promise<void> {
     if (_peerConnections.has(playerId)) return
-    // Check if we already have too many failed attempts
-    await createPeerConnection(playerId, true)
+    const myId = (getSocket() as any)?.data?.playerId ?? ''
+    const isInitiator = myId < playerId
+    await createPeerConnection(playerId, isInitiator)
   }
 
   function handlePeerLeft(playerId: string): void {
@@ -274,6 +276,12 @@ export function useWebRTC() {
       if (event.streams.length > 0) {
         const remoteStream = event.streams[0]
         console.log('[WebRTC] ontrack: got audio track, active:', remoteStream.getAudioTracks()[0]?.enabled)
+        const audioEl = document.createElement('audio')
+        audioEl.srcObject = remoteStream
+        audioEl.autoplay = true
+        audioEl.setAttribute('playsinline', 'true')
+        document.body.appendChild(audioEl)
+        audioEl.play().catch(e => console.warn('[WebRTC] autoplay blocked:', e))
         setupAnalyser(targetId, remoteStream)
       }
     }
@@ -335,7 +343,6 @@ export function useWebRTC() {
     analyser.fftSize = WEBRTC_FFT_SIZE
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
     source.connect(analyser)
-    analyser.connect(audioContext.destination)
 
     const interval = window.setInterval(() => {
       analyser.getByteFrequencyData(dataArray)
