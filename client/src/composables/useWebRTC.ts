@@ -29,6 +29,7 @@ interface PendingEvent {
   data: any
 }
 const _pendingEvents: PendingEvent[] = []
+let _sharedAudioContext: AudioContext | null = null
 
 const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
   audio: {
@@ -52,6 +53,13 @@ export function useWebRTC() {
       destroyPeers()
       _isForceMuted.value = false
       _isPttActive.value = false
+
+      if (!_sharedAudioContext || _sharedAudioContext.state === 'closed') {
+        _sharedAudioContext = new AudioContext()
+      }
+      if (_sharedAudioContext.state === 'suspended') {
+        await _sharedAudioContext.resume()
+      }
 
       _localStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS)
       _isVoiceActive.value = true
@@ -106,6 +114,10 @@ export function useWebRTC() {
         t.stop()
       })
       _localStream = null
+    }
+    if (_sharedAudioContext && _sharedAudioContext.state !== 'closed') {
+      _sharedAudioContext.close()
+      _sharedAudioContext = null
     }
     _isVoiceActive.value = false
     const socket = getSocket()
@@ -276,12 +288,6 @@ export function useWebRTC() {
       if (event.streams.length > 0) {
         const remoteStream = event.streams[0]
         console.log('[WebRTC] ontrack: got audio track, active:', remoteStream.getAudioTracks()[0]?.enabled)
-        const audioEl = document.createElement('audio')
-        audioEl.srcObject = remoteStream
-        audioEl.autoplay = true
-        audioEl.setAttribute('playsinline', 'true')
-        document.body.appendChild(audioEl)
-        audioEl.play().catch(e => console.warn('[WebRTC] autoplay blocked:', e))
         setupAnalyser(targetId, remoteStream)
       }
     }
@@ -302,10 +308,6 @@ export function useWebRTC() {
         _peerConnections.delete(targetId)
         _peerCount.value = _peerConnections.size
         cleanupAnalyser(targetId)
-        if (_isPttActive.value && _peerConnections.size === 0) {
-          _isPttActive.value = false
-          applyMuteState()
-        }
       }
       updateConnectionQuality()
     }
@@ -334,15 +336,14 @@ export function useWebRTC() {
   }
 
   function setupAnalyser(playerId: string, stream: MediaStream): void {
-    const audioContext = new AudioContext()
-    if (audioContext.state === 'suspended') {
-      audioContext.resume()
-    }
+    if (!_sharedAudioContext || _sharedAudioContext.state !== 'running') return
+    const audioContext = _sharedAudioContext
     const source = audioContext.createMediaStreamSource(stream)
     const analyser = audioContext.createAnalyser()
     analyser.fftSize = WEBRTC_FFT_SIZE
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
     source.connect(analyser)
+    analyser.connect(audioContext.destination)
 
     const interval = window.setInterval(() => {
       analyser.getByteFrequencyData(dataArray)
@@ -364,7 +365,7 @@ export function useWebRTC() {
     const entry = _analyserNodes.get(playerId)
     if (entry) {
       clearInterval(entry.interval)
-      entry.audioContext.close()
+      entry.analyser.disconnect()
       _analyserNodes.delete(playerId)
     }
   }
