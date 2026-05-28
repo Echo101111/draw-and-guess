@@ -1,4 +1,4 @@
-import { SERVER_EVENTS, SCORE_BASE, SCORE_DRAWER_BONUS, WORD_SELECTION_TIMEOUT_MS, ROUND_TRANSITION_MS, DRAW_RATE_LIMIT_MS, ANSWER_COOLDOWN_MS, PRUNE_INTERVAL_MS, WORD_SELECTION_OPTIONS_COUNT, WORD_SELECTION_MAX_ATTEMPTS, TIMER_SYNC_INTERVAL_MS, TIMER_TICK_INTERVAL_MS } from '@draw-and-guess/shared'
+import { SERVER_EVENTS, SCORE_BASE, SCORE_DRAWER_BONUS, WORD_SELECTION_TIMEOUT_MS, ROUND_TRANSITION_MS, DRAW_RATE_LIMIT_MS, ANSWER_COOLDOWN_MS, PRUNE_INTERVAL_MS, WORD_SELECTION_OPTIONS_COUNT, TIMER_SYNC_INTERVAL_MS, TIMER_TICK_INTERVAL_MS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { getWordCategory, CATEGORY_DISPLAY_NAMES, WORD_CATEGORIES, WORDS } from '../data/words.js'
 import { matchAnswer } from '../data/wordIndex.js'
@@ -299,74 +299,39 @@ export class GameManager {
       if (options.length > 0) return options
     }
 
-    // Phase 2: 内置词库 + 全局贡献词（按启用的分类）
-    const categories = [...enabledCategories]
-    for (let i = categories.length - 1; i > 0; i--) {
+    // 统一候选池：系统词 + 全局贡献词
+    const allGlobalCustomWords = getAllCustomWordEntries()
+    const globalCustomPool = enabledCustomCats.length > 0
+      ? allGlobalCustomWords.filter(e => enabledCustomCats.includes(e.category))
+      : allGlobalCustomWords
+
+    const pool: WordOption[] = [
+      ...enabledCategories.flatMap(cat => {
+        const catWords = WORDS[cat]
+        if (!catWords) return []
+        return catWords.map(entry => ({
+          word: entry.word,
+          category: CATEGORY_DISPLAY_NAMES[cat],
+        }))
+      }),
+      ...globalCustomPool.map(entry => ({
+        word: entry.word,
+        category: entry.category,
+      })),
+    ]
+
+    // Fisher-Yates 打乱
+    for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [categories[i], categories[j]] = [categories[j], categories[i]]
+      [pool[i], pool[j]] = [pool[j], pool[i]]
     }
 
     const options: WordOption[] = []
-
-    // 收集全局贡献词（按启用的自定义分类过滤）
-    const allGlobalCustomWords = getAllCustomWordEntries()
-      const globalCustomPool = enabledCustomCats.length > 0
-        ? allGlobalCustomWords.filter(e => enabledCustomCats.includes(e.category))
-        : allGlobalCustomWords
-
-    let attempts = 0
-    while (options.length < WORD_SELECTION_OPTIONS_COUNT && attempts < WORD_SELECTION_MAX_ATTEMPTS) {
-      attempts++
-      for (const cat of categories) {
-        if (options.length >= WORD_SELECTION_OPTIONS_COUNT) break
-        const catWords = WORDS[cat]
-        if (!catWords) continue
-        const available = catWords.filter((e) => !used.has(e.word))
-        if (available.length === 0) continue
-        const idx = Math.floor(Math.random() * available.length)
-        const entry = available[idx]
-        if (!options.some((o) => o.word === entry.word)) {
-          options.push({ word: entry.word, category: CATEGORY_DISPLAY_NAMES[cat] })
-          used.add(entry.word)
-        }
-      }
-      // 每轮内置分类选词后，也加入一个全局贡献词候选
-      if (globalCustomPool.length > 0 && options.length < WORD_SELECTION_OPTIONS_COUNT) {
-        const availCustom = globalCustomPool.filter(e => !used.has(e.word))
-        if (availCustom.length > 0) {
-          const idx = Math.floor(Math.random() * availCustom.length)
-          const entry = availCustom[idx]
-          if (!options.some((o) => o.word === entry.word)) {
-            options.push({ word: entry.word, category: entry.category })
-            used.add(entry.word)
-          }
-        }
-      }
-    }
-
-    // 保底：从已启用的内置分类里选
-    while (options.length < WORD_SELECTION_OPTIONS_COUNT) {
-      const allEnabled = enabledCategories.flatMap(c => WORDS[c] ?? [])
-      const available = allEnabled.filter(e => !used.has(e.word))
-      if (available.length === 0) break
-      const idx = Math.floor(Math.random() * available.length)
-      const entry = available[idx]
-      if (!options.some((o) => o.word === entry.word)) {
-        const cat = getWordCategory(entry.word)
-        options.push({ word: entry.word, category: cat ? CATEGORY_DISPLAY_NAMES[cat] : undefined })
-        used.add(entry.word)
-      }
-    }
-    // 保底：从全局贡献词里选
-    while (options.length < WORD_SELECTION_OPTIONS_COUNT && globalCustomPool.length > 0) {
-      const available = globalCustomPool.filter(e => !used.has(e.word))
-      if (available.length === 0) break
-      const idx = Math.floor(Math.random() * available.length)
-      const entry = available[idx]
-      if (!options.some((o) => o.word === entry.word)) {
-        options.push({ word: entry.word, category: entry.category })
-        used.add(entry.word)
-      }
+    for (const entry of pool) {
+      if (options.length >= WORD_SELECTION_OPTIONS_COUNT) break
+      if (used.has(entry.word)) continue
+      options.push(entry)
+      used.add(entry.word)
     }
 
     return options

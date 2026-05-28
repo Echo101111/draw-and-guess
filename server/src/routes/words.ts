@@ -23,6 +23,7 @@ function checkRateLimit(ip: string): boolean {
 interface WordSubmitBody {
   words: string[]
   category: string
+  synonyms?: Record<string, string[]>
 }
 
 wordsRouter.get('/', (_req: Request, res: Response) => {
@@ -31,6 +32,7 @@ wordsRouter.get('/', (_req: Request, res: Response) => {
     word: e.word,
     category: e.category,
     addedAt: e.addedAt,
+    synonyms: e.synonyms,
   }))
   items.reverse()
   res.json({ words: items, total: items.length })
@@ -43,7 +45,7 @@ wordsRouter.post('/', (req: Request, res: Response) => {
     return
   }
 
-  const { words, category } = req.body as WordSubmitBody
+  const { words, category, synonyms } = req.body as WordSubmitBody
 
   if (!Array.isArray(words) || words.length === 0) {
     res.status(400).json({ success: false, message: '请至少输入一个词语' })
@@ -75,7 +77,8 @@ wordsRouter.post('/', (req: Request, res: Response) => {
       continue
     }
 
-    const result = addCustomWord(word, normalizedCategory)
+    const wordSynonyms = synonyms?.[word]
+    const result = addCustomWord(word, normalizedCategory, wordSynonyms)
     if (result.added) {
       addedWords.push(word)
     } else {

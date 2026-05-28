@@ -105,7 +105,7 @@ adminRouter.get('/words', requireAdminToken, (_req: Request, res: Response) => {
     </tr>
   `).join('\n')
 
-  const totalBuiltin = 789
+  const totalBuiltin = 1283
 
   const body = `
 <style>

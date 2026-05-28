@@ -23,7 +23,7 @@ if [ -z "$SERVER_IP" ]; then
   exit 1
 fi
 SSH_DEST="${SSH_USER}@${SERVER_IP}"
-PROJECT_DIR="/home/${SSH_USER}/draw-and-guess"
+PROJECT_DIR="/home/${SSH_USER}/party-game"
 ARCHIVE=".deploy-package.tar.gz"
 
 echo "🚀 部署到 ${SSH_DEST}"

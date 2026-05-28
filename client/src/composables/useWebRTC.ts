@@ -1,7 +1,7 @@
 import { ref, shallowRef } from 'vue'
 import { getSocket } from './useSocket'
 import { useRoomStore } from '@/stores/room'
-import { SERVER_EVENTS, CLIENT_EVENTS, WEBRTC_FFT_SIZE, WEBRTC_VAD_THRESHOLD, WEBRTC_VAD_INTERVAL_MS, WEBRTC_RECONNECT_DELAY_MS } from '@draw-and-guess/shared'
+import { SERVER_EVENTS, CLIENT_EVENTS, WEBRTC_FFT_SIZE, WEBRTC_VAD_THRESHOLD, WEBRTC_VAD_INTERVAL_MS, WEBRTC_RECONNECT_DELAY_MS, WEBRTC_ICE_TIMEOUT_MS, WEBRTC_ICE_MAX_RETRIES } from '@draw-and-guess/shared'
 
 let _turnConfig: RTCIceServer[] = []
 
@@ -19,12 +19,16 @@ const _analyserNodes = new Map<string, { analyser: AnalyserNode; dataArray: Uint
 let _signalingSetup = false
 let _voiceInitialized = false
 interface PendingEvent {
-  type: 'offer' | 'peer_joined'
+  type: 'offer' | 'peer_joined' | 'ice_candidate'
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any
 }
 const _pendingEvents: PendingEvent[] = []
 let _sharedAudioContext: AudioContext | null = null
+const _iceTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+const _retryCounts = new Map<string, number>()
+const _remoteAudioElements = new Map<string, HTMLAudioElement>()
+const _pendingIceCandidates: { fromId: string; candidate: RTCIceCandidateInit }[] = []
 
 const AUDIO_CONSTRAINTS: MediaStreamConstraints = {
   audio: {
@@ -54,7 +58,7 @@ export function useWebRTC() {
             _turnConfig = [{ urls: data.url, username: data.username, credential: data.credential }]
           }
         } catch {
-          // 无 TURN 配置，降级为仅 STUN
+          console.warn('[WebRTC] 获取 TURN 配置失败，降级为仅 STUN')
         }
       }
 
@@ -95,6 +99,9 @@ export function useWebRTC() {
         } else if (evt.type === 'offer') {
           const d = evt.data as { fromId: string; sdp: RTCSessionDescriptionInit }
           handleOffer(d.fromId, d.sdp)
+        } else if (evt.type === 'ice_candidate') {
+          const d = evt.data as { fromId: string; candidate: RTCIceCandidateInit }
+          handleIceCandidate(d.fromId, d.candidate)
         }
       }
 
@@ -119,7 +126,9 @@ export function useWebRTC() {
   }
 
   function resolveIceServers(): RTCConfiguration {
+    const stunServer = import.meta.env.VITE_STUN_SERVER || 'stun:101.34.215.101:3478'
     const servers: RTCIceServer[] = [
+      { urls: stunServer },
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
     ]
@@ -200,6 +209,13 @@ export function useWebRTC() {
       _peerConnections.delete(playerId)
     }
     cleanupAnalyser(playerId)
+    cleanupRemoteAudio(playerId)
+    const t = _iceTimeouts.get(playerId)
+    if (t) {
+      clearTimeout(t)
+      _iceTimeouts.delete(playerId)
+    }
+    _retryCounts.delete(playerId)
     const sp = new Set(_speakingPeers.value)
     sp.delete(playerId)
     _speakingPeers.value = sp
@@ -214,6 +230,7 @@ export function useWebRTC() {
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(sdp))
       console.log('[WebRTC] handleOffer: setRemoteDescription OK for', fromId)
+      flushPendingIceCandidates(fromId)
       const answer = await pc.createAnswer()
       console.log('[WebRTC] handleOffer: createAnswer OK for', fromId)
       await pc.setLocalDescription(answer)
@@ -238,6 +255,7 @@ export function useWebRTC() {
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(sdp))
       console.log('[WebRTC] handleAnswer: setRemoteDescription OK for', fromId, 'new state:', pc.connectionState)
+      flushPendingIceCandidates(fromId)
     } catch (e) {
       console.error('[WebRTC] handleAnswer ERROR for', fromId, ':', e, 'state:', pc.signalingState)
     }
@@ -246,9 +264,13 @@ export function useWebRTC() {
   function handleIceCandidate(fromId: string, candidate: RTCIceCandidateInit): void {
     const pc = _peerConnections.get(fromId)
     if (!pc) return
-    pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
-      console.error('[WebRTC] addIceCandidate error:', e)
-    })
+    if (pc.remoteDescription !== null) {
+      pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
+        console.error('[WebRTC] addIceCandidate error:', e)
+      })
+    } else {
+      _pendingIceCandidates.push({ fromId, candidate })
+    }
   }
 
   function updateConnectionQuality(): void {
@@ -296,40 +318,119 @@ export function useWebRTC() {
       }
     }
 
+    pc.onicecandidateerror = (event) => {
+      console.error('[WebRTC] icecandidate error for', targetId, ':', event.errorCode, event.errorText, 'url:', event.url)
+    }
+
     pc.ontrack = (event) => {
       console.log('[WebRTC] ontrack from:', targetId, 'streams:', event.streams.length)
       if (event.streams.length > 0) {
         const remoteStream = event.streams[0]
         console.log('[WebRTC] ontrack: got audio track, active:', remoteStream.getAudioTracks()[0]?.enabled)
         setupAnalyser(targetId, remoteStream)
+        setupRemoteAudio(targetId, remoteStream)
       }
     }
 
     pc.oniceconnectionstatechange = () => {
       if (_peerConnections.get(targetId) !== pc) return
       console.log('[WebRTC] iceState:', targetId, pc.iceConnectionState)
+      if (pc.iceConnectionState === 'failed') {
+        console.warn('[WebRTC] ICE连接失败，触发重试:', targetId)
+        pc.close()
+        _peerConnections.delete(targetId)
+        _peerCount.value = _peerConnections.size
+        cleanupAnalyser(targetId)
+        cleanupRemoteAudio(targetId)
+        const t = _iceTimeouts.get(targetId)
+        if (t) {
+          clearTimeout(t)
+          _iceTimeouts.delete(targetId)
+        }
+        const retryCount = _retryCounts.get(targetId) ?? 0
+        if (retryCount < WEBRTC_ICE_MAX_RETRIES) {
+          _retryCounts.set(targetId, retryCount + 1)
+          const delay = Math.min(3000 * Math.pow(2, retryCount), 15000)
+          console.warn('[WebRTC] 连接失败，', delay / 1000, '秒后重试 (第', retryCount + 1, '次)')
+          const retryTimer = setTimeout(() => {
+            if (_isVoiceActive.value && !_peerConnections.has(targetId)) {
+              handlePeerJoined(targetId)
+            }
+          }, delay)
+          _iceTimeouts.set(targetId, retryTimer)
+        } else {
+          console.error('[WebRTC] 连接失败次数达到上限，停止重试:', targetId)
+        }
+        updateConnectionQuality()
+      }
     }
 
     pc.onconnectionstatechange = () => {
       console.log('[WebRTC] onconnectionstatechange:', targetId, pc.connectionState, '(isCurrent:', _peerConnections.get(targetId) === pc, ')')
-      // Guard: only act if this PC is still the current one in the map
       if (_peerConnections.get(targetId) !== pc) {
         console.log('[WebRTC] onconnectionstatechange SKIP:', targetId, pc.connectionState, '(stale PC)')
         return
       }
+      if (pc.connectionState === 'connected') {
+        const t = _iceTimeouts.get(targetId)
+        if (t) {
+          clearTimeout(t)
+          _iceTimeouts.delete(targetId)
+        }
+        _retryCounts.delete(targetId)
+      }
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        pc.close()
         _peerConnections.delete(targetId)
         _peerCount.value = _peerConnections.size
         cleanupAnalyser(targetId)
-        // ICE 失败后自动重试
-        setTimeout(() => {
-          if (_isVoiceActive.value && !_peerConnections.has(targetId)) {
-            handlePeerJoined(targetId)
-          }
-        }, 3000)
+        cleanupRemoteAudio(targetId)
+        const t = _iceTimeouts.get(targetId)
+        if (t) {
+          clearTimeout(t)
+          _iceTimeouts.delete(targetId)
+        }
+        const retryCount = _retryCounts.get(targetId) ?? 0
+        if (retryCount < WEBRTC_ICE_MAX_RETRIES) {
+          _retryCounts.set(targetId, retryCount + 1)
+          const delay = Math.min(3000 * Math.pow(2, retryCount), 15000)
+          console.warn('[WebRTC] 连接失败，', delay / 1000, '秒后重试 (第', retryCount + 1, '次)')
+          const retryTimer = setTimeout(() => {
+            if (_isVoiceActive.value && !_peerConnections.has(targetId)) {
+              handlePeerJoined(targetId)
+            }
+          }, delay)
+          _iceTimeouts.set(targetId, retryTimer)
+        } else {
+          console.error('[WebRTC] 连接失败次数达到上限，停止重试:', targetId)
+        }
       }
       updateConnectionQuality()
     }
+
+    const iceTimeout = setTimeout(() => {
+      if (_peerConnections.get(targetId) !== pc) return
+      if (pc.connectionState !== 'connected') {
+        console.warn('[WebRTC] ICE 连接超时:', targetId)
+        pc.close()
+        _peerConnections.delete(targetId)
+        _peerCount.value = _peerConnections.size
+        cleanupAnalyser(targetId)
+        cleanupRemoteAudio(targetId)
+        _iceTimeouts.delete(targetId)
+        updateConnectionQuality()
+        const retryCount = _retryCounts.get(targetId) ?? 0
+        if (retryCount < WEBRTC_ICE_MAX_RETRIES) {
+          _retryCounts.set(targetId, retryCount + 1)
+          if (_isVoiceActive.value) {
+            handlePeerJoined(targetId)
+          }
+        } else {
+          console.error('[WebRTC] ICE超时重试次数达到上限，停止重试:', targetId)
+        }
+      }
+    }, WEBRTC_ICE_TIMEOUT_MS)
+    _iceTimeouts.set(targetId, iceTimeout)
 
     if (_localStream) {
       for (const track of _localStream.getAudioTracks()) {
@@ -362,7 +463,7 @@ export function useWebRTC() {
     analyser.fftSize = WEBRTC_FFT_SIZE
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
     source.connect(analyser)
-    analyser.connect(audioContext.destination)
+    // 不连接到 destination：音频由 <audio> 元素播放，AnalyserNode 只做 VAD 检测，避免双音频
 
     const interval = window.setInterval(() => {
       analyser.getByteFrequencyData(dataArray)
@@ -389,6 +490,42 @@ export function useWebRTC() {
     }
   }
 
+  function setupRemoteAudio(playerId: string, stream: MediaStream): void {
+    cleanupRemoteAudio(playerId)
+    const audio = document.createElement('audio')
+    audio.srcObject = stream
+    audio.autoplay = true
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(audio as any).playsInline = true
+    audio.id = `remote-audio-${playerId}`
+    audio.style.display = 'none'
+    document.body.appendChild(audio)
+    _remoteAudioElements.set(playerId, audio)
+    console.log('[WebRTC] 远程音频元素已创建:', playerId)
+  }
+
+  function cleanupRemoteAudio(playerId: string): void {
+    const audio = _remoteAudioElements.get(playerId)
+    if (audio) {
+      audio.srcObject = null
+      audio.remove()
+      _remoteAudioElements.delete(playerId)
+    }
+  }
+
+  function flushPendingIceCandidates(fromId: string): void {
+    const pc = _peerConnections.get(fromId)
+    if (!pc || pc.remoteDescription === null) return
+    for (let i = _pendingIceCandidates.length - 1; i >= 0; i--) {
+      if (_pendingIceCandidates[i].fromId === fromId) {
+        const { candidate } = _pendingIceCandidates.splice(i, 1)[0]
+        pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
+          console.error('[WebRTC] addIceCandidate error (delayed):', e)
+        })
+      }
+    }
+  }
+
   function destroyPeers(): void {
     for (const pc of _peerConnections.values()) {
       pc.close()
@@ -397,6 +534,15 @@ export function useWebRTC() {
     for (const [id] of _analyserNodes) {
       cleanupAnalyser(id)
     }
+    for (const [id] of _remoteAudioElements) {
+      cleanupRemoteAudio(id)
+    }
+    for (const [, t] of _iceTimeouts) {
+      clearTimeout(t)
+    }
+    _iceTimeouts.clear()
+    _retryCounts.clear()
+    _pendingIceCandidates.length = 0
     _speakingPeers.value = new Set()
     _peerCount.value = 0
     _connectionQuality.value = 'disconnected'
@@ -468,6 +614,10 @@ export function useWebRTC() {
 
     socket.off(SERVER_EVENTS.WEBRTC_ICE_CANDIDATE)
     socket.on(SERVER_EVENTS.WEBRTC_ICE_CANDIDATE, (data: { fromId: string; candidate: RTCIceCandidateInit }) => {
+      if (!_voiceInitialized) {
+        _pendingEvents.push({ type: 'ice_candidate', data })
+        return
+      }
       handleIceCandidate(data.fromId, data.candidate)
     })
   }

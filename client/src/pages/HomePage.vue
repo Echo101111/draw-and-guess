@@ -44,16 +44,20 @@
             <div class="contribute-desc">将你想在游戏中看到的词语永久加入词库</div>
 
             <div class="field">
-              <label for="contribute-words">词语（每行一个，最多 20 个）</label>
+              <label for="contribute-words">
+                词语（每行一个，最多 20 个）
+                <span class="hint-icon" title="每行一个词语。如需添加近义词，在词后加 | 并用逗号分隔多个近义词&#10;示例：&#10;  电饭煲 | 电饭锅&#10;  猫 | 猫咪,小花猫">ⓘ</span>
+              </label>
               <div class="input-wrap">
                 <textarea
                   id="contribute-words"
                   v-model="contributeWords"
                   class="contribute-textarea"
-                  placeholder="长颈鹿&#10;电饭煲&#10;过山车"
+                  placeholder="长颈鹿&#10;电饭煲 | 电饭锅&#10;猫 | 猫咪,小花猫"
                   rows="5"
                 />
               </div>
+              <div class="contribute-tip">💡 每行一个词，近义词用 | 分隔，多个用 ,（选填）</div>
             </div>
 
             <div class="field-row">
@@ -371,8 +375,8 @@ function resetContributeForm() {
 }
 
 async function handleContributeSubmit() {
-  const words = contributeWords.value.split('\n').map(s => s.trim()).filter(Boolean)
-  if (words.length === 0) {
+  const rawLines = contributeWords.value.split('\n').map(s => s.trim()).filter(Boolean)
+  if (rawLines.length === 0) {
     contributeMessage.value = '请至少输入一个词语'
     contributeSuccess.value = false
     return
@@ -382,6 +386,18 @@ async function handleContributeSubmit() {
     contributeMessage.value = '请填写分类'
     contributeSuccess.value = false
     return
+  }
+
+  const words: string[] = []
+  const synonyms: Record<string, string[]> = {}
+  for (const line of rawLines) {
+    const parts = line.split('|').map(s => s.trim())
+    const word = parts[0]
+    if (!word) continue
+    words.push(word)
+    if (parts.length > 1) {
+      synonyms[word] = parts[1].split(',').map(s => s.trim()).filter(Boolean)
+    }
   }
 
   contributeLoading.value = true
@@ -394,6 +410,7 @@ async function handleContributeSubmit() {
       body: JSON.stringify({
         words,
         category: contributeCategory.value,
+        synonyms: Object.keys(synonyms).length > 0 ? synonyms : undefined,
       }),
     })
 
@@ -1578,6 +1595,25 @@ onMounted(() => {
 .btn-contribute-submit:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.contribute-tip {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+  margin-top: 0.3rem;
+}
+
+.hint-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  cursor: help;
+  vertical-align: middle;
+  margin-left: 0.25rem;
 }
 
 .contribute-actions {

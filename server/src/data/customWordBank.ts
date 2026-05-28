@@ -15,6 +15,7 @@ export interface CustomWordEntry {
   category: string
   drawability: number
   addedAt: number
+  synonyms?: string[]
 }
 
 let cachedEntries: CustomWordEntry[] | null = null
@@ -67,12 +68,14 @@ export function getCustomWordEntries(): WordEntry[] {
   return loadCustomWords().map(e => ({
     word: e.word,
     drawability: e.drawability as WordEntry['drawability'],
+    synonyms: e.synonyms,
   }))
 }
 
 export function addCustomWord(
   word: string,
   category: string,
+  synonyms?: string[],
 ): { added: boolean; reason?: string } {
   const entries = loadCustomWords()
 
@@ -84,6 +87,7 @@ export function addCustomWord(
     category,
     drawability: 3,
     addedAt: Date.now(),
+    synonyms: synonyms && synonyms.length > 0 ? synonyms : undefined,
   })
 
   saveRaw(entries)

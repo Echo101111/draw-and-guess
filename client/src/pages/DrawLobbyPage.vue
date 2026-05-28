@@ -246,14 +246,15 @@ function handleLeave() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   padding: 2rem 1rem;
 }
 
 .lobby-card {
   width: 100%;
   max-width: 480px;
-  max-height: 95dvh;
+  max-height: 100%;
   background: var(--color-surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
@@ -687,37 +688,95 @@ function handleLeave() {
 }
 
 /* ─── Mobile ─── */
-@media (max-width: 480px) {
+@media (max-width: 767px) {
   .lobby-card {
-    border-radius: var(--radius-lg);
+    max-width: 100%;
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
   }
 
   .lobby-header {
-    padding: 1.5rem 1rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    gap: 0.5rem;
   }
 
   .header-icon {
-    font-size: 2rem;
+    font-size: 1.3rem;
+    margin: 0;
   }
 
   .lobby-header h1 {
-    font-size: 1.4rem;
+    font-size: 1.1rem;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .room-code-badge {
+    padding: 0.3rem 0.6rem;
+    flex-shrink: 0;
   }
 
   .code-value {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
+  }
+
+  .code-copy {
+    font-size: 0.85rem;
   }
 
   .players-section {
-    padding: 1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .player-card {
+    padding: 0.45rem 0.6rem;
+    gap: 0.5rem;
+  }
+
+  .player-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 0.8rem;
+  }
+
+  .player-name {
+    font-size: 0.85rem;
+  }
+
+  .rounds-setting {
+    padding: 0.4rem 1rem;
+  }
+
+  .rounds-label {
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
   }
 
   .lobby-actions {
-    padding: 0.75rem 1rem 1rem;
+    padding: 0.5rem 1rem 1rem;
+    gap: 0.4rem;
   }
 
   .lobby-actions-secondary {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+  }
+
+  .btn-start {
+    padding: 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .btn-secondary,
+  .btn-danger {
+    padding: 0.45rem 0.5rem;
+    font-size: 0.75rem;
   }
 }
 </style>

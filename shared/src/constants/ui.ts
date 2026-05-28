@@ -31,6 +31,8 @@ export const WEBRTC_FFT_SIZE = 256
 export const WEBRTC_VAD_THRESHOLD = 40
 export const WEBRTC_VAD_INTERVAL_MS = 200
 export const WEBRTC_RECONNECT_DELAY_MS = 500
+export const WEBRTC_ICE_TIMEOUT_MS = 30000
+export const WEBRTC_ICE_MAX_RETRIES = 3
 
 // ===== Widget Specific =====
 export const ROOM_LIST_REFRESH_MS = 5000

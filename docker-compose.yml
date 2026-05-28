@@ -38,7 +38,7 @@ services:
       - word-data:/app/server/dist/server/data
     restart: unless-stopped
     networks:
-      - draw-and-guess
+      - party-game
     depends_on:
       - turn
 
@@ -55,11 +55,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - draw-and-guess
+      - party-game
 
 volumes:
   word-data:
 
 networks:
-  draw-and-guess:
+  party-game:
     driver: bridge
