@@ -405,6 +405,7 @@ watch(() => roomStore.error, (err) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  touch-action: none;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -1381,6 +1382,7 @@ watch(() => roomStore.error, (err) => {
     width: 100%;
     flex: 1;
     min-height: 120px;
+    touch-action: pan-y;
     display: flex;
     flex-direction: column;
     border-top: 2px solid var(--color-border-light);

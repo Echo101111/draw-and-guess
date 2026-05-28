@@ -72,7 +72,7 @@ adminRouter.post('/login', (req: Request, res: Response) => {
   }
 
   if (password === config.adminToken) {
-    res.setHeader('Set-Cookie', `admin_token=${encodeURIComponent(config.adminToken)}; HttpOnly; SameSite=Strict; Path=/admin; Max-Age=86400`)
+    res.setHeader('Set-Cookie', `admin_token=${encodeURIComponent(config.adminToken)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`)
     res.redirect('/admin/words')
   } else {
     res.status(403).send(loginPage('密码错误，请重试'))
@@ -84,7 +84,7 @@ adminRouter.get('/', (req: Request, res: Response) => {
   const token = (req.query.token as string) || ''
   if (token === config.adminToken) {
     // 兼容旧版 URL token → 设置 cookie 后跳转
-    res.setHeader('Set-Cookie', `admin_token=${encodeURIComponent(config.adminToken)}; HttpOnly; SameSite=Strict; Path=/admin; Max-Age=86400`)
+    res.setHeader('Set-Cookie', `admin_token=${encodeURIComponent(config.adminToken)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`)
     return res.redirect('/admin/words')
   }
   res.send(loginPage())
@@ -92,6 +92,7 @@ adminRouter.get('/', (req: Request, res: Response) => {
 
 // GET /admin/words — 词库管理
 adminRouter.get('/words', requireAdminToken, (_req: Request, res: Response) => {
+  const adminToken = escapeHtml(config.adminToken)
   const entries = loadCustomWords()
   const hasRows = entries.length > 0
   const rows = entries.map(e => `
@@ -99,7 +100,7 @@ adminRouter.get('/words', requireAdminToken, (_req: Request, res: Response) => {
       <td><input type="checkbox" class="word-cb" value="${escapeHtml(e.word)}"></td>
       <td>${escapeHtml(e.word)}</td>
       <td>${escapeHtml(e.category)}</td>
-      <td>${new Date(e.addedAt).toLocaleString('zh-CN')}</td>
+      <td>${new Date(e.addedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</td>
       <td><button class="btn-del" data-word="${escapeHtml(e.word)}">删除</button></td>
     </tr>
   `).join('\n')
@@ -173,8 +174,8 @@ ${hasRows ? `
 </table>` : '<div class="empty">暂无自定义词语</div>'}
 <div id="toast" class="toast"></div>
 <script>
-const token = new URLSearchParams(location.search).get('token') || ''
-const apiHeaders = token ? { 'Content-Type': 'application/json', 'X-Admin-Token': token } : { 'Content-Type': 'application/json' }
+const ADMIN_TOKEN = '${adminToken}'
+const apiHeaders = { 'Content-Type': 'application/json', 'X-Admin-Token': ADMIN_TOKEN }
 
 const checkedWords = () => Array.from(document.querySelectorAll('.word-cb:checked')).map(cb => cb.value)
 
@@ -208,7 +209,7 @@ document.getElementById('btn-batch-del')?.addEventListener('click', async () => 
     const data = await res.json()
     showToast(data.message, data.success ? 'success' : 'error')
     if (data.success) setTimeout(() => location.reload(), 1000)
-  } catch { showToast('删除失败', 'error') }
+  } catch (e) { showToast('删除失败 (' + e + ')', 'error') }
 })
 
 document.querySelectorAll('.btn-del').forEach(btn => {
@@ -217,10 +218,14 @@ document.querySelectorAll('.btn-del').forEach(btn => {
     if (!confirm('确认删除 "' + word + '" ？')) return
     try {
       const res = await fetch('/api/words/' + encodeURIComponent(word), { method: 'DELETE', headers: apiHeaders })
+      if (!res.ok) {
+        showToast('删除失败 (HTTP ' + res.status + ')', 'error')
+        return
+      }
       const data = await res.json()
       showToast(data.message, data.success ? 'success' : 'error')
       if (data.success) setTimeout(() => location.reload(), 1000)
-    } catch { showToast('删除失败', 'error') }
+    } catch (e) { showToast('删除失败 (' + e + ')', 'error') }
   })
 })
 
@@ -242,7 +247,7 @@ adminRouter.get('/feedback', requireAdminToken, (_req: Request, res: Response) =
   const hasRows = sorted.length > 0
   const rows = sorted.map(f => `
     <tr>
-      <td class="col-time">${new Date(f.timestamp).toLocaleString('zh-CN')}</td>
+      <td class="col-time">${new Date(f.timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</td>
       <td>${escapeHtml(f.text)}</td>
     </tr>
   `).join('\n')

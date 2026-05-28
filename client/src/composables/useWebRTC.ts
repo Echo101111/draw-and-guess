@@ -287,7 +287,7 @@ export function useWebRTC() {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('[WebRTC] icecandidate for', targetId, 'type:', event.candidate.type, 'addr:', event.candidate.address)
+        console.log('[WebRTC] icecandidate for', targetId, 'type:', event.candidate.type)
         const socket = getSocket()
         socket?.emit(CLIENT_EVENTS.WEBRTC_ICE_CANDIDATE, {
           targetId,
@@ -444,10 +444,10 @@ export function useWebRTC() {
     })
 
     socket.off(SERVER_EVENTS.WEBRTC_PEERS_LIST)
-    socket.on(SERVER_EVENTS.WEBRTC_PEERS_LIST, async (data: { peers: string[] }) => {
+    socket.on(SERVER_EVENTS.WEBRTC_PEERS_LIST, (data: { peers: string[] }) => {
       console.log('[WebRTC] <-- PEERS_LIST:', data.peers)
       for (const pid of data.peers) {
-        await handlePeerJoined(pid)
+        handlePeerJoined(pid)
       }
     })
 

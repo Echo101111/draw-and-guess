@@ -7,7 +7,8 @@ services:
       - --external-ip=${SERVER_IP}
       - --listening-port=3478
       - --realm=${TURN_REALM}
-      - --user=${TURN_USERNAME}:${TURN_CREDENTIAL}
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_CREDENTIAL}
       - --min-port=49152
       - --max-port=65535
     restart: unless-stopped
@@ -17,6 +18,7 @@ services:
       context: .
       dockerfile: server/Dockerfile
     environment:
+      - TZ=Asia/Shanghai
       - NODE_ENV=production
       - PORT=3000
       - CLIENT_URL=${CLIENT_URL:-http://localhost:8888}

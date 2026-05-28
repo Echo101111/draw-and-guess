@@ -253,15 +253,18 @@ function handleLeave() {
 .lobby-card {
   width: 100%;
   max-width: 480px;
+  max-height: 95dvh;
   background: var(--color-surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--color-border-light);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   animation: slideUp 0.5s ease-out;
 }
 
 .lobby-header {
+  flex-shrink: 0;
   text-align: center;
   padding: 2rem 2rem 1.5rem;
   background: linear-gradient(180deg, var(--color-accent-pale) 0%, var(--color-surface) 100%);
@@ -321,7 +324,11 @@ function handleLeave() {
 }
 
 .players-section {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
   padding: 1.5rem 2rem;
+  -webkit-overflow-scrolling: touch;
 }
 
 .players-header {
@@ -453,6 +460,7 @@ function handleLeave() {
 }
 
 .rounds-setting {
+  flex-shrink: 0;
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--color-border-light);
 }
@@ -522,6 +530,7 @@ function handleLeave() {
 }
 
 .lobby-actions {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;

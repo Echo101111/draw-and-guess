@@ -44,7 +44,6 @@
           <SpyWordCard
             :word="store.myWord"
             :is-spy="store.isSpy"
-            @revealed="onWordRevealed"
           />
         </div>
 
@@ -492,8 +491,6 @@ watch(() => store.hasDescribed, (done) => {
   }
 })
 
-function onWordRevealed() {}
-
 function submitDesc() {
   const text = descText.value.trim()
   store.submitDescription(text || '（语音描述）')
@@ -559,6 +556,7 @@ const voteProgressPct = computed(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  touch-action: none;
   background: var(--color-bg);
   padding-top: max(12px, env(safe-area-inset-top));
 }
@@ -703,6 +701,7 @@ const voteProgressPct = computed(() => {
   flex-direction: column;
   border-right: 1px solid var(--color-border-light);
   overflow-y: auto;
+  touch-action: pan-y;
 }
 
 .game-center {
@@ -712,6 +711,7 @@ const voteProgressPct = computed(() => {
   align-items: center;
   padding: 10px 16px;
   overflow-y: auto;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   gap: 8px;
 }
@@ -788,6 +788,7 @@ const voteProgressPct = computed(() => {
   gap: 6px;
   flex: 1;
   overflow-y: auto;
+  touch-action: pan-y;
   min-height: 60px;
   padding: 4px 0;
 }
@@ -1275,6 +1276,7 @@ const voteProgressPct = computed(() => {
 
 .chat-panel {
   padding: 0;
+  touch-action: pan-y;
 }
 
 /* ====== FOOTER ====== */

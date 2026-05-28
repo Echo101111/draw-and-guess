@@ -397,6 +397,13 @@ async function handleContributeSubmit() {
       }),
     })
 
+    if (!res.ok) {
+      let errMsg = `服务器错误 (${res.status})`
+      try { const d = await res.json(); if (d.message) errMsg = d.message } catch {}
+      contributeSuccess.value = false
+      contributeMessage.value = errMsg
+      return
+    }
     const data = await res.json()
     contributeSuccess.value = data.success
     let msg = data.message
@@ -411,9 +418,9 @@ async function handleContributeSubmit() {
         resetContributeForm()
       }, CONTRIBUTE_SUCCESS_MS)
     }
-  } catch {
+  } catch (e) {
     contributeSuccess.value = false
-    contributeMessage.value = '提交失败，请检查网络连接'
+    contributeMessage.value = '提交失败，请检查网络连接 (' + e + ')'
   } finally {
     contributeLoading.value = false
   }
@@ -429,6 +436,13 @@ async function handleFeedbackSubmit() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: feedbackText.value.trim() }),
     })
+    if (!res.ok) {
+      let errMsg = `服务器错误 (${res.status})`
+      try { const d = await res.json(); if (d.message) errMsg = d.message } catch {}
+      feedbackSuccess.value = false
+      feedbackMessage.value = errMsg
+      return
+    }
     const data = await res.json()
     feedbackSuccess.value = data.success
     feedbackMessage.value = data.message
@@ -440,9 +454,9 @@ async function handleFeedbackSubmit() {
         feedbackMessage.value = null
       }, 2000)
     }
-  } catch {
+  } catch (e) {
     feedbackSuccess.value = false
-    feedbackMessage.value = '提交失败，请检查网络连接'
+    feedbackMessage.value = '提交失败，请检查网络连接 (' + e + ')'
   } finally {
     feedbackLoading.value = false
   }

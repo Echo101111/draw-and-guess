@@ -26,8 +26,16 @@ COPY shared/package.json shared/
 COPY server/package.json server/
 RUN pnpm install --frozen-lockfile --prod
 
+# su-exec 用于从 root 降权到 appuser
+RUN apk add --no-cache su-exec
+
 COPY --from=builder /app/server/dist ./server/dist
 COPY --from=builder /app/shared/dist ./shared/dist
+COPY server/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# 构建时创建 data 目录并授权
+RUN mkdir -p /app/server/dist/server/data && chown appuser:appgroup /app/server/dist/server/data
 
 ENV NODE_ENV=production
 EXPOSE 3000
@@ -35,6 +43,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -qO- http://localhost:3000/health || exit 1
 
-USER appuser
-
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "server/dist/server/src/index.js"]

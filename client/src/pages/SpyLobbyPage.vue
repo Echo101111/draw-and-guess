@@ -147,7 +147,7 @@ const showConfig = ref(false)
 const errorMessage = ref<string | null>(null)
 
 const spyConfig = reactive({
-  totalRounds: 3,
+  totalRounds: 7,
   descriptionTime: 30,
   voteTime: 20,
 })
@@ -156,7 +156,6 @@ const spyConfig = reactive({
 
 onMounted(() => {
   document.title = '🕵️ 谁是卧底 - Oiiiii早春'
-  document.body.style.overflow = 'hidden'
   roomStore.setupSocketListeners()
   spyStore.setupSocketListeners()
   setupSignaling()
@@ -205,7 +204,6 @@ function handleStart() {
 function handleLeave() {
   leaveVoice()
   roomStore.leaveRoom()
-  document.body.style.overflow = ''
   router.push('/')
 }
 
@@ -236,16 +234,19 @@ function copyLink() {
 .lobby-card {
   width: 100%;
   max-width: 480px;
+  max-height: 95dvh;
   background: var(--color-surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--color-border-light);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   animation: slideUp 0.5s ease-out;
 }
 
 /* ---- Header ---- */
 .lobby-header {
+  flex-shrink: 0;
   text-align: center;
   padding: 2rem 2rem 1.5rem;
   background: linear-gradient(180deg, var(--color-accent-pale) 0%, var(--color-surface) 100%);
@@ -302,7 +303,13 @@ function copyLink() {
 }
 
 /* ---- Players ---- */
-.players-section { padding: 1.5rem 2rem; }
+.players-section {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 1.5rem 2rem;
+  -webkit-overflow-scrolling: touch;
+}
 
 .players-header {
   display: flex;
@@ -434,6 +441,7 @@ function copyLink() {
 
 /* ---- Actions ---- */
 .lobby-actions {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
