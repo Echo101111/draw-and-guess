@@ -29,6 +29,10 @@
   --color-success-bg: #E8F5E6;
   --color-danger: #D9756B;
   --color-danger-light: #FDE8E5;
+  --color-info: #5B9BD5;
+  --color-info-light: #E3F0FB;
+  --color-warning: #E6A23C;
+  --color-warning-light: #FDF6E3;
   --color-gold: #F5B342;
   --color-gold-bg: #FEF3D5;
   --shadow-sm: 0 2px 8px rgba(180, 140, 110, 0.10);

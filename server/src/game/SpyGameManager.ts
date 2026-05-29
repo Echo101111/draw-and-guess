@@ -1,7 +1,7 @@
-import { SERVER_EVENTS, SPY_MIN_PLAYERS, SCORE_CIVILIAN_WIN, SCORE_SPY_WIN, SCORE_SPY_SURVIVE_ROUND, WORD_REVEAL_DURATION_MS, SPY_ROUND_TRANSITION_MS, SPY_DESCRIPTION_MAX_LENGTH, SPY_ALIVE_WIN_THRESHOLD, SPY_DESCRIBE_CYCLES, DISCUSSION_TIME_BASE, DISCUSSION_TIME_PER_PLAYER, SPY_DEFAULT_DESCRIPTION_TIME, SPY_DEFAULT_VOTE_TIME, SPY_CIVILIAN_CONSOLATION } from '@draw-and-guess/shared'
+import { SERVER_EVENTS, SPY_MIN_PLAYERS, SCORE_CIVILIAN_WIN, SCORE_SPY_WIN, SCORE_SPY_SURVIVE_ROUND, WORD_REVEAL_DURATION_MS, SPY_ROUND_TRANSITION_MS, SPY_DESCRIPTION_MAX_LENGTH, SPY_ALIVE_WIN_THRESHOLD, SPY_DESCRIBE_CYCLES, DISCUSSION_TIME_BASE, DISCUSSION_TIME_PER_PLAYER, SPY_DEFAULT_DESCRIPTION_TIME, SPY_DEFAULT_VOTE_TIME, SPY_CIVILIAN_CONSOLATION, SPY_TIE_BREAK_MAX_ROUNDS, SPY_TIE_BREAK_DESCRIPTION_TIME, SPY_DEFAULT_BLANK_COUNT, SPY_MAX_BLANK_COUNT, SPY_MIN_PLAYERS_WITH_BLANK, SCORE_BLANK_WIN } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { getRandomSpyPair, type SpyWordPair } from '../data/spy-words.js'
-import type { SpyPlayer, SpyPhase, SpyGameConfig, SpyDescription, SpyVoteResult, SpyGameState } from '@draw-and-guess/shared'
+import type { SpyPlayer, SpyPhase, SpyGameConfig, SpyDescription, SpyVoteResult, SpyGameState, SpyRole } from '@draw-and-guess/shared'
 
 export { SPY_MIN_PLAYERS }
 
@@ -9,6 +9,7 @@ const DEFAULT_CONFIG: SpyGameConfig = {
   totalRounds: 7,
   descriptionTime: SPY_DEFAULT_DESCRIPTION_TIME,
   voteTime: SPY_DEFAULT_VOTE_TIME,
+  blankCount: SPY_DEFAULT_BLANK_COUNT,
 }
 
 interface EliminationResult {
@@ -31,6 +32,9 @@ interface GameData {
   describeCycle: number
   roundResults: EliminationResult[]
   discussionTimeBase: number
+  tieBreakCount: number
+  tieBreakPlayers: string[]
+  tieBreakSpeakerIds: string[]
 }
 
 export class SpyGameManager {
@@ -90,6 +94,9 @@ export class SpyGameManager {
       describeCycle: 1,
       roundResults: [],
       discussionTimeBase: 0,
+      tieBreakCount: 0,
+      tieBreakPlayers: [],
+      tieBreakSpeakerIds: [],
     }
     this.games.set(roomId, data)
 
@@ -128,20 +135,39 @@ export class SpyGameManager {
       return false
     }
 
+    // 1. 随机选择卧底
     const spyIndex = Math.floor(Math.random() * activePlayers.length)
     const spyId = activePlayers[spyIndex].id
     data.gameSpyId = spyId
 
-    const spyPlayer: SpyPlayer[] = room.players.map(p => {
+    // 2. 随机选择白板（从非卧底玩家中）
+    const blankCount = Math.min(data.config.blankCount, SPY_MAX_BLANK_COUNT)
+    const blankIds = new Set<string>()
+    if (activePlayers.length >= SPY_MIN_PLAYERS_WITH_BLANK && blankCount > 0) {
+      while (blankIds.size < blankCount) {
+        const idx = Math.floor(Math.random() * activePlayers.length)
+        const playerId = activePlayers[idx].id
+        if (playerId !== spyId) {
+          blankIds.add(playerId)
+        }
+      }
+    }
+
+    // 3. 构建玩家数组
+    const spyPlayers: SpyPlayer[] = room.players.map(p => {
       const isActive = !!p.sessionId
       const isSpy = isActive && p.id === spyId
+      const isBlank = isActive && blankIds.has(p.id)
+      const role: SpyRole = isSpy ? 'spy' : (isBlank ? 'blank' : 'civilian')
+
       return {
         id: p.id,
         nickname: p.nickname,
         isOwner: p.isOwner,
         isAlive: isActive,
         isSpy,
-        word: isSpy ? pair.spy : pair.civilian,
+        role,
+        word: isBlank ? '' : (isSpy ? pair.spy : pair.civilian),
         description: '',
         voteTarget: null,
         voteCount: 0,
@@ -151,17 +177,20 @@ export class SpyGameManager {
       }
     })
 
-    data.state.players = spyPlayer
+    data.state.players = spyPlayers
     data.state.civilianWord = pair.civilian
     data.state.spyWord = pair.spy
 
+    // 4. 私信发送角色和词语
     const io = this.getIO()
     if (io) {
-      for (const p of spyPlayer) {
+      for (const p of spyPlayers) {
         if (!p.isAlive) continue
         io.to(p.id).emit(SERVER_EVENTS.SPY_WORD_ASSIGNED, {
           word: p.word,
           isSpy: p.isSpy,
+          isBlank: p.role === 'blank',
+          role: p.role,
         })
       }
       io.to(room.code).emit(SERVER_EVENTS.SPY_PHASE_CHANGE, {
@@ -384,6 +413,11 @@ export class SpyGameManager {
     const target = data.state.players.find(p => p.id === targetId)
     if (!target || !target.isAlive) return { success: false, error: '目标玩家不存在' }
 
+    // During tie-break voting, restrict to tie players only
+    if (data.tieBreakPlayers.length > 0 && !data.tieBreakPlayers.includes(targetId)) {
+      return { success: false, error: '加赛只能投平票玩家' }
+    }
+
     data.votes.set(voterId, targetId)
     voter.voteTarget = targetId
 
@@ -439,7 +473,8 @@ export class SpyGameManager {
     }
 
     if (isTie || maxVotes === 0) {
-      eliminated = null
+      this.handleTieVoting(roomId, voteCounts, maxVotes)
+      return
     }
 
     const voteEntries = Array.from(data.votes.entries()).map(([voterId, targetId]) => ({
@@ -489,31 +524,191 @@ export class SpyGameManager {
     }, SPY_ROUND_TRANSITION_MS)
   }
 
+  private handleTieVoting(roomId: string, voteCounts: Map<string, number>, maxVotes: number): void {
+    const data = this.games.get(roomId)
+    if (!data) return
+
+    const tiePlayers = Array.from(voteCounts.entries())
+      .filter(([_, count]) => count === maxVotes && maxVotes > 0)
+      .map(([id, _]) => id)
+
+    // If maxVotes === 0 (all abstained), treat all alive as tie players
+    if (tiePlayers.length === 0) {
+      for (const p of data.state.players) {
+        if (p.isAlive) tiePlayers.push(p.id)
+      }
+    }
+
+    const aliveCount = data.state.players.filter(p => p.isAlive).length
+    const spyInTie = tiePlayers.includes(data.gameSpyId)
+
+    const spy = data.state.players.find(p => p.role === 'spy')
+
+    // === 决策矩阵 ===
+    // 存活  W1(≤3)  卧底在平票中  加赛后存活≤3(W3)  处理方式
+    // ≤3    触发     -            -             卧底直接获胜
+    // 4     -        不在         3(触发W3)      卧底直接获胜
+    // 4     -        在           3              正常加赛（有机会淘汰卧底）
+    // 5+    -        任意         -             正常加赛
+
+    // W1: 存活≤3 → 卧底直接获胜（无需加赛，加赛后最多剩2人）
+    if (aliveCount <= SPY_ALIVE_WIN_THRESHOLD) {
+      if (spy) {
+        data.state.winner = 'spy'
+        spy.score += SCORE_SPY_WIN
+        for (const p of data.state.players) {
+          if (p.role !== 'spy' && p.isAlive) p.score += Math.max(0, SCORE_CIVILIAN_WIN - SPY_CIVILIAN_CONSOLATION)
+        }
+        this.emitRoundResult(roomId, `存活仅剩 ${aliveCount} 人且平票！卧底获胜`, true)
+      }
+      return
+    }
+
+    // W3: 卧底不在平票中，且加赛淘汰一人后存活≤3 → 卧底直接获胜
+    if (!spyInTie && aliveCount - 1 <= SPY_ALIVE_WIN_THRESHOLD) {
+      if (spy) {
+        data.state.winner = 'spy'
+        spy.score += SCORE_SPY_WIN
+        for (const p of data.state.players) {
+          if (p.role !== 'spy' && p.isAlive) p.score += Math.max(0, SCORE_CIVILIAN_WIN - SPY_CIVILIAN_CONSOLATION)
+        }
+        this.emitRoundResult(roomId, '平票且卧底不在候选中，卧底获胜', true)
+      }
+      return
+    }
+
+    // 正常加赛（最多 SPY_TIE_BREAK_MAX_ROUNDS 轮）
+    if (data.tieBreakCount < SPY_TIE_BREAK_MAX_ROUNDS) {
+      data.tieBreakCount++
+      data.tieBreakPlayers = tiePlayers
+      data.roundEnding = false
+
+      const voteEntries = Array.from(data.votes.entries()).map(([voterId, targetId]) => ({
+        voterId,
+        targetId: targetId ?? null,
+      }))
+
+      const room = roomManager.getRoomById(roomId)
+      const io = this.getIO()
+      if (io && room) {
+        io.to(room.code).emit(SERVER_EVENTS.SPY_VOTE_RESULT, {
+          round: room.currentRound,
+          votes: voteEntries,
+          eliminated: null,
+          isTie: true,
+          tiePlayers,
+          tieBreakCount: data.tieBreakCount,
+        })
+      }
+
+      setTimeout(() => {
+        this.startTieBreak(roomId)
+      }, 3000)
+      return
+    }
+
+    // Tie-break exhausted: no one eliminated, record and continue
+    const voteEntries = Array.from(data.votes.entries()).map(([voterId, targetId]) => ({
+      voterId,
+      targetId: targetId ?? null,
+    }))
+
+    const room = roomManager.getRoomById(roomId)
+    const aliveBeforeVote = data.state.players.filter(p => p.isAlive).length
+
+    data.roundResults.push({
+      round: data.gameEliminationRound,
+      eliminatedName: null,
+      voteCount: maxVotes,
+      totalVotes: aliveBeforeVote,
+      votes: Array.from(data.votes.entries()).map(([voterId, targetId]) => {
+        const voter = data.state.players.find(p => p.id === voterId)
+        const target = data.state.players.find(p => p.id === targetId)
+        return {
+          voterName: voter?.nickname ?? 'Unknown',
+          targetName: target?.nickname ?? '弃权',
+        }
+      }),
+    })
+
+    const voteResult: SpyVoteResult = {
+      round: room?.currentRound ?? data.gameEliminationRound,
+      votes: voteEntries,
+      eliminated: null,
+      civilianWord: data.state.civilianWord,
+      spyWord: data.state.spyWord,
+    }
+
+    const io = this.getIO()
+    if (io && room) {
+      io.to(room.code).emit(SERVER_EVENTS.SPY_VOTE_RESULT, voteResult)
+    }
+    this.broadcastPublicPlayers(roomId)
+
+    setTimeout(() => {
+      this.checkRoundEnd(roomId)
+    }, SPY_ROUND_TRANSITION_MS)
+  }
+
   private checkRoundEnd(roomId: string): void {
     const data = this.games.get(roomId)
     if (!data) return
 
-    const spy = data.state.players.find(p => p.id === data.gameSpyId)
+    const spy = data.state.players.find(p => p.role === 'spy')
     if (!spy) { this.endGame(roomId); return }
+
+    const aliveCount = data.state.players.filter(p => p.isAlive).length
 
     // 条件1：卧底被投票淘汰
     if (!spy.isAlive) {
-      data.state.winner = 'civilian'
-      for (const p of data.state.players) {
-        if (!p.isSpy && p.isAlive) p.score += SCORE_CIVILIAN_WIN
+      // 检查白板是否猜对
+      const blanks = data.state.players.filter(p => p.role === 'blank' && p.isAlive)
+      const blankGuessedSpy = blanks.some(b => {
+        const vote = data.votes.get(b.id)
+        return vote === spy.id
+      })
+
+      if (blankGuessedSpy && blanks.length > 0) {
+        // 白板猜对，白板获胜
+        data.state.winner = 'blank'
+        for (const b of blanks) {
+          if (data.votes.get(b.id) === spy.id) {
+            b.score += SCORE_BLANK_WIN
+          }
+        }
+        // 平民获得安慰分
+        for (const p of data.state.players) {
+          if (p.role === 'civilian' && p.isAlive) {
+            p.score += SPY_CIVILIAN_CONSOLATION
+          }
+        }
+        this.emitRoundResult(roomId, '白板猜出卧底！白板获胜', true)
+      } else {
+        // 白板没猜对或没有白板，平民获胜
+        data.state.winner = 'civilian'
+        for (const p of data.state.players) {
+          if (p.role === 'civilian' && p.isAlive) {
+            p.score += SCORE_CIVILIAN_WIN
+          }
+        }
+        // 白板获得安慰分
+        for (const b of blanks) {
+          b.score += SPY_CIVILIAN_CONSOLATION
+        }
+        this.emitRoundResult(roomId, '卧底已被淘汰！平民获胜', true)
       }
-      this.emitRoundResult(roomId, '卧底已被淘汰！平民获胜', true)
       return
     }
-
-    const aliveCount = data.state.players.filter(p => p.isAlive).length
 
     // 条件2：存活人数 ≤ 3
     if (aliveCount <= SPY_ALIVE_WIN_THRESHOLD) {
       data.state.winner = 'spy'
       spy.score += SCORE_SPY_WIN
+      // 平民和白板安慰分
       for (const p of data.state.players) {
-        if (!p.isSpy && p.isAlive) p.score += Math.max(0, SCORE_CIVILIAN_WIN - SPY_CIVILIAN_CONSOLATION)
+        if (p.role !== 'spy' && p.isAlive) {
+          p.score += Math.max(0, SCORE_CIVILIAN_WIN - SPY_CIVILIAN_CONSOLATION)
+        }
       }
       this.emitRoundResult(roomId, `存活仅剩 ${aliveCount} 人！卧底获胜`, true)
       return
@@ -524,7 +719,9 @@ export class SpyGameManager {
       data.state.winner = 'spy'
       spy.score += SCORE_SPY_WIN
       for (const p of data.state.players) {
-        if (!p.isSpy && p.isAlive) p.score += Math.max(0, SCORE_CIVILIAN_WIN - SPY_CIVILIAN_CONSOLATION)
+        if (p.role !== 'spy' && p.isAlive) {
+          p.score += Math.max(0, SCORE_CIVILIAN_WIN - SPY_CIVILIAN_CONSOLATION)
+        }
       }
       this.emitRoundResult(roomId, '达到最大局数！卧底获胜', true)
       return
@@ -564,6 +761,115 @@ export class SpyGameManager {
     }
   }
 
+  private startTieBreak(roomId: string): void {
+    const data = this.games.get(roomId)
+    if (!data) return
+
+    data.state.phase = 'tie_break'
+    data.state.currentSpeakerIndex = 0
+    data.tieBreakSpeakerIds = [...data.tieBreakPlayers]
+
+    // Reset descriptions for tie-break players
+    for (const p of data.state.players) {
+      if (data.tieBreakPlayers.includes(p.id)) {
+        p.description = ''
+      }
+    }
+
+    const room = roomManager.getRoomById(roomId)
+    const io = this.getIO()
+    if (io && room) {
+      io.to(room.code).emit(SERVER_EVENTS.SPY_TIE_BREAK, {
+        phase: 'tie_break',
+        tieBreakCount: data.tieBreakCount,
+        tiePlayers: data.tieBreakPlayers.map(id => {
+          const p = data.state.players.find(pl => pl.id === id)
+          return { id, nickname: p?.nickname ?? 'Unknown' }
+        }),
+      })
+    }
+
+    this.advanceTieBreakSpeaker(roomId)
+  }
+
+  private advanceTieBreakSpeaker(roomId: string): void {
+    const data = this.games.get(roomId)
+    if (!data || data.roundEnding) return
+
+    const idx = data.state.currentSpeakerIndex
+    if (idx >= data.tieBreakSpeakerIds.length) {
+      this.startTieBreakVoting(roomId)
+      return
+    }
+
+    const speakerId = data.tieBreakSpeakerIds[idx]
+    const speaker = data.state.players.find(p => p.id === speakerId)
+    if (!speaker || !speaker.isAlive) {
+      data.state.currentSpeakerIndex++
+      this.advanceTieBreakSpeaker(roomId)
+      return
+    }
+
+    const now = Date.now()
+    data.state.phaseStartTime = now
+
+    const room = roomManager.getRoomById(roomId)
+    const io = this.getIO()
+    if (io && room) {
+      io.to(room.code).emit(SERVER_EVENTS.SPY_SPEAKER_TURN, {
+        playerId: speaker.id,
+        nickname: speaker.nickname,
+        timeLeft: SPY_TIE_BREAK_DESCRIPTION_TIME,
+        phaseStartTime: now,
+      })
+    }
+
+    this.clearTimers(roomId)
+    const timer = setTimeout(() => {
+      data.state.currentSpeakerIndex++
+      this.advanceTieBreakSpeaker(roomId)
+    }, SPY_TIE_BREAK_DESCRIPTION_TIME * 1000)
+    this.timers.set(roomId, timer)
+  }
+
+  private startTieBreakVoting(roomId: string): void {
+    const room = roomManager.getRoomById(roomId)
+    if (!room) return
+
+    const data = this.games.get(roomId)
+    if (!data) return
+
+    data.state.phase = 'voting'
+    data.state.phaseStartTime = Date.now()
+    data.votes.clear()
+
+    for (const p of data.state.players) {
+      if (p.isAlive) p.voteTarget = null
+      p.voteCount = 0
+    }
+
+    const io = this.getIO()
+    if (io) {
+      io.to(room.code).emit(SERVER_EVENTS.SPY_PHASE_CHANGE, {
+        phase: 'voting' as SpyPhase,
+        round: data.gameEliminationRound,
+        totalRounds: data.config.totalRounds,
+        timeLeft: data.config.voteTime,
+        phaseStartTime: Date.now(),
+        describeCycle: data.describeCycle,
+        players: this.getPublicPlayers(roomId),
+        isTieBreak: true,
+        tieBreakPlayers: data.tieBreakPlayers,
+      })
+    }
+
+    this.clearTimers(roomId)
+    const timer = setTimeout(() => {
+      this.resolveVoting(roomId)
+    }, data.config.voteTime * 1000)
+    this.timers.set(roomId, timer)
+  }
+
   private startNextEliminationRound(roomId: string): void {
     const data = this.games.get(roomId)
     if (!data || data.roundEnding) return
@@ -573,6 +879,9 @@ export class SpyGameManager {
     data.descriptions = []
     data.roundEnding = false
     data.state.currentSpeakerIndex = 0
+    data.tieBreakCount = 0
+    data.tieBreakPlayers = []
+    data.tieBreakSpeakerIds = []
 
     for (const p of data.state.players) {
       if (p.isAlive) p.description = ''
@@ -634,6 +943,7 @@ export class SpyGameManager {
           isOwner: p.isOwner,
           isAlive: p.isAlive,
           isSpy: p.isSpy,
+          role: p.role,
           score: p.score,
           avatar: p.avatar,
         })),
@@ -667,6 +977,9 @@ export class SpyGameManager {
     } else if (state.phase === 'voting') {
       totalTime = data.config.voteTime
       voteTimeLeft = Math.max(0, totalTime - elapsed)
+    } else if (state.phase === 'tie_break') {
+      totalTime = SPY_TIE_BREAK_DESCRIPTION_TIME
+      descriptionTimeLeft = Math.max(0, totalTime - elapsed)
     }
 
     const snapshot: SpyGameState = {
@@ -686,6 +999,8 @@ export class SpyGameManager {
       winner: state.winner,
       describeCycle: data.describeCycle,
       phaseStartTime: state.phaseStartTime,
+      tieBreakCount: data.tieBreakCount,
+      tieBreakPlayers: data.tieBreakCount > 0 ? data.tieBreakPlayers : undefined,
     }
 
     io.to(playerId).emit(SERVER_EVENTS.SPY_GAME_STATE_SNAPSHOT, snapshot)
@@ -698,8 +1013,12 @@ export class SpyGameManager {
     const player = data.state.players.find(p => p.id === playerId)
     if (!player || !player.isAlive) return
 
-    // 检查断线玩家是否是当前发言者
-    const isCurrentSpeaker = data.state.phase === 'describing' && (() => {
+    // 检查断线玩家是否是当前发言者（覆盖 describing 和 tie_break 阶段）
+    const isCurrentSpeaker = (data.state.phase === 'describing' || data.state.phase === 'tie_break') && (() => {
+      if (data.state.phase === 'tie_break') {
+        const idx = data.state.currentSpeakerIndex
+        return idx < data.tieBreakSpeakerIds.length && data.tieBreakSpeakerIds[idx] === playerId
+      }
       const alive = data.state.players.filter(p => p.isAlive)
       const idx = data.state.currentSpeakerIndex
       return idx < alive.length && alive[idx]?.id === playerId
@@ -710,11 +1029,14 @@ export class SpyGameManager {
     // Bug 3: 当前发言者断线 → 立即推进到下一位
     if (isCurrentSpeaker) {
       this.clearTimers(roomId)
-      this.advanceSpeaker(roomId)
-      // advanceSpeaker 内部已 broadcastPublicPlayers
-      // 继续检查胜负条件
+      if (data.state.phase === 'tie_break') {
+        data.state.currentSpeakerIndex++
+        this.advanceTieBreakSpeaker(roomId)
+      } else {
+        this.advanceSpeaker(roomId)
+      }
     } else {
-      // Bug 2: 修正 currentSpeakerIndex
+      // Bug 2: 修正 currentSpeakerIndex（不适用于 tie_break，其索引指向 tieBreakSpeakerIds）
       if (data.state.phase === 'describing') {
         const disconPos = data.state.players.findIndex(p => p.id === playerId)
         const aliveBefore = data.state.players.filter((p, i) => p.isAlive && i < disconPos).length
@@ -725,11 +1047,18 @@ export class SpyGameManager {
       this.broadcastPublicPlayers(roomId)
     }
 
-    if (player.isSpy) {
+    // 卧底断线 → 平民获胜
+    if (player.role === 'spy') {
       data.state.winner = 'civilian'
       for (const p of data.state.players) {
-        if (!p.isSpy && p.isAlive) {
+        if (p.role === 'civilian' && p.isAlive) {
           p.score += SCORE_CIVILIAN_WIN
+        }
+      }
+      // 白板安慰分
+      for (const p of data.state.players) {
+        if (p.role === 'blank' && p.isAlive) {
+          p.score += SPY_CIVILIAN_CONSOLATION
         }
       }
       this.endGame(roomId)

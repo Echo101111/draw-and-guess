@@ -142,7 +142,10 @@ export type SpyPhase =
   | 'voting'
   | 'reveal'
   | 'round_end'
-  | 'game_over';
+  | 'game_over'
+  | 'tie_break';
+
+export type SpyRole = 'civilian' | 'spy' | 'blank';
 
 export interface SpyPlayer {
   id: string;
@@ -150,6 +153,7 @@ export interface SpyPlayer {
   isOwner: boolean;
   isAlive: boolean;
   isSpy: boolean;
+  role: SpyRole;
   word: string;
   description: string;
   voteTarget: string | null;
@@ -163,6 +167,7 @@ export interface SpyGameConfig {
   totalRounds: number;
   descriptionTime: number;
   voteTime: number;
+  blankCount: number;
 }
 
 export interface SpyDescription {
@@ -179,6 +184,9 @@ export interface SpyVoteResult {
   eliminated: string | null;
   civilianWord?: string;
   spyWord?: string;
+  isTie?: boolean;
+  tiePlayers?: string[];
+  tieBreakCount?: number;
 }
 
 export interface SpyGameState {
@@ -192,7 +200,9 @@ export interface SpyGameState {
   descriptionTimeLeft: number;
   voteTimeLeft: number;
   totalTime?: number;
-  winner: 'civilian' | 'spy' | null;
+  winner: 'civilian' | 'spy' | 'blank' | null;
   describeCycle?: number;
   phaseStartTime?: number;
+  tieBreakCount?: number;
+  tieBreakPlayers?: string[];
 }

@@ -79,4 +79,5 @@ export const SERVER_EVENTS = {
   SPY_GAME_STATE_SNAPSHOT: 's_spy_game_state_snapshot',
   SPY_TIMER_SYNC: 's_spy_timer_sync',
   SPY_VOTE_PROGRESS: 's_spy_vote_progress',
+  SPY_TIE_BREAK: 's_spy_tie_break',
 } as const

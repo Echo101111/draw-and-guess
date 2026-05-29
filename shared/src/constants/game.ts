@@ -31,6 +31,12 @@ export const DISCUSSION_TIME_BASE = 15
 export const DISCUSSION_TIME_PER_PLAYER = 10
 export const SPY_ALIVE_WIN_THRESHOLD = 3
 
+// ===== Spy Blank Role =====
+export const SPY_DEFAULT_BLANK_COUNT = 1
+export const SPY_MAX_BLANK_COUNT = 2
+export const SPY_MIN_PLAYERS_WITH_BLANK = 6
+export const SCORE_BLANK_WIN = 150
+
 // ===== Word Validation =====
 export const WORD_MAX_LENGTH = 20
 export const WORD_BATCH_MAX = 20
@@ -38,6 +44,10 @@ export const WORD_ERROR_TRUNCATE = 10
 
 // ===== Spy Consolation =====
 export const SPY_CIVILIAN_CONSOLATION = 20
+
+// ===== Spy Tie-Break =====
+export const SPY_TIE_BREAK_MAX_ROUNDS = 2
+export const SPY_TIE_BREAK_DESCRIPTION_TIME = 20
 
 // ===== Rounds Per Player =====
 export const DEFAULT_ROUNDS_PER_PLAYER = 2

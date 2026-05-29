@@ -115,6 +115,17 @@
                   <option :value="30">30 秒</option>
                 </select>
               </div>
+              <div class="config-item">
+                <label>白板数量</label>
+                <select v-model.number="spyConfig.blankCount">
+                  <option :value="0">无白板</option>
+                  <option :value="1">1 个白板</option>
+                  <option :value="2">2 个白板</option>
+                </select>
+                <span v-if="spyConfig.blankCount > 0 && players.length < 6" class="config-warning">
+                  ⚠️ 需要6人以上才能启用白板
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -150,6 +161,7 @@ const spyConfig = reactive({
   totalRounds: 7,
   descriptionTime: 30,
   voteTime: 20,
+  blankCount: 1,
 })
 
 
@@ -623,6 +635,12 @@ function copyLink() {
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 24px;
+}
+
+.config-warning {
+  font-size: 11px;
+  color: var(--color-warning);
+  margin-top: 4px;
 }
 
 /* ---- Voice ---- */

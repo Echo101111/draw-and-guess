@@ -23,6 +23,7 @@ const PHASE_CONFIG: Record<SpyPhase, { icon: string; text: string; showTimer: bo
   discussion: { icon: '💭', text: '自由讨论', showTimer: true, cls: 'discuss' },
   voting: { icon: '🗳️', text: '投票找出卧底！', showTimer: true, cls: 'vote' },
   reveal: { icon: '📊', text: '投票结果揭晓', showTimer: false, cls: 'info' },
+  tie_break: { icon: '🔄', text: '加赛阶段', showTimer: true, cls: 'desc' },
   round_end: { icon: '🔄', text: '回合结束', showTimer: false, cls: 'info' },
   game_over: { icon: '🏆', text: '游戏结束', showTimer: false, cls: 'info' },
 }

@@ -1,13 +1,20 @@
 <template>
   <Transition name="card">
-    <div v-if="word" class="word-card">
+    <div v-if="word || isBlank" class="word-card">
       <div class="card-inner" :class="{ flipped: revealed }">
         <div class="card-front">
           <span class="card-icon">🕵️</span>
         </div>
-        <div class="card-back" :class="{ spy: isSpy }">
-          <span class="card-word">{{ word }}</span>
-          <span v-if="isSpy" class="card-tag">卧底</span>
+        <div class="card-back" :class="{ spy: isSpy, blank: isBlank }">
+          <template v-if="isBlank">
+            <span class="card-icon-blank">❓</span>
+            <span class="card-blank-text">你是白板</span>
+            <span class="card-blank-hint">猜猜别人的词</span>
+          </template>
+          <template v-else>
+            <span class="card-word">{{ word }}</span>
+            <span v-if="isSpy" class="card-tag">卧底</span>
+          </template>
         </div>
       </div>
     </div>
@@ -21,6 +28,7 @@ import { WORD_CARD_FLIP_DELAY_MS } from '@draw-and-guess/shared'
 defineProps<{
   word: string
   isSpy: boolean
+  isBlank?: boolean
 }>()
 
 const revealed = ref(false)
@@ -92,6 +100,11 @@ onMounted(() => {
   background: linear-gradient(145deg, var(--color-danger-light), #fff);
 }
 
+.card-back.blank {
+  border-color: var(--color-info);
+  background: linear-gradient(145deg, var(--color-info-light), #fff);
+}
+
 .card-word {
   font-size: 28px;
   font-weight: 800;
@@ -110,6 +123,21 @@ onMounted(() => {
   background: var(--color-danger-light);
   padding: 2px 14px;
   border-radius: var(--radius-full);
+}
+
+.card-icon-blank {
+  font-size: 36px;
+}
+
+.card-blank-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-info);
+}
+
+.card-blank-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 .card-enter-active,

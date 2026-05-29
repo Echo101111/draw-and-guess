@@ -44,22 +44,35 @@
           <SpyWordCard
             :word="store.myWord"
             :is-spy="store.isSpy"
+            :is-blank="store.isBlank"
           />
         </div>
 
-        <!-- describing / voting / discussion / reveal  -->
-        <template v-else-if="store.phase === 'describing' || store.phase === 'voting' || store.phase === 'discussion' || store.phase === 'reveal'">
+        <!-- describing / voting / discussion / reveal / tie_break -->
+        <template v-else-if="store.phase === 'describing' || store.phase === 'voting' || store.phase === 'discussion' || store.phase === 'reveal' || store.phase === 'tie_break'">
+          <!-- Tie-break banner -->
+          <div v-if="store.tieBreakCount > 0" class="tie-break-banner">
+            <span class="tie-break-banner-title">🔄 加赛第 {{ store.tieBreakCount }}/2 轮</span>
+            <span class="tie-break-banner-players">平票玩家：{{ store.tieBreakPlayers.map(p => p.nickname).join('、') }}</span>
+          </div>
+
           <!-- Word badge (persistent) -->
-          <div class="word-badge" :class="{ spy: store.isSpy }">
-            <span class="word-badge-label">你的词语</span>
-            <span class="word-badge-text">{{ store.myWord }}</span>
-            <span v-if="store.isSpy" class="word-badge-tag">🕵️ 卧底</span>
+          <div class="word-badge" :class="{ spy: store.isSpy, blank: store.isBlank }">
+            <template v-if="store.isBlank">
+              <span class="word-badge-label">❓ 你是白板</span>
+              <span class="word-badge-text">猜猜别人的词</span>
+            </template>
+            <template v-else>
+              <span class="word-badge-label">你的词语</span>
+              <span class="word-badge-text">{{ store.myWord }}</span>
+              <span v-if="store.isSpy" class="word-badge-tag">🕵️ 卧底</span>
+            </template>
           </div>
 
           <!-- Player ring -->
           <div class="ring-section">
             <SpyPlayerRing
-              :players="otherPlayers"
+              :players="ringPlayers"
               :speaker-id="store.currentSpeaker?.playerId"
               :local-player-id="roomStore.currentPlayerId ?? ''"
               :selected-id="selectedVoteTarget"
@@ -136,6 +149,7 @@
           <div class="result-title">游戏结束</div>
           <div class="result-winner">
             <span v-if="store.winner === 'civilian'">🎉 平民获胜</span>
+            <span v-else-if="store.winner === 'blank'">❓ 白板获胜</span>
             <span v-else>🕵️ 卧底获胜</span>
           </div>
 
@@ -154,6 +168,15 @@
                 <div class="word-card-spy-name">{{ spyPlayerName }}</div>
               </div>
             </div>
+            <!-- Blank players info -->
+            <div v-if="blankPlayers.length > 0" class="blank-info">
+              <div class="blank-info-label">❓ 白板玩家</div>
+              <div class="blank-info-players">
+                <span v-for="blank in blankPlayers" :key="blank.id" class="blank-player">
+                  {{ blank.nickname }}
+                </span>
+              </div>
+            </div>
           </div>
 
           <!-- Score list -->
@@ -162,7 +185,8 @@
               <span class="score-rank">#{{ s.rank }}</span>
               <span class="score-name">
                 {{ s.nickname }}
-                <span v-if="store.players.find(p => p.id === s.playerId)?.isSpy" class="spy-tag">🕵️ 卧底</span>
+                <span v-if="getPlayerRole(s.playerId) === 'spy'" class="spy-tag">🕵️ 卧底</span>
+                <span v-else-if="getPlayerRole(s.playerId) === 'blank'" class="blank-tag">❓ 白板</span>
               </span>
               <span class="score-pts">{{ s.score }}分</span>
             </div>
@@ -272,6 +296,15 @@
       <div v-else-if="store.phase === 'voting' && store.hasVoted" class="footer-status">
         <span>✅ 已投票，等待结果...</span>
       </div>
+
+      <!-- Tie-break phase -->
+      <div v-else-if="store.phase === 'tie_break'" class="footer-status">
+        <div class="status-speaker">
+          <span class="status-dot" />
+          <span v-if="store.currentSpeaker">🔄 {{ store.currentSpeakerNickname }} 正在加赛描述</span>
+          <span v-else>🔄 加赛准备中...</span>
+        </div>
+      </div>
     </footer>
 
     <Transition name="fade">
@@ -363,6 +396,7 @@ const PHASE_LABELS: Record<string, string> = {
   discussion: '💭 自由讨论',
   voting: '🗳️ 投票阶段',
   reveal: '📊 结果揭晓',
+  tie_break: '🔄 加赛阶段',
 }
 
 const phaseLabel = computed(() => PHASE_LABELS[store.phase] ?? '')
@@ -370,7 +404,18 @@ const phaseClass = computed(() => {
   if (store.phase === 'voting') return 'phase-vote'
   if (store.phase === 'describing') return 'phase-desc'
   if (store.phase === 'discussion') return 'phase-discuss'
+  if (store.phase === 'tie_break') return 'phase-tiebreak'
   return ''
+})
+
+const ringPlayers = computed(() => {
+  if (store.phase === 'tie_break') {
+    return store.players
+  }
+  if (store.phase === 'voting' && store.tieBreakPlayers.length > 0) {
+    return store.players.filter(p => store.tieBreakPlayers.some(tp => tp.id === p.id))
+  }
+  return otherPlayers.value
 })
 
 const conversationStream = computed(() => {
@@ -536,6 +581,14 @@ const spyPlayerName = computed(() => {
   return store.players.find(p => p.isSpy)?.nickname ?? ''
 })
 
+const blankPlayers = computed(() => {
+  return store.players.filter(p => p.role === 'blank')
+})
+
+function getPlayerRole(playerId: string): string {
+  return store.players.find(p => p.id === playerId)?.role ?? 'civilian'
+}
+
 const voteRingOffset = computed(() => {
   const maxTime = store.voteTimeMax || SPY_DEFAULT_VOTE_TIME
   const ratio = Math.min(store.timeLeft / maxTime, 1)
@@ -685,6 +738,7 @@ const voteProgressPct = computed(() => {
 .phase-strip.phase-desc { background: var(--color-accent-pale); color: var(--color-primary-dark); }
 .phase-strip.phase-vote { background: var(--color-danger-light); color: var(--color-danger); }
 .phase-strip.phase-discuss { background: var(--color-primary-light); color: white; }
+.phase-strip.phase-tiebreak { background: var(--color-gold-light); color: var(--color-gold-dark); }
 
 /* ====== BODY ====== */
 .game-body {
@@ -738,6 +792,34 @@ const voteProgressPct = computed(() => {
   flex-shrink: 0;
 }
 
+/* ====== TIE-BREAK BANNER ====== */
+.tie-break-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, var(--color-gold-light, #fef3c7), var(--color-gold-lighter, #fffbeb));
+  border: 1px solid var(--color-gold, #f59e0b);
+  border-radius: var(--radius-md);
+  width: 100%;
+  max-width: 320px;
+  flex-shrink: 0;
+  animation: fadeSlideIn 0.3s ease-out;
+}
+
+.tie-break-banner-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-gold-dark, #b45309);
+}
+
+.tie-break-banner-players {
+  font-size: 0.75rem;
+  color: var(--color-gold, #d97706);
+  font-weight: 500;
+}
+
 /* ====== WORD BADGE ====== */
 .word-badge {
   display: flex;
@@ -755,6 +837,11 @@ const voteProgressPct = computed(() => {
 .word-badge.spy {
   background: var(--color-danger-light);
   border-color: var(--color-danger);
+}
+
+.word-badge.blank {
+  background: var(--color-info-light);
+  border-color: var(--color-info);
 }
 
 .word-badge-label {
@@ -1198,6 +1285,43 @@ const voteProgressPct = computed(() => {
   padding: 1px 6px;
   border-radius: var(--radius-full);
   white-space: nowrap;
+}
+
+.blank-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-info);
+  background: var(--color-info-light);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.blank-info {
+  margin-top: 12px;
+  padding: 10px;
+  background: var(--color-info-light);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.blank-info-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-info);
+  margin-bottom: 6px;
+}
+
+.blank-info-players {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.blank-player {
+  font-size: 0.85rem;
+  color: var(--color-text);
 }
 
 .score-pts {

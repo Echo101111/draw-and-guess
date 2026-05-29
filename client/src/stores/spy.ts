@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
 import { getSocket } from '@/composables/useSocket'
 import { CLIENT_EVENTS, SERVER_EVENTS, CHAT_MESSAGE_LIMIT, CHAT_MESSAGE_KEEP, TIMER_RECALC_INTERVAL_MS, type ChatMessage } from '@draw-and-guess/shared'
-import type { SpyPhase, SpyPlayer, SpyDescription, SpyVoteResult, SpyGameState } from '@draw-and-guess/shared'
+import type { SpyPhase, SpyPlayer, SpyDescription, SpyVoteResult, SpyGameState, SpyRole } from '@draw-and-guess/shared'
 
 interface ScoreEntry {
   playerId: string
@@ -36,6 +36,8 @@ export const useSpyStore = defineStore('spy', () => {
   const players = ref<SpyPlayer[]>([])
   const myWord = ref('')
   const isSpy = ref(false)
+  const isBlank = ref(false)
+  const role = ref<SpyRole>('civilian')
 
   const currentSpeaker = ref<SpeakerInfo | null>(null)
   const descriptions = ref<SpyDescription[]>([])
@@ -44,7 +46,7 @@ export const useSpyStore = defineStore('spy', () => {
   const canDescribe = ref(false)
 
   const voteResult = ref<SpyVoteResult | null>(null)
-  const winner = ref<'civilian' | 'spy' | null>(null)
+  const winner = ref<'civilian' | 'spy' | 'blank' | null>(null)
   const scores = ref<ScoreEntry[]>([])
   const timeLeft = ref(0)
   const chatMessages = ref<ChatMessage[]>([])
@@ -61,6 +63,8 @@ export const useSpyStore = defineStore('spy', () => {
   const describeCycle = ref(0)
   const phaseStartTime = ref<number | null>(null)
   const totalTimeForPhase = ref(0)
+  const tieBreakCount = ref(0)
+  const tieBreakPlayers = ref<Array<{ id: string; nickname: string }>>([])
 
   const alivePlayers = computed(() => players.value.filter(p => p.isAlive))
   const aliveCount = computed(() => players.value.filter(p => p.isAlive).length)
@@ -99,9 +103,11 @@ export const useSpyStore = defineStore('spy', () => {
     if (!socket) return
 
     socket.off(SERVER_EVENTS.SPY_WORD_ASSIGNED)
-    socket.on(SERVER_EVENTS.SPY_WORD_ASSIGNED, (data: { word: string; isSpy: boolean }) => {
+    socket.on(SERVER_EVENTS.SPY_WORD_ASSIGNED, (data: { word: string; isSpy: boolean; isBlank?: boolean; role?: SpyRole }) => {
       myWord.value = data.word
       isSpy.value = data.isSpy
+      isBlank.value = data.isBlank ?? false
+      role.value = data.role ?? (data.isSpy ? 'spy' : 'civilian')
       phase.value = 'word_distribution'
     })
 
@@ -145,6 +151,7 @@ export const useSpyStore = defineStore('spy', () => {
           isOwner: p.isOwner,
           isAlive: p.isAlive,
           isSpy: p.id === selfId ? isSpy.value : false,
+          role: p.id === selfId ? role.value : ('civilian' as SpyRole),
           word: p.id === selfId ? myWord.value : '',
           description: p.description ?? '',
           voteTarget: p.voteTarget ?? null,
@@ -208,6 +215,18 @@ export const useSpyStore = defineStore('spy', () => {
       totalVoters.value = data.total
     })
 
+    socket.off(SERVER_EVENTS.SPY_TIE_BREAK)
+    socket.on(SERVER_EVENTS.SPY_TIE_BREAK, (data: {
+      phase: string; tieBreakCount: number
+      tiePlayers: Array<{ id: string; nickname: string }>
+    }) => {
+      tieBreakCount.value = data.tieBreakCount
+      tieBreakPlayers.value = data.tiePlayers
+      phase.value = 'tie_break'
+      currentSpeaker.value = null
+      stopDisplayTimer()
+    })
+
     socket.off(SERVER_EVENTS.SPY_ROUND_RESULT)
     socket.on(SERVER_EVENTS.SPY_ROUND_RESULT, (data: {
       eliminated: string | null; reason: string
@@ -222,11 +241,11 @@ export const useSpyStore = defineStore('spy', () => {
 
     socket.off(SERVER_EVENTS.SPY_GAME_OVER)
     socket.on(SERVER_EVENTS.SPY_GAME_OVER, (data: {
-      roomId: string; winner: 'civilian' | 'spy' | null; finalScores: ScoreEntry[]
+      roomId: string; winner: 'civilian' | 'spy' | 'blank' | null; finalScores: ScoreEntry[]
       civilianWord?: string; spyWord?: string
       players?: Array<{
         id: string; nickname: string; isOwner: boolean; isAlive: boolean
-        isSpy: boolean; score: number; avatar: number
+        isSpy: boolean; role?: SpyRole; score: number; avatar: number
       }>
       voteDetails?: VoteDetail[]
       roundResults?: EliminationResult[]
@@ -244,6 +263,7 @@ export const useSpyStore = defineStore('spy', () => {
           isOwner: p.isOwner,
           isAlive: p.isAlive,
           isSpy: p.isSpy,
+          role: p.role ?? (p.isSpy ? 'spy' : 'civilian'),
           score: p.score,
           avatar: p.avatar,
           word: '',
@@ -269,8 +289,17 @@ export const useSpyStore = defineStore('spy', () => {
       phaseStartTime.value = data.phaseStartTime ?? null
       totalTimeForPhase.value = data.totalTime ?? 0
 
+      // 恢复加赛状态
+      tieBreakCount.value = data.tieBreakCount ?? 0
+      if (data.tieBreakPlayers && data.tieBreakPlayers.length > 0) {
+        tieBreakPlayers.value = data.tieBreakPlayers.map(id => {
+          const p = data.players.find(pl => pl.id === id)
+          return { id, nickname: p?.nickname ?? 'Unknown' }
+        })
+      }
+
       // 直接使用服务器计算的 timeLeft
-      if (data.phase === 'describing' || data.phase === 'discussion') {
+      if (data.phase === 'describing' || data.phase === 'discussion' || data.phase === 'tie_break') {
         timeLeft.value = data.descriptionTimeLeft
       } else if (data.phase === 'voting') {
         timeLeft.value = data.voteTimeLeft
@@ -318,6 +347,7 @@ export const useSpyStore = defineStore('spy', () => {
       SERVER_EVENTS.SPY_ROUND_RESULT,
       SERVER_EVENTS.SPY_GAME_OVER,
       SERVER_EVENTS.SPY_VOTE_PROGRESS,
+      SERVER_EVENTS.SPY_TIE_BREAK,
       SERVER_EVENTS.SPY_GAME_STATE_SNAPSHOT,
       SERVER_EVENTS.SPY_GAME_CONFIG_UPDATED,
       SERVER_EVENTS.CHAT_MESSAGE,
@@ -361,6 +391,8 @@ export const useSpyStore = defineStore('spy', () => {
     players.value = []
     myWord.value = ''
     isSpy.value = false
+    isBlank.value = false
+    role.value = 'civilian'
     currentSpeaker.value = null
     descriptions.value = []
     hasDescribed.value = false
@@ -384,15 +416,18 @@ export const useSpyStore = defineStore('spy', () => {
     gameEliminationRound.value = 0
     describeCycle.value = 0
     roundEndReason.value = ''
+    tieBreakCount.value = 0
+    tieBreakPlayers.value = []
   }
 
   return {
-    phase, round, totalRounds, players, myWord, isSpy,
+    phase, round, totalRounds, players, myWord, isSpy, isBlank, role,
     currentSpeaker, descriptions, hasDescribed, hasVoted, canDescribe,
     voteResult, winner, scores, timeLeft, chatMessages, lastEliminated, roundEndReason,
     votedCount, totalVoters, civilianWord, spyWord, voteTimeMax,
     alivePlayers, aliveCount, eliminatedPlayers, isMyTurnToSpeak, currentSpeakerNickname, voteDetails, roundResults,
     gameEliminationRound, describeCycle, phaseStartTime, totalTimeForPhase,
+    tieBreakCount, tieBreakPlayers,
     setupSocketListeners, teardownSocketListeners,
     submitDescription, vote, readyNextRound, sendChat, resetGame,
   }
