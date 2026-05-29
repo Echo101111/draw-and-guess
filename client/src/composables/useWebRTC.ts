@@ -47,19 +47,36 @@ function applyMuteState(): void {
 }
 
 export function useWebRTC() {
+  // 临时启用音频轨道，执行操作后恢复原状态
+  // 确保 createOffer/createAnswer 生成的 SDP 包含有效的音频 m-line
+  async function withEnabledAudioTracks<T>(fn: () => Promise<T>): Promise<T> {
+    const tracksToReenable: MediaStreamTrack[] = []
+    for (const track of _localStream?.getAudioTracks() ?? []) {
+      if (!track.enabled) {
+        track.enabled = true
+        tracksToReenable.push(track)
+      }
+    }
+    try {
+      return await fn()
+    } finally {
+      for (const track of tracksToReenable) {
+        track.enabled = false
+      }
+    }
+  }
+
   async function joinVoice(): Promise<void> {
     try {
-      // 拉取 TURN 配置（仅首次）
-      if (_turnConfig.length === 0) {
-        try {
-          const res = await fetch('/api/turn-config')
-          const data = await res.json()
-          if (data.url) {
-            _turnConfig = [{ urls: data.url, username: data.username, credential: data.credential }]
-          }
-        } catch {
-          console.warn('[WebRTC] 获取 TURN 配置失败，降级为仅 STUN')
+      // 每次加入语音都拉取最新的 TURN 凭证（凭证有效期 12h）
+      try {
+        const res = await fetch('/api/turn-config')
+        const data = await res.json()
+        if (data.url) {
+          _turnConfig = [{ urls: data.url, username: data.username, credential: data.credential }]
         }
+      } catch {
+        console.warn('[WebRTC] 获取 TURN 配置失败，降级为仅 STUN')
       }
 
       destroyPeers()
@@ -126,16 +143,21 @@ export function useWebRTC() {
   }
 
   function resolveIceServers(): RTCConfiguration {
-    const stunServer = import.meta.env.VITE_STUN_SERVER || 'stun:101.34.215.101:3478'
-    const servers: RTCIceServer[] = [
-      { urls: stunServer },
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ]
+    const servers: RTCIceServer[] = []
+    // TURN 前置，ICE 优先分配 relay candidate
     if (_turnConfig.length > 0) {
       servers.push(..._turnConfig)
     }
-    return { iceServers: servers }
+    const stunServer = import.meta.env.VITE_STUN_SERVER || 'stun:101.34.215.101:3478'
+    servers.push(
+      { urls: stunServer },
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    )
+    return {
+      iceServers: servers,
+      iceCandidatePoolSize: 10,
+    }
   }
 
   function leaveVoice(): void {
@@ -231,14 +253,25 @@ export function useWebRTC() {
       await pc.setRemoteDescription(new RTCSessionDescription(sdp))
       console.log('[WebRTC] handleOffer: setRemoteDescription OK for', fromId)
       flushPendingIceCandidates(fromId)
-      const answer = await pc.createAnswer()
-      console.log('[WebRTC] handleOffer: createAnswer OK for', fromId)
-      await pc.setLocalDescription(answer)
-      console.log('[WebRTC] handleOffer: setLocalDescription OK — sending ANSWER to', fromId)
-      const socket = getSocket()
-      socket?.emit(CLIENT_EVENTS.WEBRTC_ANSWER, {
-        targetId: fromId,
-        sdp: pc.localDescription,
+
+      // Fix B: setRemoteDescription 后可能新增 transceiver，再次修正 direction
+      for (const t of pc.getTransceivers()) {
+        if (t.receiver?.track?.kind === 'audio' && t.direction !== 'sendrecv') {
+          t.direction = 'sendrecv'
+        }
+      }
+
+      // Fix A: 确保 createAnswer 时音频轨道 enabled
+      await withEnabledAudioTracks(async () => {
+        const answer = await pc.createAnswer()
+        console.log('[WebRTC] handleOffer: createAnswer OK for', fromId)
+        await pc.setLocalDescription(answer)
+        console.log('[WebRTC] handleOffer: setLocalDescription OK — sending ANSWER to', fromId)
+        const socket = getSocket()
+        socket?.emit(CLIENT_EVENTS.WEBRTC_ANSWER, {
+          targetId: fromId,
+          sdp: pc.localDescription,
+        })
       })
     } catch (e) {
       console.error('[WebRTC] handleOffer ERROR for', fromId, ':', e)
@@ -307,14 +340,21 @@ export function useWebRTC() {
     _peerConnections.set(targetId, pc)
     _peerCount.value = _peerConnections.size
 
+    const _iceCandidateStats: Record<string, number> = {}
+
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('[WebRTC] icecandidate for', targetId, 'type:', event.candidate.type)
+        const type = event.candidate.type ?? 'unknown'
+        _iceCandidateStats[type] = (_iceCandidateStats[type] || 0) + 1
+        console.log('[WebRTC] icecandidate for', targetId, 'type:', type)
+
         const socket = getSocket()
         socket?.emit(CLIENT_EVENTS.WEBRTC_ICE_CANDIDATE, {
           targetId,
           candidate: event.candidate,
         })
+      } else {
+        console.log('[WebRTC] ICE gathering done for', targetId, 'stats:', JSON.stringify(_iceCandidateStats))
       }
     }
 
@@ -324,11 +364,13 @@ export function useWebRTC() {
 
     pc.ontrack = (event) => {
       console.log('[WebRTC] ontrack from:', targetId, 'streams:', event.streams.length)
-      if (event.streams.length > 0) {
-        const remoteStream = event.streams[0]
+      const remoteStream = event.streams[0] || (event.track ? new MediaStream([event.track]) : null)
+      if (remoteStream) {
         console.log('[WebRTC] ontrack: got audio track, active:', remoteStream.getAudioTracks()[0]?.enabled)
         setupAnalyser(targetId, remoteStream)
         setupRemoteAudio(targetId, remoteStream)
+      } else {
+        console.warn('[WebRTC] ontrack: no stream or track for', targetId)
       }
     }
 
@@ -438,14 +480,25 @@ export function useWebRTC() {
       }
     }
 
+    // Fix B: 强制音频 transceiver direction = sendrecv
+    // Safari 可能在 addTrack(track.enabled=false) 时就把 direction 设为 recvonly
+    for (const t of pc.getTransceivers()) {
+      if (t.sender?.track?.kind === 'audio' && t.direction !== 'sendrecv') {
+        t.direction = 'sendrecv'
+      }
+    }
+
     if (isInitiator) {
       try {
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        const socket = getSocket()
-        socket?.emit(CLIENT_EVENTS.WEBRTC_OFFER, {
-          targetId,
-          sdp: pc.localDescription,
+        // Fix A: 确保 createOffer 时音频轨道 enabled，生成正确的 SDP
+        await withEnabledAudioTracks(async () => {
+          const offer = await pc.createOffer()
+          await pc.setLocalDescription(offer)
+          const socket = getSocket()
+          socket?.emit(CLIENT_EVENTS.WEBRTC_OFFER, {
+            targetId,
+            sdp: pc.localDescription,
+          })
         })
       } catch (e) {
         console.error('[WebRTC] createOffer error:', e)

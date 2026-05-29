@@ -1,35 +1,57 @@
 // === Player ===
 export interface Player {
-  id: string
-  nickname: string
-  sessionId: string
-  isOwner: boolean
-  score: number
-  hasGuessedCorrectly: boolean
-  isSpectator?: boolean
-  avatar: number
-  joinedAt: number
-  lastActiveAt: number
+  id: string;
+  nickname: string;
+  sessionId: string;
+  isOwner: boolean;
+  score: number;
+  hasGuessedCorrectly: boolean;
+  isSpectator?: boolean;
+  avatar: number;
+  joinedAt: number;
+  lastActiveAt: number;
 }
 
 // === Game Type ===
-export type GameType = 'draw' | 'spy'
+export type GameType = 'draw' | 'spy';
 
 // === Room ===
-export type RoomState = 'lobby' | 'playing' | 'gameover'
+export type RoomState = 'lobby' | 'playing' | 'gameover';
 
-export type WordCategory = 'animals' | 'food' | 'daily' | 'nature' | 'vehicles' | 'sports' | 'celebrities' | 'professions' | 'instruments' | 'tools' | 'furniture' | 'treasures' | 'clothing' | 'buildings' | 'appliances' | 'tableware' | 'plants' | 'astronomy' | 'mythology' | 'body' | 'games' | 'festivals'
+export type WordCategory =
+  | 'animals'
+  | 'food'
+  | 'daily'
+  | 'nature'
+  | 'vehicles'
+  | 'sports'
+  | 'celebrities'
+  | 'professions'
+  | 'instruments'
+  | 'tools'
+  | 'furniture'
+  | 'treasures'
+  | 'clothing'
+  | 'buildings'
+  | 'appliances'
+  | 'tableware'
+  | 'plants'
+  | 'astronomy'
+  | 'mythology'
+  | 'body'
+  | 'games'
+  | 'festivals';
 
 export interface CustomWord {
-  word: string
-  category: string
+  word: string;
+  category: string;
 }
 
 export interface RoomWordConfig {
-  customWords: CustomWord[]
-  looseMatching: boolean
-  enabledCategories: WordCategory[]
-  enabledCustomCategories: string[]
+  customWords: CustomWord[];
+  looseMatching: boolean;
+  enabledCategories: WordCategory[];
+  enabledCustomCategories: string[];
 }
 
 export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
@@ -37,60 +59,60 @@ export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
   looseMatching: false,
   enabledCategories: [],
   enabledCustomCategories: [],
-}
+};
 
 export interface Room {
-  id: string
-  code: string
-  name: string
-  password: string
-  state: RoomState
-  maxPlayers: number
-  players: Player[]
-  currentWord: string | null
-  currentWordCategory?: string
-  currentRound: number
-  totalRounds: number
-  roundStartTime: number | null
-  roundDuration: number
-  roundsPerPlayer: number
-  wordConfig: RoomWordConfig
-  gameType: GameType
-  lastActivityAt: number
+  id: string;
+  code: string;
+  name: string;
+  password: string;
+  state: RoomState;
+  maxPlayers: number;
+  players: Player[];
+  currentWord: string | null;
+  currentWordCategory?: string;
+  currentRound: number;
+  totalRounds: number;
+  roundStartTime: number | null;
+  roundDuration: number;
+  roundsPerPlayer: number;
+  wordConfig: RoomWordConfig;
+  gameType: GameType;
+  lastActivityAt: number;
 }
 
 // === Drawing ===
 export interface Point {
-  x: number
-  y: number
+  x: number;
+  y: number;
 }
 
 export interface Stroke {
-  playerId: string
-  points: Point[]
-  color: string
-  width: number
-  tool: 'brush' | 'eraser'
-  strokeSeq?: number
+  playerId: string;
+  points: Point[];
+  color: string;
+  width: number;
+  tool: 'brush' | 'eraser';
+  strokeSeq?: number;
 }
 
 // === Chat ===
 export interface ChatMessage {
-  id: string
-  playerId: string | null
-  nickname: string | null
-  text: string
-  isSystem: boolean
-  isWrongGuess?: boolean
-  timestamp: number
+  id: string;
+  playerId: string | null;
+  nickname: string | null;
+  text: string;
+  isSystem: boolean;
+  isWrongGuess?: boolean;
+  timestamp: number;
 }
 
 // === Game ===
 export interface PlayerScore {
-  playerId: string
-  nickname: string
-  score: number
-  rank: number
+  playerId: string;
+  nickname: string;
+  score: number;
+  rank: number;
 }
 
 // === Error ===
@@ -107,8 +129,8 @@ export enum ErrorCode {
 }
 
 export interface RoomErrorPayload {
-  code: ErrorCode
-  message: string
+  code: ErrorCode;
+  message: string;
 }
 
 // === Spy Game ===
@@ -120,57 +142,57 @@ export type SpyPhase =
   | 'voting'
   | 'reveal'
   | 'round_end'
-  | 'game_over'
+  | 'game_over';
 
 export interface SpyPlayer {
-  id: string
-  nickname: string
-  isOwner: boolean
-  isAlive: boolean
-  isSpy: boolean
-  word: string
-  description: string
-  voteTarget: string | null
-  voteCount: number
-  score: number
-  sessionId: string
-  avatar: number
+  id: string;
+  nickname: string;
+  isOwner: boolean;
+  isAlive: boolean;
+  isSpy: boolean;
+  word: string;
+  description: string;
+  voteTarget: string | null;
+  voteCount: number;
+  score: number;
+  sessionId: string;
+  avatar: number;
 }
 
 export interface SpyGameConfig {
-  totalRounds: number
-  descriptionTime: number
-  voteTime: number
+  totalRounds: number;
+  descriptionTime: number;
+  voteTime: number;
 }
 
 export interface SpyDescription {
-  playerId: string
-  nickname: string
-  text: string
-  round: number
-  timestamp: number
+  playerId: string;
+  nickname: string;
+  text: string;
+  round: number;
+  timestamp: number;
 }
 
 export interface SpyVoteResult {
-  round: number
-  votes: Array<{ voterId: string; targetId: string | null }>
-  eliminated: string | null
-  civilianWord?: string
-  spyWord?: string
+  round: number;
+  votes: Array<{ voterId: string; targetId: string | null }>;
+  eliminated: string | null;
+  civilianWord?: string;
+  spyWord?: string;
 }
 
 export interface SpyGameState {
-  phase: SpyPhase
-  round: number
-  totalRounds: number
-  currentSpeakerIndex: number
-  players: SpyPlayer[]
-  civilianWord: string
-  spyWord: string
-  descriptionTimeLeft: number
-  voteTimeLeft: number
-  totalTime?: number
-  winner: 'civilian' | 'spy' | null
-  describeCycle?: number
-  phaseStartTime?: number
+  phase: SpyPhase;
+  round: number;
+  totalRounds: number;
+  currentSpeakerIndex: number;
+  players: SpyPlayer[];
+  civilianWord: string;
+  spyWord: string;
+  descriptionTimeLeft: number;
+  voteTimeLeft: number;
+  totalTime?: number;
+  winner: 'civilian' | 'spy' | null;
+  describeCycle?: number;
+  phaseStartTime?: number;
 }
