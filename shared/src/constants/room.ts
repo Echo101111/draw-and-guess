@@ -10,3 +10,6 @@ export const ROOM_DISMISS_TIMEOUT_MS = 30_000
 export const BCRYPT_ROUNDS = 6
 export const AVATAR_COUNT = 50
 export const DEFAULT_GAME_TYPE: GameType = 'draw'
+
+export const ROOM_IDLE_TIMEOUT_MS = 3_600_000
+export const ROOM_GC_INTERVAL_MS = 60_000

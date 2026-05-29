@@ -7,6 +7,7 @@ export const BREAKPOINT_SMALL = 480
 export const TIMER_WARN_THRESHOLD = 10
 export const TIMER_SYNC_INTERVAL_MS = 5000
 export const TIMER_TICK_INTERVAL_MS = 1000
+export const TIMER_RECALC_INTERVAL_MS = 100
 
 // ===== Toast / Notification Durations =====
 export const TOAST_SUCCESS_MS = 2000

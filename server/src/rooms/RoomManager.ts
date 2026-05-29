@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcrypt'
 import type { Player, Room, RoomErrorPayload, RoomWordConfig, GameType } from '@draw-and-guess/shared'
-import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG, SPY_MIN_PLAYERS, DRAW_MIN_PLAYERS, NICKNAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, BCRYPT_ROUNDS, AVATAR_COUNT, DEFAULT_TOTAL_ROUNDS, DEFAULT_ROUND_DURATION, DEFAULT_ROUNDS_PER_PLAYER, RECONNECT_TIMEOUT_MS, ROOM_DISMISS_TIMEOUT_MS } from '@draw-and-guess/shared'
+import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG, SPY_MIN_PLAYERS, DRAW_MIN_PLAYERS, NICKNAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, BCRYPT_ROUNDS, AVATAR_COUNT, DEFAULT_TOTAL_ROUNDS, DEFAULT_ROUND_DURATION, DEFAULT_ROUNDS_PER_PLAYER, RECONNECT_TIMEOUT_MS, ROOM_DISMISS_TIMEOUT_MS, ROOM_IDLE_TIMEOUT_MS, ROOM_GC_INTERVAL_MS } from '@draw-and-guess/shared'
 
 function createPlayer(nickname: string, isOwner = false): Player {
   const trimmed = nickname.trim()
@@ -22,6 +22,7 @@ function createPlayer(nickname: string, isOwner = false): Player {
 }
 
 function createRoom(name: string, maxPlayers: number, password: string, owner: Player, wordConfig: RoomWordConfig, gameType: GameType, roundsPerPlayer?: number): Room {
+  const now = Date.now()
   return {
     id: randomUUID(),
     code: name,
@@ -31,6 +32,7 @@ function createRoom(name: string, maxPlayers: number, password: string, owner: P
     maxPlayers,
     players: [owner],
     currentWord: null,
+    currentWordCategory: undefined,
     currentRound: 0,
     totalRounds: DEFAULT_TOTAL_ROUNDS,
     roundStartTime: null,
@@ -38,6 +40,7 @@ function createRoom(name: string, maxPlayers: number, password: string, owner: P
     roundsPerPlayer: roundsPerPlayer ?? DEFAULT_ROUNDS_PER_PLAYER,
     wordConfig,
     gameType,
+    lastActivityAt: now,
   }
 }
 
@@ -51,6 +54,11 @@ export class RoomManager {
   private onDismissCallbacks: Array<(roomId: string) => void> = []
   private onPlayerRemovedCallbacks: Array<(playerId: string, roomId: string) => void> = []
   private RECONNECT_TIMEOUT = RECONNECT_TIMEOUT_MS
+  private gcTimer?: NodeJS.Timeout
+
+  constructor() {
+    this.gcTimer = setInterval(() => this.sweepStaleRooms(), ROOM_GC_INTERVAL_MS)
+  }
 
   onDismissed(callback: (roomId: string) => void): void {
     this.onDismissCallbacks.push(callback)
@@ -146,6 +154,7 @@ export class RoomManager {
     room.players.push(player)
     this.playerToRoomId.set(player.id, room.id)
 
+    room.lastActivityAt = Date.now()
     this.cancelDismissTimer(room.id)
     return { room, player }
   }
@@ -349,6 +358,30 @@ export class RoomManager {
     return this.rooms.get(id) ?? null
   }
 
+  updateRoomActivity(roomId: string): void {
+    const room = this.rooms.get(roomId)
+    if (room) {
+      room.lastActivityAt = Date.now()
+    }
+  }
+
+  private sweepStaleRooms(): void {
+    const now = Date.now()
+    for (const [roomId, room] of this.rooms) {
+      if (now - room.lastActivityAt > ROOM_IDLE_TIMEOUT_MS) {
+        console.log(`[Room] GC sweeping stale room "${room.name}" (${roomId})`)
+        this.dismissRoom(roomId)
+      }
+    }
+  }
+
+  stopRoomGC(): void {
+    if (this.gcTimer) {
+      clearInterval(this.gcTimer)
+      this.gcTimer = undefined
+    }
+  }
+
   getAllRooms(gameType?: GameType): Room[] {
     const rooms = Array.from(this.rooms.values())
     return gameType ? rooms.filter(r => r.gameType === gameType) : rooms
@@ -403,6 +436,7 @@ export class RoomManager {
     room.currentRound = 0
     room.totalRounds = room.players.length > 0 ? room.players.length * room.roundsPerPlayer : DEFAULT_TOTAL_ROUNDS
     room.currentWord = null
+    room.currentWordCategory = undefined
     room.roundStartTime = null
     room.players.forEach((p) => {
       p.score = 0

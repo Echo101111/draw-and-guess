@@ -51,6 +51,8 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
 
     try {
+      leaveCurrentRoom(io, socket)
+
       const { room, player } = await roomManager.createRoom(
         trimmedNickname,
         trimmedName,
@@ -121,6 +123,43 @@ export function registerRoomHandlers(io: any, socket: any): void {
       return
     }
 
+    // 先查目标房间是否存在
+    const targetRoom = roomManager.getRoomByName(roomName.trim())
+    if (!targetRoom) {
+      console.log(`[Room] Join failed: "${roomName}" - 房间不存在`)
+      socket.emit(SERVER_EVENTS.ROOM_ERROR, {
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: '房间不存在或已结束',
+      })
+      return
+    }
+
+    // 如果已经在目标房间中，直接刷新状态，不走 joinRoom
+    if (socket.data.playerId) {
+      const existing = targetRoom.players.find((p) => p.id === socket.data.playerId)
+      if (existing) {
+        socket.data.roomId = targetRoom.id
+        socket.data.roomName = targetRoom.name
+        socket.join(targetRoom.code)
+        socket.join(existing.id)
+        socket.emit(SERVER_EVENTS.ROOM_JOINED, {
+          room: getPlayerRoomData(targetRoom),
+          playerId: existing.id,
+          isOwner: existing.isOwner,
+        })
+        socket.to(targetRoom.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(targetRoom) })
+        if (targetRoom.state === 'playing') {
+          existing.isSpectator = true
+          socket.data.isSpectator = true
+          drawGameManager.sendSpectatorSnapshot(targetRoom.id, existing.id)
+        }
+        return
+      }
+    }
+
+    // 清理旧房间成员关系
+    leaveCurrentRoom(io, socket)
+
     const result = await roomManager.joinRoom(roomName, password ?? '', trimmedNickname)
 
     if ('error' in result) {
@@ -130,13 +169,7 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
 
     const { room, player } = result
-    // 离开旧的 socket 频道（如果有）
-    if (socket.data.roomName) {
-      socket.leave(socket.data.roomName)
-    }
-    if (socket.data.playerId) {
-      socket.leave(socket.data.playerId)
-    }
+
     socket.data.roomId = room.id
     socket.data.playerId = player.id
     socket.data.roomName = room.name
@@ -446,9 +479,17 @@ export function registerRoomHandlers(io: any, socket: any): void {
 
       if (player.isSpectator) {
         socket.data.isSpectator = true
-        drawGameManager.sendSpectatorSnapshot(room.id, player.id)
+        if (room.gameType === GAME_TYPE_SPY) {
+          spyGameManager.sendGameStateSnapshot(room.id, player.id)
+        } else {
+          drawGameManager.sendSpectatorSnapshot(room.id, player.id)
+        }
       } else {
-        drawGameManager.restorePlayerState(room.id, player.id)
+        if (room.gameType === GAME_TYPE_SPY) {
+          spyGameManager.sendGameStateSnapshot(room.id, player.id)
+        } else {
+          drawGameManager.restorePlayerState(room.id, player.id)
+        }
       }
 
       io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
@@ -498,6 +539,29 @@ export function registerRoomHandlers(io: any, socket: any): void {
       })
     }
   })
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function leaveCurrentRoom(io: any, socket: any): void {
+  const { roomId, playerId } = socket.data
+  if (!roomId || !playerId) return
+
+  roomManager.cancelDisconnectTimer(playerId)
+  const result = roomManager.leaveRoom(roomId, playerId)
+  if (!result.removed) return
+
+  lastChatTime.delete(playerId)
+
+  const room = roomManager.getRoomById(roomId)
+  if (room) {
+    socket.leave(room.code)
+    socket.leave(playerId)
+    if (room.players.length === 0) {
+      roomManager.dismissRoom(roomId)
+    } else {
+      io.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
+    }
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

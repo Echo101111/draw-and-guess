@@ -48,6 +48,7 @@ export interface Room {
   maxPlayers: number
   players: Player[]
   currentWord: string | null
+  currentWordCategory?: string
   currentRound: number
   totalRounds: number
   roundStartTime: number | null
@@ -55,6 +56,7 @@ export interface Room {
   roundsPerPlayer: number
   wordConfig: RoomWordConfig
   gameType: GameType
+  lastActivityAt: number
 }
 
 // === Drawing ===
@@ -167,6 +169,8 @@ export interface SpyGameState {
   spyWord: string
   descriptionTimeLeft: number
   voteTimeLeft: number
+  totalTime?: number
   winner: 'civilian' | 'spy' | null
   describeCycle?: number
+  phaseStartTime?: number
 }

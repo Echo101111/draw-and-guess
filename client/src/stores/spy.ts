@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
 import { getSocket } from '@/composables/useSocket'
-import { CLIENT_EVENTS, SERVER_EVENTS, CHAT_MESSAGE_LIMIT, CHAT_MESSAGE_KEEP, TIMER_TICK_INTERVAL_MS, type ChatMessage } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, CHAT_MESSAGE_LIMIT, CHAT_MESSAGE_KEEP, TIMER_RECALC_INTERVAL_MS, type ChatMessage } from '@draw-and-guess/shared'
 import type { SpyPhase, SpyPlayer, SpyDescription, SpyVoteResult, SpyGameState } from '@draw-and-guess/shared'
 
 interface ScoreEntry {
@@ -59,6 +59,8 @@ export const useSpyStore = defineStore('spy', () => {
   const roundResults = ref<EliminationResult[]>([])
   const gameEliminationRound = ref(0)
   const describeCycle = ref(0)
+  const phaseStartTime = ref<number | null>(null)
+  const totalTimeForPhase = ref(0)
 
   const alivePlayers = computed(() => players.value.filter(p => p.isAlive))
   const aliveCount = computed(() => players.value.filter(p => p.isAlive).length)
@@ -70,14 +72,21 @@ export const useSpyStore = defineStore('spy', () => {
 
   let localTimer: ReturnType<typeof setInterval> | null = null
 
-  function startLocalTimer() {
-    stopLocalTimer()
-    localTimer = setInterval(() => {
-      if (timeLeft.value > 0) timeLeft.value--
-    }, TIMER_TICK_INTERVAL_MS)
+  function calculateTimeLeft(): number {
+    if (!phaseStartTime.value || totalTimeForPhase.value <= 0) return timeLeft.value
+    const elapsed = (Date.now() - phaseStartTime.value) / 1000
+    return Math.floor(Math.max(0, totalTimeForPhase.value - elapsed))
   }
 
-  function stopLocalTimer() {
+  function startDisplayTimer() {
+    stopDisplayTimer()
+    timeLeft.value = calculateTimeLeft()
+    localTimer = setInterval(() => {
+      timeLeft.value = calculateTimeLeft()
+    }, TIMER_RECALC_INTERVAL_MS)
+  }
+
+  function stopDisplayTimer() {
     if (localTimer !== null) {
       clearInterval(localTimer)
       localTimer = null
@@ -99,6 +108,7 @@ export const useSpyStore = defineStore('spy', () => {
     socket.off(SERVER_EVENTS.SPY_PHASE_CHANGE)
     socket.on(SERVER_EVENTS.SPY_PHASE_CHANGE, (data: {
       phase: SpyPhase; round?: number; totalRounds?: number; timeLeft?: number;
+      phaseStartTime?: number;
       describeCycle?: number;
       players?: Array<{
         id: string; nickname: string; isOwner: boolean; isAlive: boolean;
@@ -122,7 +132,9 @@ export const useSpyStore = defineStore('spy', () => {
       if (data.totalRounds !== undefined) totalRounds.value = data.totalRounds
       if (data.timeLeft !== undefined) {
         timeLeft.value = data.timeLeft
-        startLocalTimer()
+        totalTimeForPhase.value = data.timeLeft
+        phaseStartTime.value = data.phaseStartTime ?? null
+        startDisplayTimer()
       }
       if (data.describeCycle !== undefined) describeCycle.value = data.describeCycle
       if (data.players && data.players.length > 0) {
@@ -157,12 +169,14 @@ export const useSpyStore = defineStore('spy', () => {
 
     socket.off(SERVER_EVENTS.SPY_SPEAKER_TURN)
     socket.on(SERVER_EVENTS.SPY_SPEAKER_TURN, (data: {
-      playerId: string; nickname: string; timeLeft: number
+      playerId: string; nickname: string; timeLeft: number; phaseStartTime?: number
     }) => {
       currentSpeaker.value = { playerId: data.playerId, nickname: data.nickname }
       timeLeft.value = data.timeLeft
+      totalTimeForPhase.value = data.timeLeft
+      phaseStartTime.value = data.phaseStartTime ?? null
       canDescribe.value = data.playerId === roomStore.currentPlayerId
-      startLocalTimer()
+      startDisplayTimer()
     })
 
     socket.off(SERVER_EVENTS.SPY_DESCRIPTION)
@@ -178,7 +192,7 @@ export const useSpyStore = defineStore('spy', () => {
     socket.on(SERVER_EVENTS.SPY_VOTE_RESULT, (data: SpyVoteResult) => {
       voteResult.value = data
       lastEliminated.value = data.eliminated
-      stopLocalTimer()
+      stopDisplayTimer()
       phase.value = 'reveal'
       if (data.eliminated) {
         const p = players.value.find(pl => pl.id === data.eliminated)
@@ -242,12 +256,7 @@ export const useSpyStore = defineStore('spy', () => {
       if (data.voteDetails) {
         voteDetails.value = data.voteDetails
       }
-      stopLocalTimer()
-    })
-
-    socket.off(SERVER_EVENTS.SPY_TIMER_SYNC)
-    socket.on(SERVER_EVENTS.SPY_TIMER_SYNC, (data: { timeLeft: number }) => {
-      timeLeft.value = data.timeLeft
+      stopDisplayTimer()
     })
 
     socket.off(SERVER_EVENTS.SPY_GAME_STATE_SNAPSHOT)
@@ -257,12 +266,26 @@ export const useSpyStore = defineStore('spy', () => {
       gameEliminationRound.value = data.round
       totalRounds.value = data.totalRounds
       players.value = data.players
+      phaseStartTime.value = data.phaseStartTime ?? null
+      totalTimeForPhase.value = data.totalTime ?? 0
+
+      // 直接使用服务器计算的 timeLeft
+      if (data.phase === 'describing' || data.phase === 'discussion') {
+        timeLeft.value = data.descriptionTimeLeft
+      } else if (data.phase === 'voting') {
+        timeLeft.value = data.voteTimeLeft
+      }
+
       if (data.players.length > 0) {
         const me = data.players.find(p => p.id === roomStore.currentPlayerId)
         if (me) {
           myWord.value = me.word
           isSpy.value = me.isSpy
         }
+      }
+      // 如果有 phaseStartTime 和 totalTime，恢复倒计时
+      if (data.phaseStartTime && data.totalTime && data.totalTime > 0) {
+        startDisplayTimer()
       }
     })
 
@@ -294,7 +317,6 @@ export const useSpyStore = defineStore('spy', () => {
       SERVER_EVENTS.SPY_VOTE_RESULT,
       SERVER_EVENTS.SPY_ROUND_RESULT,
       SERVER_EVENTS.SPY_GAME_OVER,
-      SERVER_EVENTS.SPY_TIMER_SYNC,
       SERVER_EVENTS.SPY_VOTE_PROGRESS,
       SERVER_EVENTS.SPY_GAME_STATE_SNAPSHOT,
       SERVER_EVENTS.SPY_GAME_CONFIG_UPDATED,
@@ -333,7 +355,7 @@ export const useSpyStore = defineStore('spy', () => {
   }
 
   function resetGame() {
-    stopLocalTimer()
+    stopDisplayTimer()
     phase.value = 'idle'
     round.value = 0
     players.value = []
@@ -348,6 +370,8 @@ export const useSpyStore = defineStore('spy', () => {
     winner.value = null
     scores.value = []
     timeLeft.value = 0
+    phaseStartTime.value = null
+    totalTimeForPhase.value = 0
     chatMessages.value = []
     lastEliminated.value = null
     votedCount.value = 0
@@ -368,7 +392,7 @@ export const useSpyStore = defineStore('spy', () => {
     voteResult, winner, scores, timeLeft, chatMessages, lastEliminated, roundEndReason,
     votedCount, totalVoters, civilianWord, spyWord, voteTimeMax,
     alivePlayers, aliveCount, eliminatedPlayers, isMyTurnToSpeak, currentSpeakerNickname, voteDetails, roundResults,
-    gameEliminationRound, describeCycle,
+    gameEliminationRound, describeCycle, phaseStartTime, totalTimeForPhase,
     setupSocketListeners, teardownSocketListeners,
     submitDescription, vote, readyNextRound, sendChat, resetGame,
   }

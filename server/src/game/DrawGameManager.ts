@@ -1,6 +1,6 @@
 import { SERVER_EVENTS, SCORE_BASE, SCORE_DRAWER_BONUS, WORD_SELECTION_TIMEOUT_MS, ROUND_TRANSITION_MS, DRAW_RATE_LIMIT_MS, ANSWER_COOLDOWN_MS, PRUNE_INTERVAL_MS, WORD_SELECTION_OPTIONS_COUNT, TIMER_SYNC_INTERVAL_MS, TIMER_TICK_INTERVAL_MS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
-import { getWordCategory, CATEGORY_DISPLAY_NAMES, WORD_CATEGORIES, WORDS } from '../data/words.js'
+import { CATEGORY_DISPLAY_NAMES, WORD_CATEGORIES, WORDS } from '../data/words.js'
 import { matchAnswer } from '../data/wordIndex.js'
 import { getAllCustomWordEntries } from '../data/customWordBank.js'
 import type { Room, Player, Point, Stroke, CustomWord } from '@draw-and-guess/shared'
@@ -129,6 +129,7 @@ export class GameManager {
     const wordCategoryName = CATEGORY_DISPLAY_NAMES[entry.category as WordCategory] ?? (entry.category || undefined)
 
     room.currentWord = word
+    room.currentWordCategory = wordCategoryName
     room.roundStartTime = Date.now()
 
     const io = this.getIO()
@@ -138,6 +139,7 @@ export class GameManager {
         totalRounds: room.totalRounds,
         word,
         timeLeft: room.roundDuration,
+        roundStartTime: room.roundStartTime,
         wordLength: word.length,
         wordCategory: wordCategoryName,
       })
@@ -147,6 +149,7 @@ export class GameManager {
         drawer: drawerData,
         guessers: guesserData,
         timeLeft: room.roundDuration,
+        roundStartTime: room.roundStartTime,
         wordLength: word.length,
         wordCategory: wordCategoryName,
       })
@@ -201,10 +204,12 @@ export class GameManager {
     room.currentWord = selectedWord
     room.roundStartTime = Date.now()
 
+    const opt = pending.options.find((o) => o.word === selectedWord)
+    const wordCategoryName = opt?.category || undefined
+    room.currentWordCategory = wordCategoryName
+
     const drawerId = this.currentDrawerId.get(roomId)
     const drawer = drawerId ? room.players.find((p) => p.id === drawerId) : undefined
-    const wc = getWordCategory(selectedWord)
-    const wordCategoryName = wc ? CATEGORY_DISPLAY_NAMES[wc] : undefined
 
     const drawerData = {
       id: drawerId ?? '',
@@ -231,6 +236,7 @@ export class GameManager {
         totalRounds: room.totalRounds,
         word: selectedWord,
         timeLeft: room.roundDuration,
+        roundStartTime: room.roundStartTime,
         wordLength: selectedWord.length,
         wordCategory: wordCategoryName,
       })
@@ -241,6 +247,7 @@ export class GameManager {
         drawer: drawerData,
         guessers: guesserData,
         timeLeft: room.roundDuration,
+        roundStartTime: room.roundStartTime,
         wordLength: selectedWord.length,
         wordCategory: wordCategoryName,
       })
@@ -624,6 +631,7 @@ export class GameManager {
 
     room.state = 'gameover'
     room.wordConfig.customWords = []
+    roomManager.updateRoomActivity(roomId)
     this.clearNextRoundTimer(roomId)
     this.clearWordSelection(roomId)
     this.usedWords.delete(roomId)
@@ -742,6 +750,7 @@ export class GameManager {
       if (io && room) {
         io.to(room.code).emit(SERVER_EVENTS.TIMER_SYNC, {
           timeLeft: roundTimer.remaining,
+          serverTime: Date.now(),
         })
       }
     }, TIMER_SYNC_INTERVAL_MS)
@@ -815,16 +824,12 @@ export class GameManager {
 
     const drawerPlayer = drawerId ? room.players.find(p => p.id === drawerId) : undefined
 
-    const wordCategory = room.currentWord ? getWordCategory(room.currentWord) : undefined
-    const wordCategoryName = wordCategory && CATEGORY_DISPLAY_NAMES[wordCategory]
-      ? CATEGORY_DISPLAY_NAMES[wordCategory]
-      : undefined
-
     io.to(playerId).emit(SERVER_EVENTS.GAME_STATE_SNAPSHOT, {
       currentRound: room.currentRound,
       totalRounds: room.totalRounds,
       totalTime: room.roundDuration,
       timeLeft,
+      roundStartTime: room.roundStartTime,
       drawer: drawerPlayer ? { id: drawerPlayer.id, nickname: drawerPlayer.nickname } : null,
       strokes: this.strokeHistory.get(roomId) ?? [],
       scores: room.players.map(p => ({
@@ -834,7 +839,7 @@ export class GameManager {
       })),
       currentWord: drawerId && playerId === drawerId ? room.currentWord : undefined,
       wordLength: room.currentWord?.length ?? 0,
-      wordCategory: wordCategoryName,
+      wordCategory: room.currentWordCategory,
     })
   }
 
@@ -906,12 +911,6 @@ export class GameManager {
     const timeLeft = this.emitGameSnapshot(roomId, playerId)
     if (timeLeft === null) return
 
-    // 词语分类
-    const wordCategory = room.currentWord ? getWordCategory(room.currentWord) : undefined
-    const wordCategoryName = wordCategory && CATEGORY_DISPLAY_NAMES[wordCategory]
-      ? CATEGORY_DISPLAY_NAMES[wordCategory]
-      : undefined
-
     if (isDrawer) {
       const io = this.getIO()
       if (io) {
@@ -920,8 +919,9 @@ export class GameManager {
           totalRounds: room.totalRounds,
           word: room.currentWord ?? '',
           timeLeft,
+          roundStartTime: room.roundStartTime,
           wordLength: room.currentWord?.length ?? 0,
-          wordCategory: wordCategoryName,
+          wordCategory: room.currentWordCategory,
         })
       }
     }
@@ -939,8 +939,9 @@ export class GameManager {
           hasGuessedCorrectly: drawer.hasGuessedCorrectly,
         },
         timeLeft,
+        roundStartTime: room.roundStartTime,
         wordLength: room.currentWord?.length ?? 0,
-        wordCategory: wordCategoryName,
+        wordCategory: room.currentWordCategory,
       })
     }
 
@@ -982,7 +983,7 @@ export class GameManager {
       scores: this.getScoreboard(room),
     })
 
-    io.to(playerId).emit(SERVER_EVENTS.TIMER_SYNC, { timeLeft })
+    io.to(playerId).emit(SERVER_EVENTS.TIMER_SYNC, { timeLeft, serverTime: Date.now() })
 
     return timeLeft
   }

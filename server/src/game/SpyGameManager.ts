@@ -30,6 +30,7 @@ interface GameData {
   gameEliminationRound: number
   describeCycle: number
   roundResults: EliminationResult[]
+  discussionTimeBase: number
 }
 
 export class SpyGameManager {
@@ -88,6 +89,7 @@ export class SpyGameManager {
       gameEliminationRound: 1,
       describeCycle: 1,
       roundResults: [],
+      discussionTimeBase: 0,
     }
     this.games.set(roomId, data)
 
@@ -232,12 +234,16 @@ export class SpyGameManager {
 
     const speaker = alivePlayers[idx]
 
+    const now = Date.now()
+    data.state.phaseStartTime = now
+
     const io = this.getIO()
     if (io) {
       io.to(room.code).emit(SERVER_EVENTS.SPY_SPEAKER_TURN, {
         playerId: speaker.id,
         nickname: speaker.nickname,
         timeLeft: data.config.descriptionTime,
+        phaseStartTime: now,
       })
     }
 
@@ -258,8 +264,10 @@ export class SpyGameManager {
 
     data.state.phase = 'discussion'
     data.state.currentSpeakerIndex = 0
+    data.state.phaseStartTime = Date.now()
 
     const timeLeft = Math.max(DISCUSSION_TIME_BASE, data.state.players.filter(p => p.isAlive).length * DISCUSSION_TIME_PER_PLAYER)
+    data.discussionTimeBase = timeLeft
 
     const io = this.getIO()
     if (io) {
@@ -268,6 +276,7 @@ export class SpyGameManager {
         round: data.gameEliminationRound,
         totalRounds: data.config.totalRounds,
         timeLeft,
+        phaseStartTime: Date.now(),
         describeCycle: data.describeCycle,
         players: this.getPublicPlayers(roomId),
       })
@@ -331,6 +340,7 @@ export class SpyGameManager {
     if (!data || data.roundEnding) return
 
     data.state.phase = 'voting'
+    data.state.phaseStartTime = Date.now()
     data.votes.clear()
 
     for (const p of data.state.players) {
@@ -345,6 +355,7 @@ export class SpyGameManager {
         round: data.gameEliminationRound,
         totalRounds: data.config.totalRounds,
         timeLeft: data.config.voteTime,
+        phaseStartTime: Date.now(),
         describeCycle: data.describeCycle,
         players: this.getPublicPlayers(roomId),
       })
@@ -594,6 +605,7 @@ export class SpyGameManager {
       .map((s, i) => ({ ...s, rank: i + 1 }))
 
     room.state = 'gameover'
+    roomManager.updateRoomActivity(roomId)
 
     const voteDetails = Array.from(data.votes.entries())
       .filter(([, targetId]) => targetId !== null)
@@ -639,6 +651,24 @@ export class SpyGameManager {
     if (!io) return
 
     const state = data.state
+    const phaseStartTime = state.phaseStartTime ?? 0
+    const elapsed = phaseStartTime ? Math.floor((Date.now() - phaseStartTime) / 1000) : 0
+
+    let descriptionTimeLeft = 0
+    let voteTimeLeft = 0
+    let totalTime = 0
+
+    if (state.phase === 'describing') {
+      totalTime = data.config.descriptionTime
+      descriptionTimeLeft = Math.max(0, totalTime - elapsed)
+    } else if (state.phase === 'discussion') {
+      totalTime = data.discussionTimeBase
+      descriptionTimeLeft = Math.max(0, totalTime - elapsed)
+    } else if (state.phase === 'voting') {
+      totalTime = data.config.voteTime
+      voteTimeLeft = Math.max(0, totalTime - elapsed)
+    }
+
     const snapshot: SpyGameState = {
       phase: state.phase,
       round: data.gameEliminationRound,
@@ -650,10 +680,12 @@ export class SpyGameManager {
       })),
       civilianWord: (state.phase === 'round_end' || state.phase === 'game_over') ? state.civilianWord : '',
       spyWord: (state.phase === 'round_end' || state.phase === 'game_over') ? state.spyWord : '',
-      descriptionTimeLeft: 0,
-      voteTimeLeft: 0,
+      descriptionTimeLeft,
+      voteTimeLeft,
+      totalTime,
       winner: state.winner,
       describeCycle: data.describeCycle,
+      phaseStartTime: state.phaseStartTime,
     }
 
     io.to(playerId).emit(SERVER_EVENTS.SPY_GAME_STATE_SNAPSHOT, snapshot)
@@ -727,10 +759,12 @@ export class SpyGameManager {
     if (players.length === 0) return
     const room = roomManager.getRoomById(roomId)
     if (!room) return
+    const data = this.games.get(roomId)
     const io = this.getIO()
     if (!io) return
     io.to(room.code).emit(SERVER_EVENTS.SPY_PHASE_CHANGE, {
-      phase: this.games.get(roomId)?.state.phase ?? 'idle',
+      phase: data?.state.phase ?? 'idle',
+      describeCycle: data?.describeCycle,
       players,
     })
   }
@@ -747,6 +781,7 @@ export class SpyGameManager {
       descriptionTimeLeft: 0,
       voteTimeLeft: 0,
       winner: null,
+      phaseStartTime: undefined,
     }
   }
 

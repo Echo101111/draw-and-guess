@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
 import { useCanvasStore } from '@/stores/canvas'
 import { getSocket } from '@/composables/useSocket'
-import { CLIENT_EVENTS, SERVER_EVENTS, DEFAULT_TOTAL_ROUNDS, DEFAULT_ROUND_DURATION, CHAT_MESSAGE_LIMIT, CHAT_MESSAGE_KEEP, UNDO_ROLLBACK_MS, TIMER_TICK_INTERVAL_MS, type ChatMessage, type Point } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, DEFAULT_TOTAL_ROUNDS, DEFAULT_ROUND_DURATION, CHAT_MESSAGE_LIMIT, CHAT_MESSAGE_KEEP, UNDO_ROLLBACK_MS, TIMER_RECALC_INTERVAL_MS, type ChatMessage, type Point } from '@draw-and-guess/shared'
 
 interface DrawerInfo {
   id: string
@@ -21,6 +21,7 @@ interface RoundStartPayload {
   round: number
   totalRounds: number
   timeLeft: number
+  roundStartTime?: number
   drawer: DrawerInfo
   wordLength?: number
   wordCategory?: string
@@ -30,6 +31,7 @@ interface RoundStartToDrawerPayload {
   round: number
   totalRounds: number
   timeLeft: number
+  roundStartTime?: number
   word: string
   wordLength?: number
   wordCategory?: string
@@ -54,6 +56,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
   const recentGuessers = ref<Array<{ playerId: string; nickname: string }>>([])
   const strokeVersion = ref(0)
   const pendingFullRedraw = ref(false)
+  const roundStartTime = ref<number | null>(null)
 
   const transitionData = ref<{
     word: string
@@ -80,6 +83,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
     totalRounds: number
     totalTime: number
     timeLeft: number
+    roundStartTime?: number | null
     drawer: DrawerInfo
     strokes: Array<{ playerId: string; points: Point[]; color: string; width: number; tool: string; strokeSeq?: number }>
     scores: ScoreEntry[]
@@ -90,16 +94,21 @@ export const useDrawGameStore = defineStore('drawGame', () => {
 
   let timerInterval: ReturnType<typeof setInterval> | null = null
 
-  function startLocalTimer() {
-    stopLocalTimer()
-    timerInterval = setInterval(() => {
-      if (timeLeft.value > 0) {
-        timeLeft.value--
-      }
-    }, TIMER_TICK_INTERVAL_MS)
+  function calculateTimeLeft(): number {
+    if (!roundStartTime.value || totalTime.value <= 0) return timeLeft.value
+    const elapsed = (Date.now() - roundStartTime.value) / 1000
+    return Math.floor(Math.max(0, totalTime.value - elapsed))
   }
 
-  function stopLocalTimer() {
+  function startDisplayTimer() {
+    stopDisplayTimer()
+    timeLeft.value = calculateTimeLeft()
+    timerInterval = setInterval(() => {
+      timeLeft.value = calculateTimeLeft()
+    }, TIMER_RECALC_INTERVAL_MS)
+  }
+
+  function stopDisplayTimer() {
     if (timerInterval !== null) {
       clearInterval(timerInterval)
       timerInterval = null
@@ -147,6 +156,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
       totalRounds.value = data.totalRounds
       timeLeft.value = data.timeLeft
       totalTime.value = data.timeLeft
+      roundStartTime.value = data.roundStartTime ?? null
       currentDrawer.value = data.drawer
       strokes.value = []
       useCanvasStore().clearCanvas()
@@ -154,7 +164,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
       wordLength.value = data.wordLength ?? 0
       wordCategory.value = data.wordCategory ?? undefined
       recentGuessers.value = []
-      startLocalTimer()
+      startDisplayTimer()
 
       if (data.drawer.id === roomStore.currentPlayerId) {
         myRole.value = 'drawer'
@@ -172,6 +182,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
       totalRounds.value = data.totalRounds
       timeLeft.value = data.timeLeft
       totalTime.value = data.timeLeft
+      roundStartTime.value = data.roundStartTime ?? null
       currentWord.value = data.word
       wordLength.value = data.wordLength ?? data.word.length
       wordCategory.value = data.wordCategory ?? undefined
@@ -180,7 +191,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
       hasGuessedCorrectly.value = false
       recentGuessers.value = []
       myRole.value = 'drawer'
-      startLocalTimer()
+      startDisplayTimer()
     })
 
     socket.off(SERVER_EVENTS.DRAW_STROKE)
@@ -251,14 +262,19 @@ export const useDrawGameStore = defineStore('drawGame', () => {
     })
 
     socket.off(SERVER_EVENTS.TIMER_SYNC)
-    socket.on(SERVER_EVENTS.TIMER_SYNC, (data: { timeLeft: number }) => {
+    socket.on(SERVER_EVENTS.TIMER_SYNC, (data: { timeLeft: number; serverTime?: number }) => {
       timeLeft.value = data.timeLeft
+      // 利用 serverTime 校准 roundStartTime，防止客户端时钟漂移
+      if (data.serverTime && totalTime.value > 0) {
+        const elapsed = totalTime.value - data.timeLeft
+        roundStartTime.value = data.serverTime - elapsed * 1000
+      }
     })
 
     socket.off(SERVER_EVENTS.ROUND_END)
     socket.on(SERVER_EVENTS.ROUND_END, (data: { word: string; reason: string; round?: number; totalRounds?: number; nextDrawer?: DrawerInfo | null }) => {
       state.value = 'round_end'
-      stopLocalTimer()
+      stopDisplayTimer()
       strokes.value = []
       useCanvasStore().clearCanvas()
       transitionData.value = {
@@ -279,7 +295,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
     socket.off(SERVER_EVENTS.GAME_OVER)
     socket.on(SERVER_EVENTS.GAME_OVER, (data: { roomId: string; finalScores: ScoreEntry[]; winner: string | null }) => {
       state.value = 'game_over'
-      stopLocalTimer()
+      stopDisplayTimer()
       scores.value = data.finalScores
       if (data.winner) {
         addSystemMessage(`游戏结束！获胜者：${data.winner}`)
@@ -315,11 +331,12 @@ export const useDrawGameStore = defineStore('drawGame', () => {
       scores.value = data.scores
       strokes.value = data.strokes
       timeLeft.value = data.timeLeft
+      roundStartTime.value = data.roundStartTime ?? null
       if (data.currentWord) currentWord.value = data.currentWord
       if (data.wordLength !== undefined) wordLength.value = data.wordLength
       if (data.wordCategory !== undefined) wordCategory.value = data.wordCategory
-      stopLocalTimer()
-      startLocalTimer()
+      stopDisplayTimer()
+      startDisplayTimer()
 
       // 观战者保留 spectator 角色，等待下一轮 ROUND_START
       if (roomStore.isSpectator) return
@@ -450,11 +467,12 @@ export const useDrawGameStore = defineStore('drawGame', () => {
   }
 
   function resetGame() {
-    stopLocalTimer()
+    stopDisplayTimer()
     state.value = 'idle'
     currentRound.value = 0
     timeLeft.value = 0
     totalTime.value = DEFAULT_ROUND_DURATION
+    roundStartTime.value = null
     myRole.value = 'spectator'
     scores.value = []
     hasGuessedCorrectly.value = false
@@ -479,6 +497,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
     totalRounds,
     timeLeft,
     totalTime,
+    roundStartTime,
     myRole,
     scores,
     chatMessages,
