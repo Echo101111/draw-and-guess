@@ -713,6 +713,10 @@ export class GameManager {
     return this.currentDrawerId.get(roomId)
   }
 
+  clearCurrentDrawerId(roomId: string): void {
+    this.currentDrawerId.delete(roomId)
+  }
+
   getActiveTimerCount(): number {
     return this.roundTimers.size
   }
@@ -825,10 +829,16 @@ export class GameManager {
     if (!room || room.state !== 'playing') return
 
     const drawerId = this.currentDrawerId.get(roomId)
-    if (!drawerId) return
+    if (!drawerId) {
+      this.sendGameStateSnapshot(roomId, playerId)
+      return
+    }
 
     const drawer = room.players.find((p) => p.id === drawerId)
-    if (!drawer) return
+    if (!drawer) {
+      this.sendGameStateSnapshot(roomId, playerId)
+      return
+    }
 
     const isDrawer = playerId === drawerId
     const timeLeft = this.emitGameSnapshot(roomId, playerId)

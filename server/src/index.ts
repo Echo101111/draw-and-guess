@@ -68,6 +68,7 @@ roomManager.onPlayerRemoved((playerId, roomId) => {
   clearChatCooldown(playerId)
   const drawerId = drawGameManager.getCurrentDrawerId(roomId)
   if (drawerId === playerId) {
+    drawGameManager.clearCurrentDrawerId(roomId)
     drawGameManager.endRound(roomId, 'timeout')
   }
 })
