@@ -113,7 +113,18 @@ export const useRoomStore = defineStore('room', () => {
       connectionState.value = 'connected'
       error.value = null
       isSpectator.value = false
-      // 游戏进行中 → 请求完整游戏快照（兜底 ROUND_START 丢失）
+
+      if (data.room) {
+        const targetPath = data.room.state === 'playing'
+          ? `/${data.room.gameType}/game/${data.room.name}`
+          : `/${data.room.gameType}/lobby/${data.room.name}`
+        import('@/router').then(({ default: router }) => {
+          if (router.currentRoute.value.path !== targetPath) {
+            router.push(targetPath)
+          }
+        })
+      }
+
       if (data.room?.state === 'playing') {
         getSocket()?.emit(CLIENT_EVENTS.REQUEST_GAME_STATE)
       }

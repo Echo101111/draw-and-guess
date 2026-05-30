@@ -1,3 +1,12 @@
+<script setup lang="ts">
+import { onMounted } from 'vue'
+import { useRoomStore } from '@/stores/room'
+
+onMounted(() => {
+  useRoomStore().setupSocketListeners()
+})
+</script>
+
 <template>
   <div class="app-wrapper">
     <div class="bg-decoration">
