@@ -620,10 +620,6 @@ function handleLeave(io: any, socket: any): void {
     socket.leave(room.code)
     socket.leave(playerId)
 
-    // 离开者是画师 → 结束轮次，游戏继续
-    const drawerId = drawGameManager.getCurrentDrawerId(roomId)
-    if (drawerId === playerId) drawGameManager.endRound(roomId, 'timeout')
-
     if (room.players.length === 0) {
       roomManager.dismissRoom(roomId)
     } else {
