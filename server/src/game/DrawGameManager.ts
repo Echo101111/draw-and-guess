@@ -233,7 +233,12 @@ export class GameManager {
         }))
       })
     } else {
-      pool = getAllCustomWordEntries().map(entry => ({
+      const allCustom = getAllCustomWordEntries()
+      const enabledCats = room.wordConfig.contributedCategories ?? []
+      pool = (enabledCats.length > 0
+        ? allCustom.filter(e => enabledCats.includes(e.category))
+        : allCustom
+      ).map(entry => ({
         word: entry.word,
         category: entry.category,
       }))

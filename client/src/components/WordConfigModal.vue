@@ -25,23 +25,39 @@
             <div v-else class="status-msg status-off">
               <div class="status-row">
                 <span class="status-icon">📦</span>
-                <span>贡献词汇: <strong>{{ contributedCount }}</strong> 个可用</span>
+                <span>贡献词汇: <strong>{{ selectedCount }}</strong> 个可用</span>
               </div>
+
               <div v-if="fetchError" class="warning-msg">
-                ⚠️ 无法获取贡献词数量，请稍后重试
+                ⚠️ 无法获取贡献词汇列表，请稍后重试
               </div>
-              <div v-else-if="contributedCount === 0" class="warning-msg">
+              <div v-else-if="categories.length === 0" class="warning-msg">
                 🚫 暂无贡献词汇，请先在首页贡献词库
               </div>
-              <div v-else-if="contributedCount < requiredCount" class="warning-msg">
-                ⚠️ 贡献词汇 ({{ contributedCount }}) 不足 ({{ requiredCount }})，游戏过程中可能出现重复词
-              </div>
-              <div v-else class="info-msg">
-                ✅ 贡献词汇充足
-              </div>
-              <div class="calc-hint">
-                预计 {{ totalRounds }} 轮 × 每轮 5 选 1 = 需要 {{ requiredCount }} 个不重复词
-              </div>
+              <template v-else>
+                <div class="cat-toggles">
+                  <button
+                    v-for="cat in categories"
+                    :key="cat.name"
+                    :class="['cat-toggle', { active: enabledCats.includes(cat.name) }]"
+                    @click="toggleCategory(cat.name)"
+                  >
+                    {{ cat.name }} ({{ cat.count }})
+                  </button>
+                </div>
+                <div class="cat-hint">
+                  未选中 = 不使用该分类，选中的分类词汇合并使用
+                </div>
+                <div v-if="selectedCount < requiredCount" class="warning-msg">
+                  ⚠️ 选中词汇 ({{ selectedCount }}) 不足 ({{ requiredCount }})，游戏过程中可能出现重复词
+                </div>
+                <div v-else class="info-msg">
+                  ✅ 词汇充足
+                </div>
+                <div class="calc-hint">
+                  预计 {{ totalRounds }} 轮 × 每轮 5 选 1 = 需要 {{ requiredCount }} 个不重复词
+                </div>
+              </template>
             </div>
           </div>
 
@@ -58,6 +74,11 @@ import { useRoomStore } from '@/stores/room'
 import { WORD_SELECTION_OPTIONS_COUNT } from '@draw-and-guess/shared'
 import type { RoomWordConfig } from '@draw-and-guess/shared'
 
+interface CategoryGroup {
+  name: string
+  count: number
+}
+
 const props = defineProps<{
   show: boolean
   initialConfig?: Partial<RoomWordConfig> | null
@@ -71,7 +92,8 @@ const emit = defineEmits<{
 const roomStore = useRoomStore()
 
 const useSystemWords = ref(true)
-const contributedCount = ref(0)
+const categories = ref<CategoryGroup[]>([])
+const enabledCats = ref<string[]>([])
 const fetchError = ref(false)
 
 const players = computed(() => roomStore.room?.players?.length ?? 0)
@@ -79,36 +101,70 @@ const roundsPerPlayer = computed(() => roomStore.room?.roundsPerPlayer ?? 2)
 const totalRounds = computed(() => Math.max(1, players.value * roundsPerPlayer.value))
 const requiredCount = computed(() => totalRounds.value * WORD_SELECTION_OPTIONS_COUNT)
 
+const selectedCount = computed(() => {
+  if (categories.value.length === 0) return 0
+  const names = enabledCats.value
+  if (names.length === 0) {
+    return categories.value.reduce((s, c) => s + c.count, 0)
+  }
+  return categories.value
+    .filter(c => names.includes(c.name))
+    .reduce((s, c) => s + c.count, 0)
+})
+
+function toggleCategory(name: string) {
+  const i = enabledCats.value.indexOf(name)
+  if (i >= 0) {
+    enabledCats.value.splice(i, 1)
+  } else {
+    enabledCats.value.push(name)
+  }
+}
+
 watch(() => props.show, async (val) => {
   if (!val) return
 
   useSystemWords.value = props.initialConfig?.useSystemWords ?? true
+  const savedCats = props.initialConfig?.contributedCategories ?? []
+  enabledCats.value = [...savedCats]
 
   if (!useSystemWords.value) {
-    await fetchContributedCount()
+    await fetchContributed()
   }
 })
 
 watch(useSystemWords, async (val) => {
   if (!val && props.show) {
-    await fetchContributedCount()
+    await fetchContributed()
   }
 })
 
-async function fetchContributedCount() {
+async function fetchContributed() {
   fetchError.value = false
   try {
     const res = await fetch('/api/words')
     const data = await res.json()
-    contributedCount.value = data?.total ?? data?.words?.length ?? 0
+    const words: Array<{ word: string; category: string }> = data?.words ?? []
+    const map = new Map<string, number>()
+    for (const w of words) {
+      const cat = w.category || '未分类'
+      map.set(cat, (map.get(cat) ?? 0) + 1)
+    }
+    const sorted = [...map.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+    categories.value = sorted
   } catch {
     fetchError.value = true
-    contributedCount.value = 0
+    categories.value = []
   }
 }
 
 function saveConfig() {
-  emit('save', { useSystemWords: useSystemWords.value })
+  emit('save', {
+    useSystemWords: useSystemWords.value,
+    contributedCategories: useSystemWords.value ? [] : [...enabledCats.value],
+  })
 }
 </script>
 
@@ -257,6 +313,41 @@ function saveConfig() {
 .status-icon {
   font-size: 0.9rem;
   flex-shrink: 0;
+}
+
+.cat-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.cat-toggle {
+  padding: 0.3rem 0.5rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.cat-toggle.active {
+  background: var(--color-accent-pale);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.cat-toggle:hover:not(.active) {
+  border-color: var(--color-accent-light);
+  color: var(--color-text);
+}
+
+.cat-hint {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
 }
 
 .warning-msg {

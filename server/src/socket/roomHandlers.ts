@@ -332,6 +332,9 @@ export function registerRoomHandlers(io: any, socket: any): void {
       if (wordConfig.useSystemWords !== undefined) {
         room.wordConfig.useSystemWords = wordConfig.useSystemWords
       }
+      if (wordConfig.contributedCategories !== undefined) {
+        room.wordConfig.contributedCategories = wordConfig.contributedCategories
+      }
     }
 
     io.to(room.code).emit(SERVER_EVENTS.WORD_CONFIG_UPDATED, { wordConfig: room.wordConfig })

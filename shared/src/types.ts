@@ -44,10 +44,12 @@ export type WordCategory =
 
 export interface RoomWordConfig {
   useSystemWords: boolean;
+  contributedCategories: string[];
 }
 
 export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
   useSystemWords: true,
+  contributedCategories: [],
 };
 
 export interface Room {

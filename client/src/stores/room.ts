@@ -63,6 +63,7 @@ export const useRoomStore = defineStore('room', () => {
           roundsPerPlayer: DEFAULT_ROUNDS_PER_PLAYER,
           wordConfig: {
             useSystemWords: true,
+            contributedCategories: [],
           },
           gameType: DEFAULT_GAME_TYPE,
         }
