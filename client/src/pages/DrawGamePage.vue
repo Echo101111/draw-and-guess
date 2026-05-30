@@ -243,8 +243,9 @@ const showLeaveConfirm = ref(false)
 const showDrawerAlert = ref(false)
 
 // 手势事件监听引用（用于清理）
-let gestureCleanup: Array<{ el: EventTarget; type: string; fn: EventListener }> = []
-function addGestureGuard(el: EventTarget, type: string, fn: EventListener) {
+type GestureHandler = (event: Event) => void
+let gestureCleanup: Array<{ el: EventTarget; type: string; fn: GestureHandler }> = []
+function addGestureGuard(el: EventTarget, type: string, fn: GestureHandler) {
   el.addEventListener(type, fn, { passive: false })
   gestureCleanup.push({ el, type, fn })
 }
@@ -311,11 +312,11 @@ onMounted(() => {
   }
 
   // 阻止 iOS Safari 双指缩放和手势
-  const preventPinch = (e: TouchEvent) => { if (e.touches.length > 1) e.preventDefault() }
+  const preventPinch = (e: Event) => { if ((e as TouchEvent).touches.length > 1) e.preventDefault() }
   const preventGesture = (e: Event) => e.preventDefault()
   addGestureGuard(document, 'gesturestart', preventGesture)
   addGestureGuard(document, 'gesturechange', preventGesture)
-  addGestureGuard(document, 'touchstart', preventPinch as EventListener)
+  addGestureGuard(document, 'touchstart', preventPinch)
 
   // 阻止浏览器返回手势
   window.history.pushState(null, '', window.location.href)
@@ -324,12 +325,12 @@ onMounted(() => {
     window.history.replaceState(null, '', window.location.href)
   }
   window.addEventListener('popstate', onPop)
-  ;(window as any).__popstateHandler = onPop
+  ;(window as unknown as { __popstateHandler?: () => void }).__popstateHandler = onPop
 
   // 阻止页面刷新/关闭
   const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault() }
   window.addEventListener('beforeunload', onBeforeUnload)
-  ;(window as any).__beforeunloadHandler = onBeforeUnload
+  ;(window as unknown as { __beforeunloadHandler?: (e: BeforeUnloadEvent) => void }).__beforeunloadHandler = onBeforeUnload
 })
 
 onUnmounted(() => {
@@ -340,9 +341,10 @@ onUnmounted(() => {
   }
   gestureCleanup = []
   // 清理 popstate
-  const onPop = (window as any).__popstateHandler
+  const win = window as unknown as { __popstateHandler?: () => void; __beforeunloadHandler?: (e: BeforeUnloadEvent) => void }
+  const onPop = win.__popstateHandler
   if (onPop) window.removeEventListener('popstate', onPop)
-  const onBeforeUnload = (window as any).__beforeunloadHandler
+  const onBeforeUnload = win.__beforeunloadHandler
   if (onBeforeUnload) window.removeEventListener('beforeunload', onBeforeUnload)
   gameStore.teardownSocketListeners()
   gameStore.resetGame()

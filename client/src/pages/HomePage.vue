@@ -416,6 +416,7 @@ async function handleContributeSubmit() {
 
     if (!res.ok) {
       let errMsg = `服务器错误 (${res.status})`
+      // eslint-disable-next-line no-empty
       try { const d = await res.json(); if (d.message) errMsg = d.message } catch {}
       contributeSuccess.value = false
       contributeMessage.value = errMsg
@@ -455,6 +456,7 @@ async function handleFeedbackSubmit() {
     })
     if (!res.ok) {
       let errMsg = `服务器错误 (${res.status})`
+      // eslint-disable-next-line no-empty
       try { const d = await res.json(); if (d.message) errMsg = d.message } catch {}
       feedbackSuccess.value = false
       feedbackMessage.value = errMsg
