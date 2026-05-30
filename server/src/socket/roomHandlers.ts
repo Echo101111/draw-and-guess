@@ -1,4 +1,4 @@
-import { CLIENT_EVENTS, SERVER_EVENTS, ErrorCode, NICKNAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, DEFAULT_MAX_PLAYERS, DEFAULT_GAME_TYPE, GAME_TYPE_DRAW, GAME_TYPE_SPY } from '@draw-and-guess/shared'
+import { CLIENT_EVENTS, SERVER_EVENTS, ErrorCode, NICKNAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, DEFAULT_MAX_PLAYERS, DEFAULT_GAME_TYPE, GAME_TYPE_DRAW, GAME_TYPE_SPY, LEAVE_RECONNECT_TIMEOUT_MS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { drawGameManager } from '../game/index.js'
 import { spyGameManager } from '../game/SpyGameManager.js'
@@ -25,6 +25,37 @@ function getPlayerRoomData(room: Room) {
     totalRounds: room.totalRounds,
     roundsPerPlayer: room.roundsPerPlayer,
     wordConfig: room.wordConfig,
+  }
+}
+
+// ── rejoinStore：游戏进行中离开时保留积分，15s 窗口 ──
+const rejoinStore = new Map<string, { score: number; timestamp: number }>()
+
+function rejoinKey(roomId: string, nickname: string): string {
+  return `${roomId}:${nickname.toLowerCase()}`
+}
+
+function saveRejoinScore(roomId: string, nickname: string, score: number): void {
+  pruneRejoinStore()
+  const key = rejoinKey(roomId, nickname)
+  rejoinStore.set(key, { score, timestamp: Date.now() })
+}
+
+function takeRejoinScore(roomId: string, nickname: string): number | null {
+  pruneRejoinStore()
+  const key = rejoinKey(roomId, nickname)
+  const entry = rejoinStore.get(key)
+  if (!entry) return null
+  rejoinStore.delete(key)
+  return entry.score
+}
+
+function pruneRejoinStore(): void {
+  const now = Date.now()
+  for (const [key, entry] of rejoinStore) {
+    if (now - entry.timestamp > LEAVE_RECONNECT_TIMEOUT_MS) {
+      rejoinStore.delete(key)
+    }
   }
 }
 
@@ -145,10 +176,13 @@ export function registerRoomHandlers(io: any, socket: any): void {
           room: getPlayerRoomData(targetRoom),
           playerId: existing.id,
           isOwner: existing.isOwner,
+          isSpectator: existing.isSpectator,
         })
         socket.to(targetRoom.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(targetRoom) })
-        if (targetRoom.state === 'playing') {
-          existing.isSpectator = true
+        if (targetRoom.state === 'playing' && !existing.isSpectator) {
+          socket.data.isSpectator = false
+          drawGameManager.restorePlayerState(targetRoom.id, existing.id)
+        } else if (targetRoom.state === 'playing') {
           socket.data.isSpectator = true
           drawGameManager.sendSpectatorSnapshot(targetRoom.id, existing.id)
         }
@@ -178,19 +212,31 @@ export function registerRoomHandlers(io: any, socket: any): void {
     socket.join(room.code)
     socket.join(player.id)
 
+    // 检查 rejoinStore：回归玩家保留积分、不观战
+    const restoredScore = room.state === 'playing' ? takeRejoinScore(room.id, trimmedNickname) : null
+    if (restoredScore !== null) {
+      player.score = restoredScore
+      player.isSpectator = false
+    } else if (room.state === 'playing') {
+      player.isSpectator = true
+    }
+
     socket.emit(SERVER_EVENTS.ROOM_JOINED, {
       room: getPlayerRoomData(room),
       playerId: player.id,
       isOwner: player.isOwner,
+      isSpectator: player.isSpectator,
     })
 
     socket.to(room.code).emit(SERVER_EVENTS.ROOM_UPDATED, { room: getPlayerRoomData(room) })
 
-    // 游戏进行中：新玩家以观战者加入，可看画板和聊天，下一轮自动参与
     if (room.state === 'playing') {
-      player.isSpectator = true
-      socket.data.isSpectator = true
-      drawGameManager.sendSpectatorSnapshot(room.id, player.id)
+      socket.data.isSpectator = player.isSpectator
+      if (player.isSpectator) {
+        drawGameManager.sendSpectatorSnapshot(room.id, player.id)
+      } else {
+        drawGameManager.restorePlayerState(room.id, player.id)
+      }
     }
   })
 
@@ -530,6 +576,10 @@ function leaveCurrentRoom(io: any, socket: any): void {
   const { roomId, playerId } = socket.data
   if (!roomId || !playerId) return
 
+  // 离开者是画师 → 结束轮次
+  const drawerId = drawGameManager.getCurrentDrawerId(roomId)
+  if (drawerId === playerId) drawGameManager.endRound(roomId, 'timeout')
+
   roomManager.cancelDisconnectTimer(playerId)
   const result = roomManager.leaveRoom(roomId, playerId)
   if (!result.removed) return
@@ -553,16 +603,26 @@ function handleLeave(io: any, socket: any): void {
   const { roomId, playerId } = socket.data
   if (!roomId || !playerId) return
 
+  // 游戏进行中离开 → 保存积分到 rejoinStore，15s 内重新加入可恢复
+  const room = roomManager.getRoomById(roomId)
+  if (room?.state === 'playing') {
+    const player = room.players.find((p) => p.id === playerId)
+    if (player) saveRejoinScore(roomId, player.nickname, player.score)
+  }
+
   const result = roomManager.leaveRoom(roomId, playerId)
   if (!result.removed) return
 
   lastChatTime.delete(playerId)
   roomManager.cancelDisconnectTimer(playerId)
 
-  const room = roomManager.getRoomById(roomId)
   if (room) {
     socket.leave(room.code)
     socket.leave(playerId)
+
+    // 离开者是画师 → 结束轮次，游戏继续
+    const drawerId = drawGameManager.getCurrentDrawerId(roomId)
+    if (drawerId === playerId) drawGameManager.endRound(roomId, 'timeout')
 
     if (room.players.length === 0) {
       roomManager.dismissRoom(roomId)

@@ -10,7 +10,8 @@ export const WIDTH_PRESETS = {
   thick: 8,
 } as const
 
-export const ERASER_COLOR = '#ffffff'
+export const CANVAS_BG_COLOR = '#f7f0e6'
+export const ERASER_COLOR = CANVAS_BG_COLOR
 export const ERASER_WIDTH_MULTIPLIER = 3
 export const EMIT_INTERVAL_MS = 16
 export const STROKE_SIMPLIFY_TOLERANCE = 2

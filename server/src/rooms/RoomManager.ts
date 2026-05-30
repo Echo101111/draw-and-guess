@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcrypt'
-import type { Player, Room, RoomErrorPayload, RoomWordConfig, GameType } from '@draw-and-guess/shared'
+import type { Player, Room, RoomState, RoomErrorPayload, RoomWordConfig, GameType } from '@draw-and-guess/shared'
 import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG, SPY_MIN_PLAYERS, DRAW_MIN_PLAYERS, NICKNAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, BCRYPT_ROUNDS, AVATAR_COUNT, DEFAULT_TOTAL_ROUNDS, DEFAULT_ROUND_DURATION, DEFAULT_ROUNDS_PER_PLAYER, RECONNECT_TIMEOUT_MS, ROOM_DISMISS_TIMEOUT_MS, ROOM_IDLE_TIMEOUT_MS, ROOM_GC_INTERVAL_MS } from '@draw-and-guess/shared'
 import { getAllCustomWordEntries } from '../data/customWordBank.js'
 
@@ -391,6 +391,18 @@ export class RoomManager {
   getAllRooms(gameType?: GameType): Room[] {
     const rooms = Array.from(this.rooms.values())
     return gameType ? rooms.filter(r => r.gameType === gameType) : rooms
+  }
+
+  getRoomStats(): { total: number; byState: Record<RoomState, number>; totalPlayers: number; activePlayers: number } {
+    const byState: Record<RoomState, number> = { lobby: 0, playing: 0, gameover: 0 }
+    let totalPlayers = 0
+    let activePlayers = 0
+    for (const room of this.rooms.values()) {
+      byState[room.state]++
+      totalPlayers += room.players.length
+      activePlayers += room.players.filter(p => p.sessionId).length
+    }
+    return { total: this.rooms.size, byState, totalPlayers, activePlayers }
   }
 
   updatePlayerState(roomId: string, playerId: string, updates: Partial<Pick<Player, 'score' | 'hasGuessedCorrectly'>>): void {

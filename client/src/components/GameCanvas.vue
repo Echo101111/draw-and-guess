@@ -9,7 +9,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { fabric } from 'fabric'
 import { useCanvasStore } from '@/stores/canvas'
 import { useDrawGameStore } from '@/stores/drawGame'
-import { EMIT_INTERVAL_MS, ERASER_COLOR, ERASER_WIDTH_MULTIPLIER, STROKE_MIN_POINTS, STROKE_SIMPLIFY_TOLERANCE, CANVAS_ASPECT_RATIO, BREAKPOINT_MOBILE } from '@draw-and-guess/shared'
+import { EMIT_INTERVAL_MS, ERASER_COLOR, ERASER_WIDTH_MULTIPLIER, STROKE_MIN_POINTS, STROKE_SIMPLIFY_TOLERANCE, CANVAS_ASPECT_RATIO, BREAKPOINT_MOBILE, CANVAS_BG_COLOR } from '@draw-and-guess/shared'
 import type { Point } from '@draw-and-guess/shared'
 
 type FabricCanvas = InstanceType<typeof fabric.Canvas>
@@ -213,7 +213,7 @@ function renderCompletedStrokes(extraStrokes?: any[]) {
   const ch = fabricCanvas.height ?? 1
 
   fabricCanvas.clear()
-  fabricCanvas.backgroundColor = '#ffffff'
+  fabricCanvas.backgroundColor = CANVAS_BG_COLOR
   strokePathMap.clear()
 
   // 合并 gameStore.strokes 和额外传入的笔画
@@ -407,7 +407,7 @@ onMounted(() => {
   fabricCanvas = new fabric.Canvas(canvasRef.value, {
     width: 1,
     height: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: CANVAS_BG_COLOR,
     isDrawingMode: false,
     selection: false,
   })
@@ -484,7 +484,7 @@ onUnmounted(() => {
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  background: #fff;
+  background: #f7f0e6;
   overflow: hidden;
   max-width: 100%;
   max-height: 100%;

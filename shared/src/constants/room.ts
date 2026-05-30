@@ -13,3 +13,4 @@ export const DEFAULT_GAME_TYPE: GameType = 'draw'
 
 export const ROOM_IDLE_TIMEOUT_MS = 3_600_000
 export const ROOM_GC_INTERVAL_MS = 60_000
+export const LEAVE_RECONNECT_TIMEOUT_MS = 15_000

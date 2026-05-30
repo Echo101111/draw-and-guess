@@ -40,6 +40,10 @@ interface GameData {
 export class SpyGameManager {
   private games = new Map<string, GameData>()
   private timers = new Map<string, NodeJS.Timeout>()
+
+  getActiveTimerRoomIds(): string[] {
+    return Array.from(this.timers.keys())
+  }
   private gameConfigs = new Map<string, SpyGameConfig>()
 
   getGameSnapshot(roomId: string): SpyGameState | null {

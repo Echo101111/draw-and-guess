@@ -713,6 +713,14 @@ export class GameManager {
     return this.currentDrawerId.get(roomId)
   }
 
+  getActiveTimerCount(): number {
+    return this.roundTimers.size
+  }
+
+  getActiveTimerRoomIds(): string[] {
+    return Array.from(this.roundTimers.keys())
+  }
+
   /**
    * 为中途加入的玩家发送游戏快照（笔画、积分、计时器），
    * 不发送 ROUND_START，客户端 myRole 保持 'spectator'，

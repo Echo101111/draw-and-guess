@@ -1,11 +1,9 @@
 import { Router, type Request, type Response } from 'express'
+import { addFeedback, feedbackStore as fsStore } from '../data/feedbackStore.js'
 
-export interface FeedbackEntry {
-  text: string
-  timestamp: number
-}
+export { type FeedbackEntry } from '../data/feedbackStore.js'
 
-export const feedbackStore: FeedbackEntry[] = []
+export const feedbackStore = fsStore
 
 export const feedbackRouter: Router = Router()
 
@@ -35,11 +33,7 @@ feedbackRouter.post('/', (req: Request, res: Response) => {
     return
   }
 
-  feedbackStore.push({ text: text.trim(), timestamp: now })
-  // 最多保留 1000 条，超出时移除最早的一半
-  if (feedbackStore.length > 1000) {
-    feedbackStore.splice(0, feedbackStore.length - 1000)
-  }
+  addFeedback(text.trim(), now)
   console.log(`[Feedback] New feedback (${feedbackStore.length} total): ${text.trim().slice(0, 60)}`)
 
   res.json({ success: true, message: '感谢你的反馈！我们会认真阅读每一条建议 💪' })

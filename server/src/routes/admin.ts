@@ -3,10 +3,13 @@ import { loadCustomWords } from '../data/customWordBank.js'
 import { requireAdminToken, loginPage, escapeHtml } from '../middleware/auth.js'
 import { config } from '../config.js'
 import { feedbackStore } from './feedback.js'
+import { roomManager } from '../rooms/index.js'
+import { drawGameManager } from '../game/index.js'
+import { spyGameManager } from '../game/SpyGameManager.js'
 
 export const adminRouter: Router = Router()
 
-function layout(title: string, body: string, activeTab: 'words' | 'feedback'): string {
+function layout(title: string, body: string, activeTab: 'words' | 'feedback' | 'rooms'): string {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -56,6 +59,7 @@ function layout(title: string, body: string, activeTab: 'words' | 'feedback'): s
 <div class="nav">
   <a href="/admin/words" class="${activeTab === 'words' ? 'active' : ''}"><span class="icon">📖</span>词库管理</a>
   <a href="/admin/feedback" class="${activeTab === 'feedback' ? 'active' : ''}"><span class="icon">💬</span>反馈建议</a>
+  <a href="/admin/rooms" class="${activeTab === 'rooms' ? 'active' : ''}"><span class="icon">🚪</span>房间状态</a>
 </div>
 ${body}
 </body>
@@ -271,4 +275,88 @@ ${hasRows ? `
 `
 
   res.send(layout('反馈建议', body, 'feedback'))
+})
+
+// GET /admin/rooms — 房间状态
+adminRouter.get('/rooms', requireAdminToken, (_req: Request, res: Response) => {
+  const stats = roomManager.getRoomStats()
+  const roomList = roomManager.getAllRooms()
+  const activeTimerRoomIds = new Set([
+    ...drawGameManager.getActiveTimerRoomIds(),
+    ...spyGameManager.getActiveTimerRoomIds(),
+  ])
+
+  const safeToDeploy = stats.byState.playing === 0
+  const deployStatus = safeToDeploy
+    ? '<span style="color:#7EB87A;font-weight:700;">✅ 安全 — 无进行中的游戏，可以部署</span>'
+    : `<span style="color:#D9756B;font-weight:700;">⚠️ 不安全 — ${stats.byState.playing} 个房间正在游戏中，部署将中断游戏</span>`
+
+  const rows = roomList.map(r => {
+    const players = r.players.map(p =>
+      `${escapeHtml(p.nickname)}${p.isOwner ? ' 👑' : ''}${p.sessionId ? '' : ' <span style="color:#B5A392;">(离线)</span>'}`
+    ).join('<br>')
+    const stateLabel: Record<string, string> = { lobby: '🟢 等待中', playing: '🔴 游戏中', gameover: '🟡 已结束' }
+    const timerActive = r.state === 'playing' && activeTimerRoomIds.has(r.id)
+
+    return `<tr>
+      <td><strong>${escapeHtml(r.name)}</strong></td>
+      <td>${r.gameType === 'spy' ? '🕵️ 谁是卧底' : '🎨 你画我猜'}</td>
+      <td>${stateLabel[r.state] ?? r.state}${timerActive ? ' ⏱️' : ''}</td>
+      <td>${r.players.length}/${r.maxPlayers}</td>
+      <td>${r.state === 'playing' ? `${r.currentRound}/${r.totalRounds}` : '-'}</td>
+      <td style="font-size:0.82rem;line-height:1.6;">${players}</td>
+      <td style="font-size:0.78rem;color:#8B7A6A;">${new Date(r.lastActivityAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</td>
+    </tr>`
+  }).join('\n')
+
+  const body = `
+<style>
+  .deploy-banner {
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(180,140,110,0.1);
+    margin-bottom: 1.5rem;
+    font-size: 0.92rem;
+  }
+  .stats-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    flex: 1;
+    min-width: 100px;
+    background: #fff;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 2px 8px rgba(180,140,110,0.08);
+    text-align: center;
+  }
+  .stat-card .num { font-size: 1.6rem; font-weight: 700; color: #4A3728; }
+  .stat-card .label { font-size: 0.75rem; color: #8B7A6A; margin-top: 0.15rem; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(180,140,110,0.1); }
+  th, td { padding: 0.5rem 0.65rem; text-align: left; font-size: 0.83rem; vertical-align: top; }
+  th { background: #F7EFE6; font-weight: 600; white-space: nowrap; }
+  tr:not(:last-child) td { border-bottom: 1px solid #F0E4D8; }
+  .empty { color: #B5A392; text-align: center; padding: 3rem; font-size: 0.9rem; }
+</style>
+<div class="deploy-banner">${deployStatus}</div>
+<div class="stats-row">
+  <div class="stat-card"><div class="num">${stats.total}</div><div class="label">总房间</div></div>
+  <div class="stat-card"><div class="num">${stats.totalPlayers}</div><div class="label">总玩家</div></div>
+  <div class="stat-card"><div class="num">${stats.activePlayers}</div><div class="label">在线玩家</div></div>
+  <div class="stat-card"><div class="num">${stats.byState.lobby}</div><div class="label">等待中</div></div>
+  <div class="stat-card"><div class="num">${stats.byState.playing}</div><div class="label">游戏中</div></div>
+  <div class="stat-card"><div class="num">${stats.byState.gameover}</div><div class="label">已结束</div></div>
+</div>
+${roomList.length > 0 ? `
+<table>
+<thead><tr><th>房间名</th><th>游戏类型</th><th>状态</th><th>人数</th><th>轮次</th><th>玩家</th><th>最后活跃</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>` : '<div class="empty">暂无房间</div>'}
+`
+
+  res.send(layout('房间状态', body, 'rooms'))
 })

@@ -79,9 +79,7 @@ export const useRoomStore = defineStore('room', () => {
       currentPlayerId.value = data.playerId
       connectionState.value = 'connected'
       error.value = null
-      if (data.room?.state === 'playing') {
-        isSpectator.value = true
-      }
+      isSpectator.value = data.isSpectator ?? (data.room?.state === 'playing')
     })
 
     socket.off(SERVER_EVENTS.ROOM_ERROR)
