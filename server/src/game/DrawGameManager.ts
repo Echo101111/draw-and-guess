@@ -1,10 +1,9 @@
 import { SERVER_EVENTS, SCORE_BASE, SCORE_DRAWER_BONUS, WORD_SELECTION_TIMEOUT_MS, ROUND_TRANSITION_MS, DRAW_RATE_LIMIT_MS, ANSWER_COOLDOWN_MS, PRUNE_INTERVAL_MS, WORD_SELECTION_OPTIONS_COUNT, TIMER_SYNC_INTERVAL_MS, TIMER_TICK_INTERVAL_MS } from '@draw-and-guess/shared'
 import { roomManager } from '../rooms/index.js'
 import { CATEGORY_DISPLAY_NAMES, WORD_CATEGORIES, WORDS } from '../data/words.js'
-import { matchAnswer } from '../data/wordIndex.js'
+import { matchAnswer, getWordEntry } from '../data/wordIndex.js'
 import { getAllCustomWordEntries } from '../data/customWordBank.js'
-import type { Room, Player, Point, Stroke, CustomWord } from '@draw-and-guess/shared'
-import type { WordCategory } from '../data/words.js'
+import type { Room, Player, Point, Stroke } from '@draw-and-guess/shared'
 
 interface RoundTimer {
   roomId: string
@@ -32,7 +31,6 @@ export class GameManager {
   private currentDrawerId = new Map<string, string>()
   private lastDrawTime = new Map<string, number>()
   private lastAnswerTime = new Map<string, number>()
-  private customWordOrder = new Map<string, CustomWord[]>()
   private undoneStrokes = new Map<string, Set<string>>()
   private pendingWordSelection = new Map<string, PendingSelection>()
   private wordSelectionTimers = new Map<string, NodeJS.Timeout>()
@@ -100,63 +98,7 @@ export class GameManager {
         hasGuessedCorrectly: p.hasGuessedCorrectly,
       }))
 
-    // 自定义词库：直接选一个词开始，不走 5 选 1
-    if (room.wordConfig.customWords.length > 0) {
-      return this.startCustomRound(room, drawer, drawerData, guesserData)
-    }
-
-    // 默认词库：5 选 1
     return this.startSelectionRound(room, drawer, drawerData, guesserData)
-  }
-
-  private startCustomRound(room: Room, drawer: Player, drawerData: object, guesserData: object): boolean {
-    if (!this.customWordOrder.has(room.id)) {
-      const shuffled = [...room.wordConfig.customWords]
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-      }
-      this.customWordOrder.set(room.id, shuffled)
-    }
-    const order = this.customWordOrder.get(room.id)!
-    const idx = room.currentRound - 1
-    if (idx >= order.length) {
-      this.endGame(room.id)
-      return false
-    }
-    const entry = order[idx]
-    const word = entry.word
-    const wordCategoryName = CATEGORY_DISPLAY_NAMES[entry.category as WordCategory] ?? (entry.category || undefined)
-
-    room.currentWord = word
-    room.currentWordCategory = wordCategoryName
-    room.roundStartTime = Date.now()
-
-    const io = this.getIO()
-    if (io) {
-      io.to(drawer.id).emit(SERVER_EVENTS.ROUND_START_TO_DRAWER, {
-        round: room.currentRound,
-        totalRounds: room.totalRounds,
-        word,
-        timeLeft: room.roundDuration,
-        roundStartTime: room.roundStartTime,
-        wordLength: word.length,
-        wordCategory: wordCategoryName,
-      })
-      io.to(room.code).emit(SERVER_EVENTS.ROUND_START, {
-        round: room.currentRound,
-        totalRounds: room.totalRounds,
-        drawer: drawerData,
-        guessers: guesserData,
-        timeLeft: room.roundDuration,
-        roundStartTime: room.roundStartTime,
-        wordLength: word.length,
-        wordCategory: wordCategoryName,
-      })
-    }
-
-    this.startTimer(room.id, room.roundDuration)
-    return true
   }
 
   private startSelectionRound(room: Room, drawer: Player, drawerData: object, guesserData: object): boolean {
@@ -203,6 +145,16 @@ export class GameManager {
 
     room.currentWord = selectedWord
     room.roundStartTime = Date.now()
+
+    // 标记已使用的词及同义词，避免跨轮次重复
+    const used = this.getUsedWords(roomId)
+    used.add(selectedWord)
+    const wordEntry = getWordEntry(selectedWord)
+    if (wordEntry?.synonyms) {
+      for (const syn of wordEntry.synonyms) {
+        used.add(syn)
+      }
+    }
 
     const opt = pending.options.find((o) => o.word === selectedWord)
     const wordCategoryName = opt?.category || undefined
@@ -269,63 +221,23 @@ export class GameManager {
   private selectWordOptions(room: Room): WordOption[] {
     const used = this.getUsedWords(room.id)
 
-    const hasEnabledBuiltin = room.wordConfig.enabledCategories && room.wordConfig.enabledCategories.length > 0
-    const hasEnabledCustom = (room.wordConfig.enabledCustomCategories?.length ?? 0) > 0
+    let pool: WordOption[]
 
-    // 如果两种都没有选，回退到全部内置分类
-    const enabledCategories = hasEnabledBuiltin
-      ? room.wordConfig.enabledCategories
-      : hasEnabledCustom ? [] : WORD_CATEGORIES
-
-    const enabledCustomCats = room.wordConfig.enabledCustomCategories ?? []
-
-    // Phase 1: 房主自定义词汇（仅限启用的自定义分类）
-    const perRoomCustom = enabledCustomCats.length > 0
-      ? room.wordConfig.customWords.filter(w => enabledCustomCats.includes(w.category))
-      : room.wordConfig.customWords
-
-    if (perRoomCustom.length > 0) {
-      if (!this.customWordOrder.has(room.id)) {
-        const shuffled = [...perRoomCustom]
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-        }
-        this.customWordOrder.set(room.id, shuffled)
-      }
-      const order = this.customWordOrder.get(room.id)!
-      const startIdx = room.currentRound - 1
-      const options: WordOption[] = []
-      for (let i = startIdx; i < order.length && options.length < WORD_SELECTION_OPTIONS_COUNT; i++) {
-        const entry = order[i]
-        if (!used.has(entry.word)) {
-          options.push({ word: entry.word, category: entry.category })
-          used.add(entry.word)
-        }
-      }
-      if (options.length > 0) return options
-    }
-
-    // 统一候选池：系统词 + 全局贡献词
-    const allGlobalCustomWords = getAllCustomWordEntries()
-    const globalCustomPool = enabledCustomCats.length > 0
-      ? allGlobalCustomWords.filter(e => enabledCustomCats.includes(e.category))
-      : allGlobalCustomWords
-
-    const pool: WordOption[] = [
-      ...enabledCategories.flatMap(cat => {
+    if (room.wordConfig.useSystemWords) {
+      pool = WORD_CATEGORIES.flatMap(cat => {
         const catWords = WORDS[cat]
         if (!catWords) return []
         return catWords.map(entry => ({
           word: entry.word,
           category: CATEGORY_DISPLAY_NAMES[cat],
         }))
-      }),
-      ...globalCustomPool.map(entry => ({
+      })
+    } else {
+      pool = getAllCustomWordEntries().map(entry => ({
         word: entry.word,
         category: entry.category,
-      })),
-    ]
+      }))
+    }
 
     // Fisher-Yates 打乱
     for (let i = pool.length - 1; i > 0; i--) {
@@ -338,7 +250,14 @@ export class GameManager {
       if (options.length >= WORD_SELECTION_OPTIONS_COUNT) break
       if (used.has(entry.word)) continue
       options.push(entry)
-      used.add(entry.word)
+    }
+
+    // 池子耗尽时允许重复（兜底）
+    if (options.length < WORD_SELECTION_OPTIONS_COUNT) {
+      for (const entry of pool) {
+        if (options.length >= WORD_SELECTION_OPTIONS_COUNT) break
+        options.push(entry)
+      }
     }
 
     return options
@@ -355,11 +274,6 @@ export class GameManager {
       return { correct: false }
     }
 
-    // 自定义词库房间：房主只能当画师或观战，不能猜题
-    if (room.wordConfig.customWords.length > 0 && player.isOwner) {
-      return { correct: false }
-    }
-
     if (!room.currentWord || !room.roundStartTime) {
       return { correct: false }
     }
@@ -371,7 +285,7 @@ export class GameManager {
     }
     this.lastAnswerTime.set(playerId, now)
 
-    if (!matchAnswer(answer, room.currentWord, room.wordConfig.looseMatching)) {
+    if (!matchAnswer(answer, room.currentWord)) {
       return { correct: false }
     }
 
@@ -630,7 +544,6 @@ export class GameManager {
     if (!room) return false
 
     room.state = 'gameover'
-    room.wordConfig.customWords = []
     roomManager.updateRoomActivity(roomId)
     this.clearNextRoundTimer(roomId)
     this.clearWordSelection(roomId)
@@ -640,7 +553,6 @@ export class GameManager {
     this.undoneStrokes.delete(roomId)
     this.roundEnding.delete(roomId)
     this.currentDrawerId.delete(roomId)
-    this.customWordOrder.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)
 
     const scores = this.getScoreboard(room)
@@ -653,7 +565,6 @@ export class GameManager {
         finalScores: scores,
         winner,
       })
-      // Sync cleared customWords to clients so the word config modal shows accurate state
       io.to(room.code).emit(SERVER_EVENTS.WORD_CONFIG_UPDATED, { wordConfig: room.wordConfig })
     }
 
@@ -670,7 +581,6 @@ export class GameManager {
     this.undoneStrokes.delete(roomId)
     this.roundEnding.delete(roomId)
     this.currentDrawerId.delete(roomId)
-    this.customWordOrder.delete(roomId)
     this.cleanupPlayerTimestamps(roomId)
     roomManager.resetGameState(roomId)
   }

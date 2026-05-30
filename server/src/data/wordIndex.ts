@@ -51,7 +51,7 @@ export function selectWord(usedWords: Set<string>): string | null {
   return null
 }
 
-export function matchAnswer(input: string, target: string, looseMatching: boolean): boolean {
+export function matchAnswer(input: string, target: string): boolean {
   const normalizedInput = input.trim().replace(/\s+/g, '').toLowerCase()
   const normalizedTarget = target.replace(/\s+/g, '').toLowerCase()
 
@@ -66,7 +66,7 @@ export function matchAnswer(input: string, target: string, looseMatching: boolea
     return true
   }
 
-  if (looseMatching && normalizedTarget.length >= 3 && normalizedInput.includes(normalizedTarget)) return true
+  if (normalizedTarget.length >= 3 && normalizedInput.includes(normalizedTarget)) return true
 
   return false
 }

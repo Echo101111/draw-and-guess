@@ -4,8 +4,8 @@ import { WORD_CATEGORIES, TOTAL_WORD_COUNT, getWordCategory, WORDS } from './wor
 
 describe('words', () => {
   describe('TOTAL_WORD_COUNT', () => {
-    it('should be 1283', () => {
-      expect(TOTAL_WORD_COUNT).toBe(1283)
+    it('should be 2033', () => {
+      expect(TOTAL_WORD_COUNT).toBe(2033)
     })
   })
 
@@ -85,28 +85,24 @@ describe('words', () => {
 
   describe('matchAnswer', () => {
     it('should match exact answer (case-insensitive)', () => {
-      expect(matchAnswer('猫', '猫', false)).toBe(true)
-      expect(matchAnswer(' 猫 ', '猫', false)).toBe(true)
+      expect(matchAnswer('猫', '猫')).toBe(true)
+      expect(matchAnswer(' 猫 ', '猫')).toBe(true)
     })
 
     it('should match synonym', () => {
-      expect(matchAnswer('猫咪', '猫', false)).toBe(true)
+      expect(matchAnswer('猫咪', '猫')).toBe(true)
     })
 
     it('should not match wrong answer', () => {
-      expect(matchAnswer('狗', '猫', false)).toBe(false)
+      expect(matchAnswer('狗', '猫')).toBe(false)
     })
 
-    it('should match lax with looseMatching enabled', () => {
-      expect(matchAnswer('夹心巧克力', '巧克力', true)).toBe(true)
+    it('should match lax with contains matching', () => {
+      expect(matchAnswer('夹心巧克力', '巧克力')).toBe(true)
     })
 
-    it('should not match lax without looseMatching', () => {
-      expect(matchAnswer('夹心巧克力', '巧克力', false)).toBe(false)
-    })
-
-    it('should not match short words via contains with looseMatching', () => {
-      expect(matchAnswer('斑马', '马', true)).toBe(false)
+    it('should not match short words via contains', () => {
+      expect(matchAnswer('斑马', '马')).toBe(false)
     })
   })
 })

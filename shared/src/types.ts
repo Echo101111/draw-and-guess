@@ -42,23 +42,12 @@ export type WordCategory =
   | 'games'
   | 'festivals';
 
-export interface CustomWord {
-  word: string;
-  category: string;
-}
-
 export interface RoomWordConfig {
-  customWords: CustomWord[];
-  looseMatching: boolean;
-  enabledCategories: WordCategory[];
-  enabledCustomCategories: string[];
+  useSystemWords: boolean;
 }
 
 export const DEFAULT_WORD_CONFIG: RoomWordConfig = {
-  customWords: [],
-  looseMatching: false,
-  enabledCategories: [],
-  enabledCustomCategories: [],
+  useSystemWords: true,
 };
 
 export interface Room {

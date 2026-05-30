@@ -3,7 +3,6 @@ import { roomManager } from '../rooms/index.js'
 import { drawGameManager } from '../game/index.js'
 import { spyGameManager } from '../game/SpyGameManager.js'
 import { lastChatTime } from './drawGameHandlers.js'
-import { validateCustomWords } from '../data/wordValidator.js'
 import bcrypt from 'bcrypt'
 import type { Room, RoomWordConfig, GameType } from '@draw-and-guess/shared'
 
@@ -330,26 +329,8 @@ export function registerRoomHandlers(io: any, socket: any): void {
     }
 
     if (wordConfig) {
-      if (wordConfig.customWords) {
-        if (wordConfig.customWords.length === 0) {
-          room.wordConfig.customWords = []
-        } else {
-          const result = validateCustomWords(wordConfig.customWords)
-          if (!result.valid) {
-            socket.emit(SERVER_EVENTS.ROOM_ERROR, { code: ErrorCode.INVALID_WORD_CONFIG, message: result.error! })
-            return
-          }
-          room.wordConfig.customWords = result.words!
-        }
-      }
-      if (wordConfig.looseMatching !== undefined) {
-        room.wordConfig.looseMatching = wordConfig.looseMatching
-      }
-      if (wordConfig.enabledCategories !== undefined) {
-        room.wordConfig.enabledCategories = wordConfig.enabledCategories
-      }
-      if (wordConfig.enabledCustomCategories !== undefined) {
-        room.wordConfig.enabledCustomCategories = wordConfig.enabledCustomCategories
+      if (wordConfig.useSystemWords !== undefined) {
+        room.wordConfig.useSystemWords = wordConfig.useSystemWords
       }
     }
 

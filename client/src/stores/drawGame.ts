@@ -169,8 +169,7 @@ export const useDrawGameStore = defineStore('drawGame', () => {
       if (data.drawer.id === roomStore.currentPlayerId) {
         myRole.value = 'drawer'
       } else {
-        const hasCustomWords = (roomStore.room?.wordConfig.customWords.length ?? 0) > 0
-        myRole.value = hasCustomWords && roomStore.isOwner ? 'spectator' : 'guesser'
+        myRole.value = 'guesser'
       }
     })
 

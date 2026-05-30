@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import bcrypt from 'bcrypt'
 import type { Player, Room, RoomErrorPayload, RoomWordConfig, GameType } from '@draw-and-guess/shared'
 import { ErrorCode, SERVER_EVENTS, DEFAULT_WORD_CONFIG, SPY_MIN_PLAYERS, DRAW_MIN_PLAYERS, NICKNAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, BCRYPT_ROUNDS, AVATAR_COUNT, DEFAULT_TOTAL_ROUNDS, DEFAULT_ROUND_DURATION, DEFAULT_ROUNDS_PER_PLAYER, RECONNECT_TIMEOUT_MS, ROOM_DISMISS_TIMEOUT_MS, ROOM_IDLE_TIMEOUT_MS, ROOM_GC_INTERVAL_MS } from '@draw-and-guess/shared'
+import { getAllCustomWordEntries } from '../data/customWordBank.js'
 
 function createPlayer(nickname: string, isOwner = false): Player {
   const trimmed = nickname.trim()
@@ -228,9 +229,14 @@ export class RoomManager {
       return { success: false, error: { code: ErrorCode.GAME_NOT_IN_LOBBY, message: `至少需要${minPlayers}名玩家才能开始游戏` } }
     }
 
-    room.totalRounds = room.wordConfig.customWords.length > 0
-      ? room.wordConfig.customWords.length
-      : room.players.length * room.roundsPerPlayer
+    if (!room.wordConfig.useSystemWords) {
+      const contributed = getAllCustomWordEntries()
+      if (contributed.length === 0) {
+        return { success: false, error: { code: ErrorCode.INVALID_WORD_CONFIG, message: '暂无贡献词汇，请先在首页贡献词库后重试' } }
+      }
+    }
+
+    room.totalRounds = room.players.length * room.roundsPerPlayer
     room.state = 'playing'
     room.currentRound = 1
     room.players.forEach((p) => {
